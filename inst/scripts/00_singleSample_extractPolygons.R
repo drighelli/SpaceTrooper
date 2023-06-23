@@ -4,28 +4,34 @@
 
 library(data.table)
 
-project <- "CosMx_Lung"
+# project <- "CosMx_Lung"
 sample.name <- "Lung5_Rep1"
 type.of.image <- "CellLabels"
-
+# force=FALSE
 ### directory settings ###
-  main.path <- file.path("/Users","silviobicciato","Documents","GeneChip_Data",project)
-  data.dir <- file.path(main.path,"data",sample.name)
+  # main.path <- file.path("/Users","silviobicciato","Documents","GeneChip_Data",project)
+  main.path <- file.path("~/Downloads","CosMx_data")
+  data.dir <- file.path(main.path,sample.name, "Lung5_Rep1-Flat_files_and_images")
   meta.data.all <- read.csv(file.path(data.dir,paste0(sample.name,"_metadata_file.csv")),header = T)
   fov.positions <- read.csv(file.path(data.dir,paste0(sample.name,"_fov_positions_file.csv")),header = T)
-  source(file.path(main.path,"scripts","service functions","SpatVect_generate.R"))
+  source(file.path("inst/scripts/SpatVect_generate.R"))
 
 ###############################################################
-### Generate the polygon and centroids .csv file for Seurat ###  
+### Generate the polygon and centroids .csv file for Seurat ###
 ###############################################################
   fov.positions <- fov.positions[fov.positions$fov%in%unique(meta.data.all$fov),]
   poly.mat <- NULL
-  for (k in 1:dim(fov.positions)[1]){
+  for (k in 1:dim(fov.positions)[1])
+  {
     print(paste0("Processing FOV ", fov.positions[k,"fov"]))
-    Spat.obj <- SpatVect_generate(main.path = data.dir,
-                                  image.type = type.of.image,
-                                  fov.number = fov.positions[k,"fov"],
-                                  flip.vertical = TRUE)
+    Spat.obj <- spatVectGenerate(main.path = data.dir,
+                                 image.type = type.of.image,
+                                 fov.number = fov.positions[k,"fov"],
+                                 flip.vertical = TRUE)
+        # SpatVect_generate(main.path = data.dir,
+        #                           image.type = type.of.image,
+        #                           fov.number = fov.positions[k,"fov"],
+        #                           flip.vertical = TRUE) #force=force
     # Convert the SpatVector to a data table
     DT.geom <- as.data.table(terra::geom(Spat.obj))
     DT.values <- as.data.table(terra::values(Spat.obj))
@@ -42,7 +48,7 @@ type.of.image <- "CellLabels"
     spatVecCT <- merge.data.table(CT.geom, CT.values,by = "geom")
     spatVecCT <- spatVecCT[,c("cellID","x","y")]
     names(spatVecCT) <- c("cellID","sdimx", "sdimy")
-    # merge polygons and centroids  
+    # merge polygons and centroids
     sample.poly.mat <- merge(spatVecDT,spatVecCT, by = "cellID")
     # shift coordinates base on the underlying tissue geometry
     sample.poly.mat[,c("x_global_px","sdimx")] <- sample.poly.mat[,c("x_global_px","sdimx")] + fov.positions[k,"x_global_px"]

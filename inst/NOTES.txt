@@ -1,0 +1,104 @@
+casi d'uso
+1. a tessuto intero e quindi con i FoVs ricostruiti
+2. a FoVs che adiacenti e quidni su singolo FoVs e stitching degli FoV e il loro posizionamento.
+
+- i valori di espressione nel file delle espressioni hanno tutti i dati di tutte le FOVs
+- le cellule vanno identificate anche per il FOV in cui si trovano (colData attr)
+- normalizzazioni per FoVs o per intero esperimento?
+- un vettore di geometria sono per ogni cellula
+-
+
+CODECS - con un Geojson si ottengono tutti i segmenti/poligoni che è poi utile a costruire
+i segmenti delle cellule da includere nell'oggetto di seurat
+
+-> necessità di uniformare questa trasformazione riportando allo stesso oggetto che si usa
+nell'altra tecnologia (nanostring cosmx) ovvero uno spatialvector (multipolygon object di sf)
+
+gli spatvector sono solo su disco e si caricano all'occorrenza del plot,
+se ne può costruire anche uno globale
+
+
+in CODECS abbiamo nel JSON solo un riferimento a tutti i FOVs già messi tutti insieme
+
+
+Xenium immagini grandi produce i cell boundaries in formato txt e ha per ogni cellula tutti
+i vertici del contorno
+
+
+tre entità da caricare a necessità: da qui mi viene da pensare "how can we lightweight the existing experiments?" -> quali sono le tecnologie informatiche per fare accessi rapidi da
+disco e costruire un oggetto on top? zarr? cos'è?
+- metadati cellule che si aggiorna in base alle operazioni che si fanno
+- metadati molecole
+- conteggi con le sue trasformazioni
+- oggetti spaziali handled con sf
+
+----- Experiment note on the single sample
+-nome campione
+--nomecampione_flat_files_and_images
+
+i nomi della cellula vengono azzerati per ogni FOV
+
+----- workflow
+01 - single sample create
+in seurat c'è LoadNanostring
+chiama ReadNanostring che vuole
+segmentations
+centroids
+metadata ok
+mtx file
+tx file ok
+polygons non output ufficiale -> 00extractPolygons function starts from images per ogni FOV -> utili poi a creare gli shape file con sf
+
+
+fattore di scala di 0.18um per le fov e interessante per le dimensioni delle cellule corrette.
+expression matrix ok
+
+effetturare controllo sui FOVs tra i vari file messi a disposizione nell'output.
+fov positions, metadata e expressions.
+il poligono della maschera di inquadramento viene sempre indicizzato come 0 dal pacchetto terra.
+sia in codex che in cosmx
+
+ogni cellula si identifica con identificativo FOV + identificativo cellula (perchè quest'ultimo riparte da 1 per ogni FOV
+
+fare una prova del 9 sul centroide calcolato a. mano e quello fornito nei metadata delle cellule fornito in output dal cosmx
+
+
+dimensione del FOV cosmx:
+leggere nel readme sul sito della nanostring per avere info dell'output
+
+DAPI markatore nucleo
+PanCK
+
+
+
+00 create image mette insieme gli shape files di tutti i file in un unico shape file per tutte le immagini.
+
+
+opionions between tmap and ggplot?
+
+usare tmap per fare i plot
+
+is it possible to combine ggplot and tmap? seems not
+
+
+la funzione populate aggiunge metadati allo shape file una volta caricato in memoria.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

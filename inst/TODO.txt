@@ -1,0 +1,6 @@
+1. create function for polygons computation
+2. function for loading data
+3. function for filtering data
+3.1 undesired FOV
+3.2 unmapped txs (CellID=0)
+3.3 filter low expressed txs (0 everywhere)
