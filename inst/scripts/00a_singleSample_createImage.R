@@ -1,9 +1,8 @@
-####################################################################################
-### Script to generate the polygons and centroids file for Seurat LoadNanostring ###
-####################################################################################
+###########################################################
+### Script to stitch the single FOVs into a whole image ###
+###########################################################
 
 library(sf)
-library(tmap)
 
 project <- "CosMx_Lung"
 sample.name <- "Lung5_Rep1"
@@ -26,16 +25,10 @@ type.of.image <- "CellLabels"
     st_geometry(temp.obj) <- temp.obj$geometry + c(fov.positions$x_global_px[k],fov.positions$y_global_px[k]) 
     Spat.obj <- rbind(Spat.obj, temp.obj)
   }
-
-### plot global image ###  
-  tm_shape(Spat.obj) + 
-    tm_fill(col="black") + 
-    tm_borders(lwd = 0.3, alpha=0.5, col = "grey")
+  Spat.obj$cellID <- paste0(meta.data.all$cell_ID,"_",meta.data.all$fov)
 
 ### save global spatVect ###
   global.image.dir <- file.path(data.dir,"spatVect","global")
   if (!file.exists(global.image.dir)){dir.create(global.image.dir)}
-  st_write(Spat.obj, file.path(global.image.dir,paste0(sample.name,".shp")))
-  
-  # temp.obj <- read_sf(global.image.dir)
-  
+  st_write(Spat.obj, file.path(global.image.dir,paste0(sample.name,".shp")),
+           append=FALSE)
