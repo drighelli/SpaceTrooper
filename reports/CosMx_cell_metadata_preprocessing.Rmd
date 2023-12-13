@@ -8,7 +8,8 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE,
                       warnings = FALSE,
-                      messages = FALSE)
+                      messages = FALSE,
+                      fig.dim=c(12,10))
 ```
 
 Library import
