@@ -24,14 +24,14 @@ type.of.image <- "CellLabels"
   for (k in 1:dim(fov.positions)[1])
   {
     print(paste0("Processing FOV ", fov.positions[k,"fov"]))
-    Spat.obj <- spatVectGenerate(main.path = data.dir,
-                                 image.type = type.of.image,
-                                 fov.number = fov.positions[k,"fov"],
-                                 flip.vertical = TRUE)
-        # SpatVect_generate(main.path = data.dir,
-        #                           image.type = type.of.image,
-        #                           fov.number = fov.positions[k,"fov"],
-        #                           flip.vertical = TRUE) #force=force
+    # Spat.obj <- spatVectGenerate(main.path = data.dir,
+    #                              image.type = type.of.image,
+    #                              fov.number = fov.positions[k,"fov"],
+    #                              flip.vertical = TRUE)
+    Spat.obj <-     SpatVect_generate(main.path = data.dir,
+                                  image.type = type.of.image,
+                                  fov.number = fov.positions[k,"fov"],
+                                  flip.vertical = TRUE) #force=force
     # Convert the SpatVector to a data table
     DT.geom <- as.data.table(terra::geom(Spat.obj))
     DT.values <- as.data.table(terra::values(Spat.obj))
