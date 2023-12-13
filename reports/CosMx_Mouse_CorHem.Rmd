@@ -82,14 +82,13 @@ readCosmxSPE <- function(dirname = dirname,
 Setting directories
 
 ```{r}
-dirname <- "/mnt/europa/data/spatial_omics/CosMx/Mouse brain/coronal hemisphere"
+dirname <- "/mnt/europa/data/spatial_omics/CosMx/Mouse brain/coronal_hemisphere"
 prefix <- "Run1000_S1_Half"
 fov_pattern <- paste0(prefix, "_fov_positions_file.csv")
 count_pattern <- paste0(prefix, "_exprMat_file.csv")
 meta_pattern <- paste0(prefix, "_metadata_file.csv")
-sample_name <- "mouse_hippo_ctx"
-out_dir <- "mouse_hippo_ctx"
-dir.create(out_dir)
+out_dir <- sample_name <- "mouse_corhem"
+# dir.create(out_dir)
 ```
 
 ## CosMx dataset exploratory analysis for preprocessing
