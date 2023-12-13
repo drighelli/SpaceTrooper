@@ -75,9 +75,11 @@ readCosmxSPE <- function(dirname = dirname,
 Setting directories
 
 ```{r}
-dirname <- "./coronal hippocampus and cortex"
-count_pattern <- "Run5642_S3_Quarter_exprMat_file.csv"
-meta_pattern <- "Run5642_S3_Quarter_metadata_file.csv"
+dirname <- "/mnt/europa/data/spatial_omics/CosMx/Mouse brain/coronal hippocampus and cortex"
+prefix <- "Run5642_S3_Quarter"
+fov_pattern <- paste0(prefix, "_fov_positions_file.csv")
+count_pattern <- paste0(prefix, "_exprMat_file.csv")
+meta_pattern <- paste0(prefix, "_metadata_file.csv")
 sample_name <- "mouse_hippo_ctx"
 out_dir <- "mouse_hippo_ctx"
 dir.create(out_dir)
@@ -117,7 +119,7 @@ Approaching dataset preprocessing starting from global-scale, proceeding to loca
 Sample map with fov grid
 
 ```{r}
-fov_pattern <- "Run5642_S3_Quarter_fov_positions_file.csv"
+
 metadata_file <- file.path(dirname, list.files(dirname, meta_pattern))
 fovpos_file <- file.path(dirname, list.files(dirname, fov_pattern))
 
