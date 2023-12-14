@@ -1,5 +1,5 @@
 ---
-title: "CosMx Mouse Brain Coronal Hemisphere"
+title: "CosMx Mouse Brain Hippo Ctx"
 author: "Dario Righelli"
 date: "`r Sys.Date()`"
 output: 
@@ -40,11 +40,11 @@ library(tmap)
 Read-in function
 
 ```{r}
-readCosmxSPE <- function(dirname = dirname, 
-                         countmatfpattern = "exprMat_file.csv", 
-                         metadatafpattern = "metadata_file.csv", 
-                         coord_names = c("CenterX_global_px",
-                                         "CenterY_global_px")){
+readCosmxSPE <- function(dirname=dirname, 
+                        countmatfpattern="exprMat_file.csv", 
+                        metadatafpattern="metadata_file.csv", 
+                        coord_names=c("CenterX_global_px", "CenterY_global_px"),
+                        fov_dims=c(xdim=4256, ydim=4256)){
   
   countmat_file <- file.path(dirname, list.files(dirname, countmatfpattern))
   metadata_file <- file.path(dirname, list.files(dirname, metadatafpattern))
@@ -53,7 +53,7 @@ readCosmxSPE <- function(dirname = dirname,
   countmat <- data.table::fread(countmat_file)
   metadata <- data.table::fread(metadata_file)
   
-  # Count matrix   
+  # Count matrix
   counts <- merge(countmat, metadata[, c("fov", "cell_ID")])
   counts <- subset(counts, select = -c(fov, cell_ID))
   cell_codes <- rownames(counts)
@@ -64,13 +64,18 @@ readCosmxSPE <- function(dirname = dirname,
   colnames(counts) <- cell_codes
   
   # rowData (does not exist)
+  # To be associated to the tx file
   
-  # check if all the cells are present in both matrices, print a warning if not
-  # store in the metadata the cell.ids with their metadata that are not present 
-  # in one of them
   # colData
   colData <- merge(metadata, countmat[, c("fov", "cell_ID")])
   
+  ############# NOTES #################
+  # to add FoV positions file as metadata(spe)$fov_positions
+  # to add fov dimesions (they changes based on the technology) as metadata(spe)$fov_dim
+  ## FOV positions file to load and check the presence of all FOVs in the 
+  ## colData
+  
+   
   spe <- SpatialExperiment::SpatialExperiment(
     assays = list(counts = counts),
     # rowData = rowData,
@@ -85,13 +90,14 @@ readCosmxSPE <- function(dirname = dirname,
 Setting directories
 
 ```{r}
-dirname <- "/mnt/europa/data/spatial_omics/CosMx/Mouse brain/coronal_hemisphere"
-prefix <- "Run1000_S1_Half"
+dirname <- "/mnt/europa/data/spatial_omics/CosMx/Mouse brain/coronal hippocampus and cortex"
+prefix <- "Run5642_S3_Quarter"
 fov_pattern <- paste0(prefix, "_fov_positions_file.csv")
 count_pattern <- paste0(prefix, "_exprMat_file.csv")
 meta_pattern <- paste0(prefix, "_metadata_file.csv")
-out_dir <- sample_name <- "mouse_corhem"
-# dir.create(out_dir)
+sample_name <- "mouse_hippo_ctx"
+out_dir <- "mouse_hippo_ctx"
+dir.create(out_dir)
 ```
 
 ## CosMx dataset exploratory analysis for preprocessing

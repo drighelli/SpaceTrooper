@@ -12,3 +12,4 @@ LazyData: true
 Depends:
 Imports:
 Suggests:
+RoxygenNote: 7.2.3
