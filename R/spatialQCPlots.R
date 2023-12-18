@@ -60,14 +60,19 @@ plotCellsFovs <- function(spe, point_col="darkmagenta", sample_id=NULL)
                             fill=point_col,
                             size=0.05, alpha=0.2) +
         annotate("rect",
-                 xmin=metadata(spe)$fov_positions[2][,,drop=TRUE],
-                 xmax=metadata(spe)$fov_positions[2][,,drop=TRUE] + metadata(spe)$fov_dim[["xdim"]],
-                 ymin=metadata(spe)$fov_positions[3][,,drop=TRUE],
-                 ymax=metadata(spe)$fov_positions[3][,,drop=TRUE] + metadata(spe)$fov_dim[["ydim"]],
+                 xmin=metadata(spe)$fov_positions[2][ , , drop=TRUE],
+                 xmax=metadata(spe)$fov_positions[2][ , , drop=TRUE] +
+                     metadata(spe)$fov_dim[["xdim"]],
+                 ymin=metadata(spe)$fov_positions[3][ , , drop=TRUE],
+                 ymax=metadata(spe)$fov_positions[3][ , , drop=TRUE] +
+                     metadata(spe)$fov_dim[["ydim"]],
                  alpha=.2, color="black", linewidth=0.2) +
-        geom_text(aes(x=metadata(spe)$fov_positions[2][,,drop=TRUE]+metadata(spe)$fov_dim[["xdim"]]/2,
-                      y=metadata(spe)$fov_positions[3][,,drop=TRUE]+metadata(spe)$fov_dim[["ydim"]]/2,
-                      label=metadata(spe)$fov_positions[1][,,drop=TRUE], color="black", fontface="bold")) +
+        geom_text(aes(x=metadata(spe)$fov_positions[2][ , , drop=TRUE] +
+                          metadata(spe)$fov_dim[["xdim"]]/2,
+                      y=metadata(spe)$fov_positions[3][ , , drop=TRUE] +
+                          metadata(spe)$fov_dim[["ydim"]]/2,
+                      label=metadata(spe)$fov_positions[1][ , , drop=TRUE],
+                            color="black", fontface="bold")) +
         ggtitle(unique(spe$sample_id)) +
         .fov_image_theme(back.color="white", back.border="white", title.col="black")
     return(ggp)
