@@ -71,8 +71,8 @@ plotCellsFovs <- function(spe, point_col="darkmagenta", sample_id=NULL)
                           metadata(spe)$fov_dim[["xdim"]]/2,
                       y=metadata(spe)$fov_positions[3][ , , drop=TRUE] +
                           metadata(spe)$fov_dim[["ydim"]]/2,
-                      label=metadata(spe)$fov_positions[1][ , , drop=TRUE],
-                            color="black", fontface="bold")) +
+                      label=metadata(spe)$fov_positions[1][ , , drop=TRUE]),
+                            color="black", fontface="bold", alpha=.7) +
         ggtitle(unique(spe$sample_id)) +
         .fov_image_theme(back.color="white", back.border="white", title.col="black")
     return(ggp)

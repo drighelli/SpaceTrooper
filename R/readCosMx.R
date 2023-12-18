@@ -128,12 +128,7 @@ readCosmxSPE <- function(dirname=dirname,
     # colData
     colData <- merge(metadata, countmat[, c("fov", "cell_ID")])
 
-    spe <- SpatialExperiment::SpatialExperiment(
-        assays = list(counts = counts),
-        # rowData = rowData,
-        colData = colData,
-        spatialCoordsNames = coord_names
-    )
+
     ############# NOTES #################
     # to add FoV positions file as metadata(spe)$fov_positions
     # to add fov dimesions (they changes based on the technology) as
@@ -141,12 +136,17 @@ readCosmxSPE <- function(dirname=dirname,
     ## FOV positions file to load and check the presence of all FOVs in the
     ## colData
 
-    # metadata_file <- file.path(dirname, list.files(dirname, meta_pattern))
-    fov_positions <- data.table::fread(fovpos_file, header = T)
+    fov_positions <- as.data.frame(data.table::fread(fovpos_file, header = T))
     idx <- fov_positions$fov %in% unique(metadata$fov)
     ## track if one of more fov is not present in the metadata file
-    metadata(spe)$fov_positions <- fov_positions[idx,]
-    metadata(spe)$fov_dim <- fov_dims
-
+    # metadata(spe)$fov_positions <- fov_positions[idx,]
+    # metadata(spe)$fov_dim <- fov_dims
+    spe <- SpatialExperiment::SpatialExperiment(
+        assays = list(counts = counts),
+        # rowData = rowData,
+        colData = colData,
+        spatialCoordsNames = coord_names,
+        metadata=list(fov_positions=fov_positions[idx,], fov_dim=fov_dims)
+    )
     return(spe)
 }
