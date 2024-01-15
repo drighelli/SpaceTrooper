@@ -132,6 +132,7 @@ variables <- c("total", "detected")
 Approaching dataset preprocessing starting from global-scale, proceeding to local-scale, then fov-focused exploratory analysis
 
 Sample map with fov grid
+
 ```{r}
 
 metadata_file <- file.path(dirname, list.files(dirname, meta_pattern))
