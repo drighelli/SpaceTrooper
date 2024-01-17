@@ -11,6 +11,4 @@ RUN apt-get update \
 	&& rm -rf /var/lib/apt/lists/*
 
 # Install required Bioconductor package
-RUN R -e 'BiocManager::install(c("SpatialExperiment", "data.table", "scater", ' \
-    "cowplot", "ggplot2", "matrixStats", "dplyr", "tidyr", "tibble", "arrow", ' \
-    "scales", "sf", "tmap")'
+RUN R -e 'BiocManager::install(c("SpatialExperiment", "data.table", "scater", "cowplot", "ggplot2", "matrixStats", "dplyr", "tidyr", "tibble", "arrow", "scales", "sf", "tmap"))'
