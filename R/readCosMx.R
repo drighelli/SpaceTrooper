@@ -127,7 +127,8 @@ readCosmxSPE <- function(dirname=dirname,
 
     # colData
     colData <- merge(metadata, countmat[, c("fov", "cell_ID")])
-
+    ## multiply spatial coordinates in micron multiplying by 0.18 and store
+    ## two additional columns
 
     ############# NOTES #################
     # to add FoV positions file as metadata(spe)$fov_positions
