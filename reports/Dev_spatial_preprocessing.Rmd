@@ -1,0 +1,741 @@
+---
+title: "Spatial_preprocessing_dev"
+author: "Benedetta Banzi"
+date: "2024-01-25"
+output: html_document
+---
+
+<STYLE TYPE="text/css">
+<!--
+  td{
+    font-family: Arial; 
+    font-size: 10 pt;
+    padding:0px;
+    cellpadding="0";
+    cellspacing="0"
+  }
+  th {
+    font-family: Arial; 
+    font-size: 10 pt;
+    height: 20px;
+    font-weight: bold;
+    text-align: "center";
+    background-color: #ccccff;
+  }
+  table { 
+    border-spacing: 4px;
+    border-collapse: collapse;
+  }
+--->
+</STYLE>
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Library import
+
+```{r}
+library(SpatialExperiment)
+library(data.table)
+library(scater) # it imports scuttle
+library(cowplot)
+library(ggplot2)
+theme_set(theme_bw())
+library(matrixStats)
+library(dplyr)
+library(tidyr)
+library(tibble)
+library(arrow)
+library(scales)
+library(sf)
+library(tmap)
+library(knitr)
+library(grid)
+```
+
+Read-in function
+
+```{r}
+readCosmxSPE <- function(dirname = dirname, 
+                         countmatfpattern = "exprMat_file.csv", 
+                         metadatafpattern = "metadata_file.csv", 
+                         coord_names = c("CenterX_global_px",
+                                         "CenterY_global_px")){
+  
+  countmat_file <- file.path(dirname, list.files(dirname, countmatfpattern))
+  metadata_file <- file.path(dirname, list.files(dirname, metadatafpattern))
+  
+  # Read in 
+  countmat <- data.table::fread(countmat_file)
+  metadata <- data.table::fread(metadata_file)
+  
+  # Count matrix   
+  counts <- merge(countmat, metadata[, c("fov", "cell_ID")])
+  counts <- subset(counts, select = -c(fov, cell_ID))
+  cell_codes <- rownames(counts)
+  features <- colnames(counts)
+  counts <- t(counts)
+  
+  rownames(counts) <- features
+  colnames(counts) <- cell_codes
+  
+  # rowData (does not exist)
+  
+  # colData
+  colData <- merge(metadata, countmat[, c("fov", "cell_ID")])
+  
+  spe <- SpatialExperiment::SpatialExperiment(
+    assays = list(counts = counts),
+    # rowData = rowData,
+    colData = colData,
+    spatialCoordsNames = coord_names
+  )
+  
+  return(spe)
+}
+```
+
+Setting directories
+
+```{r}
+dirname <- "/NAS06/work/Spatial_omics/DBKero/CosMx_Breast/CosMX_data_Case2"
+count_pattern <- "Run5810_Case2_exprMat_file.csv"
+meta_pattern <- "Run5810_Case2_metadata_file.csv"
+sample_name <- "CosMx_DBKero_BC"
+```
+
+# CosMx dataset exploratory analysis for preprocessing
+
+SpatialExperiment object creation and exploration
+
+```{r}
+spe <- readCosmxSPE(dirname = dirname, countmatfpattern = count_pattern, metadatafpattern = meta_pattern)
+spe <- scuttle::addPerCellQC(spe, subsets=list(NegProb = grep("^NegPrb", rownames(spe))))
+names(colData(spe)@listData)
+```
+
+```{r}
+dim(spe)
+```
+
+# Fov position file loading
+
+```{r}
+fov_pattern <- "Run5810_Case2_fov_positions_file.csv"
+fovpos_file <- file.path(dirname, list.files(dirname, fov_pattern))
+
+metadata <- data.table::fread(file.path(dirname, list.files(dirname, meta_pattern)))
+fov_positions <- data.table::fread(fovpos_file, header = T)
+fov_positions <- fov_positions[fov_positions$fov%in%unique(metadata$fov),]
+```
+
+# Added variables
+
+```{r}
+fov_size <- 4256
+
+# Importing global coordinates from spatialCoords slot since they are not available in colData
+colData(spe)$CenterX_global_px <- spatialCoords(spe)[,1]
+colData(spe)$CenterY_global_px <- spatialCoords(spe)[,2]
+
+# Converting global coordinates to um 
+spe$CenterX_global_um <- spe$CenterX_global_px*0.18
+spe$CenterY_global_um <- spe$CenterY_global_px*0.18 
+
+# Logged total counts
+spe$logtot <- log10(spe$total)
+
+# Converting area in um
+spe$um_area <- spe$Area*0.0324
+
+# Logged width/height ratio so there are no holes in the distribution in the middle and also negative values can be appreciated
+spe$log2_AspectRatio <- log2(spe$AspectRatio)
+
+# Keeping only target counts by subtracting counts referred to negative control probes
+spe$target_counts <- spe$total - spe$subsets_NegProb_sum
+
+# Keeping only detected features by subtracting negative control probes
+spe$target_detected <- spe$detected - spe$subsets_NegProb_detected
+
+# Proportion between counts referred only to target probes and detected features
+spe$tot_det_ratio <- spe$target_counts/spe$target_detected
+
+spe$ctrl_total_ratio <- spe$subsets_NegProb_sum/spe$total
+```
+
+# Sf object creation from metadata
+
+```{r}
+meta_df <- data.frame(colData(spe))
+meta_df <- group_by(meta_df, fov) |> summarize(n_cells = n(), mean_total = mean(total), mean_detected = mean(detected), mean_umarea = mean(um_area), mean_log2_AspectRatio = mean(log2_AspectRatio), mean_tot_det_ratio = mean(tot_det_ratio), mean_subsets_NegProb_sum = mean(subsets_NegProb_sum), median_total = median(total), median_detected = median(detected), median_umarea = median(um_area),median_log2_AspectRatio = median(log2_AspectRatio), median_tot_det_ratio = median(tot_det_ratio), median_subsets_NegProb_sum = median(subsets_NegProb_sum))
+
+fov_positions <- left_join(fov_positions, meta_df, by = join_by(fov))
+
+fov_size <- 4256
+poly_df <- transmute(fov_positions, x_1 = x_global_px, y_1 = y_global_px, 
+                     x_2 = x_global_px + fov_size, y_2 = y_global_px, 
+                     x_3 = x_global_px + fov_size, y_3 = y_global_px + fov_size, 
+                     x_4 = x_global_px, y_4 = y_global_px + fov_size)
+
+str(poly_df)
+
+ls_list <- list()
+for (k in 1:dim(fov_positions)[1]){
+  ls_list[[k]] <- st_linestring(matrix(as.numeric(poly_df[k]), ncol = 2, byrow = T))
+}
+
+sf_data <- st_as_sf(fov_positions, coords = c("x_global_px", "y_global_px"), geometry = st_sfc(ls_list))
+
+sf_data <- st_cast(sf_data, "POLYGON")
+
+# plot(sf_data)
+names(sf_data)
+sf_data$fov <- as.factor(sf_data$fov)
+
+```
+
+# Flagging score development
+
+Starting from feature scatterplots to see the relationship between possible candidate features
+
+Total counts ~ logged width/height ratio
+
+```{r}
+cell_df <- data.frame(colData(spe))
+
+ggplot(data = cell_df, aes(x = log2_AspectRatio, y = total)) +
+  geom_point() + 
+  ggtitle("Counts ~ log2_AspectRatio")
+```
+
+Detected features ~ logged width/height ratio
+
+```{r}
+ggplot(data = cell_df, aes(x = log2_AspectRatio, y = detected)) +
+  geom_point() + 
+  ggtitle("Detected features ~ log2_AspectRatio")
+```
+
+Total counts ~ area in um
+
+```{r}
+ggplot(data = cell_df, aes(x = um_area, y = total)) +
+  geom_point() + 
+  ggtitle("Total target counts ~ μm area")
+```
+
+Total counts ~ area in px
+
+```{r}
+ggplot(data = cell_df, aes(x = Area, y = total)) +
+  geom_point() + 
+  ggtitle("Total target counts ~ px area")
+```
+
+Logged width/height ratio ~ negative control probe counts
+
+```{r}
+ggplot(data = cell_df, aes(x = subsets_NegProb_sum, y = log2_AspectRatio)) +
+  geom_point() + 
+  ggtitle("Logged width/height ratio ~ negative control probe counts")
+```
+
+Logged width/height ratio ~ local coordinates on X axis in px
+
+```{r}
+ggplot(data = cell_df, aes(x = CenterX_local_px, y = log2_AspectRatio)) +
+  geom_point() + 
+  ggtitle("Logged width/height ratio ~ local coordinates on X axis in px")
+```
+
+Logged width/height ratio ~ local coordinates on X axis in px
+
+```{r}
+ggplot(data = cell_df, aes(x = CenterY_local_px, y = log2_AspectRatio)) +
+  geom_point() + 
+  ggtitle("Logged width/height ratio ~ local coordinates on Y axis in px")
+```
+
+# Flag score formula
+
+```{r}
+spe$flag_score <- 1/(1 + exp(-0.3*spe$target_counts/spe$um_area + 0.8*abs(spe$log2_AspectRatio)))
+summary(spe$flag_score)
+plot(spe$flag_score)
+```
+
+```{r}
+hist(spe$flag_score)
+```
+
+## Cell boundary file loading
+
+Loading polygon file and setting the correct format as sf object
+
+```{r}
+spat_obj <- fread("/NAS06/work/Spatial_omics/DBKero/CosMx_Breast/CosMX_data_Case2/Run5810_Case2-polygons.csv")
+str(spat_obj)
+```
+
+```{r}
+sf_data <- st_as_sf(spat_obj, coords = c("x_local_px", "y_local_px"))
+
+polygons <- sf_data %>%
+  group_by(fov, cellID) %>%
+  summarize(geometry = st_combine(geometry))#st_combine = combine several feature geometries into one, without unioning or resolving internal boundaries
+
+polygons <- st_cast(polygons, "POLYGON")
+```
+
+
+```{r, out.width="150%", out.height="150%"}
+polygons$total <- spe$total
+polygons$target_counts <- spe$target_counts
+polygons$um_area <- spe$um_area
+polygons$log2_AspectRatio <- spe$log2_AspectRatio
+polygons$flag_score <- spe$flag_score
+```
+
+Local feature map of flag score, fov 21
+
+```{r, out.width="150%", out.height="150%"}
+polygons21 <- filter(polygons, fov==21) 
+
+tm_shape(polygons21) + 
+  tm_fill(col= "flag_score", alpha = 0.5) +
+  tm_borders(lwd = 0.1, col = "grey50") +
+  tm_layout(legend.outside = TRUE)
+```
+
+Local threshold map of flag score, target counts, um_area and logged width/height ratio, 20th percentile
+
+```{r, out.width="300%", out.height="600%"}
+metric_color <- ifelse(polygons21$flag_score < quantile(spe$flag_score, probs = 0.2), "red", "white")
+target_color <- ifelse(polygons21$target_counts < quantile(spe$target_counts, probs = 0.2), "red", "white")
+area_color <- ifelse(polygons21$um_area < quantile(spe$um_area, probs = 0.2), "red", "white")
+log_hw_color_lo <- ifelse(polygons21$log2_AspectRatio < quantile(spe$log2_AspectRatio, probs = 0.2), "red", "white")
+log_hw_color_hi <- ifelse(polygons21$log2_AspectRatio > quantile(spe$log2_AspectRatio, probs = 0.85), "red", "white")
+
+polygons21 <- cbind(polygons21, metric_color = metric_color, target_color = target_color, area_color = area_color, log_hw_color_lo = log_hw_color_lo, 
+                    log_hw_color_hi = log_hw_color_hi)
+
+p1 <- tm_shape(polygons21) + 
+  tm_fill(col= "metric_color", alpha = 0.5) +
+  tm_borders(lwd = 0.1, col = "grey50") +
+  tm_layout(legend.outside = TRUE,
+            main.title.position = c("center", "top"),
+            main.title = "Flag score",
+            main.title.size = 0.5, 
+            inner.margins = c(0, 0, 0, 0),
+            outer.margins = c(0, 0, 0, 0))
+
+
+p2 <- tm_shape(polygons21) + 
+  tm_fill(col= "target_color", alpha = 0.5) +
+  tm_borders(lwd = 0.1, col = "grey50") +
+  tm_layout(legend.outside = TRUE,
+            main.title.position = c("center", "top"),
+            main.title = "Target counts",
+            main.title.size = 0.5, 
+            inner.margins = c(0, 0, 0, 0),
+            outer.margins = c(0, 0, 0, 0))
+
+p3 <- tm_shape(polygons21) + 
+  tm_fill(col= "area_color", alpha = 0.5) +
+  tm_borders(lwd = 0.1, col = "grey50") +
+  tm_layout(legend.outside = TRUE,
+            main.title.position = c("center", "top"),
+            main.title = "um area",
+            main.title.size = 0.5, 
+            inner.margins = c(0, 0, 0, 0),
+            outer.margins = c(0, 0, 0, 0))
+
+
+p4 <- tm_shape(polygons21) + 
+  tm_fill(col= "log_hw_color_lo", alpha = 0.5) +
+  tm_borders(lwd = 0.1, col = "grey50") +
+  tm_layout(legend.outside = TRUE,
+            main.title.position = c("center", "top"),
+            main.title = "Logged AspectRatio below",
+            main.title.size = 0.5, 
+            inner.margins = c(0, 0, 0, 0),
+            outer.margins = c(0, 0, 0, 0))
+
+p5 <- tm_shape(polygons21) + 
+  tm_fill(col= "log_hw_color_hi", alpha = 0.5) +
+  tm_borders(lwd = 0.1, col = "grey50") +
+  tm_layout(legend.outside = TRUE,
+            main.title.position = c("center", "top"),
+            main.title = "Logged AspectRatio above",
+            main.title.size = 0.5, 
+            inner.margins = c(0, 0, 0, 0),
+            outer.margins = c(0, 0, 0, 0))
+
+tmap_arrange(p1, p2, p3, p4, p5, ncol = 2)
+```
+
+```{r, out.width="150%", out.height="150%"}
+plot_list <- list(p1, p2, p3, p4, p5)
+for(i in 1:length(plot_list)){
+  print(plot_list[[i]])
+}
+```
+
+
+```{r, out.width="150%", out.height="150%"}
+
+flag_value <- c(round(quantile(polygons21$flag_score, probs = 0.2), 2),
+                round(quantile(polygons21$target_counts, probs = 0.2), 2),
+                round(quantile(polygons21$um_area, probs = 0.2), 2),
+                round(quantile(polygons21$log2_AspectRatio, probs = 0.2), 2),
+                round(quantile(polygons21$log2_AspectRatio, probs = 0.85), 2))
+
+flagged_cells <- c(sum(polygons21$metric_color=="red", na.rm = T),
+                   sum(polygons21$target_color=="red", na.rm = T),
+                   sum(polygons21$area_color=="red", na.rm = T),
+                   sum(polygons21$log_hw_color_lo=="red", na.rm = T),
+                   sum(polygons21$log_hw_color_hi=="red", na.rm = T))
+
+unflagged_cells <- c(sum(polygons21$metric_color=="white", na.rm = T),
+                     sum(polygons21$target_color=="white", na.rm = T),
+                     sum(polygons21$area_color=="white", na.rm = T),
+                     sum(polygons21$log_hw_color_lo=="white", na.rm = T),
+                     sum(polygons21$log_hw_color_hi=="white", na.rm = T))
+
+poly21 <- data.frame(threshold = c(0.2, 0.2, 0.2, 0.2, 0.85), flag_value = flag_value, unflagged_cells = unflagged_cells, flagged_cells = flagged_cells,
+                     row.names = c("Flag score", "Target counts", "Area in um", "Logged aspect ratio low", "Logged aspect ratio high"))
+
+kable(poly21, format = "html", col.names = c("Threshold", "Flag value", "Flagged cells", "Unflagged cells"), align = "c", caption = paste0("<center>Flagged cells by different metrics, total cells in fov: ", dim(polygons21)[1], ", total cells in whole sample: ", dim(polygons)[1], "</center>"),
+      padding = 1L)
+```
+
+#
+#
+
+Local threshold map of flag score, 10th percentile
+
+```{r, out.width="300%", out.height="600%"}
+metric_color <- ifelse(polygons21$flag_score < quantile(spe$flag_score, probs = 0.1), "red", "white")
+target_color <- ifelse(polygons21$target_counts < quantile(spe$target_counts, probs = 0.1), "red", "white")
+area_color <- ifelse(polygons21$um_area < quantile(spe$um_area, probs = 0.1), "red", "white")
+log_hw_color_lo <- ifelse(polygons21$log2_AspectRatio < quantile(spe$log2_AspectRatio, probs = 0.1), "red", "white")
+log_hw_color_hi <- ifelse(polygons21$log2_AspectRatio > quantile(spe$log2_AspectRatio, probs = 0.95), "red", "white")
+
+polygons21 <- cbind(polygons21, metric_color = metric_color, target_color = target_color, area_color = area_color, log_hw_color_lo = log_hw_color_lo, 
+                    log_hw_color_hi = log_hw_color_hi)
+
+p1 <- tm_shape(polygons21) + 
+  tm_fill(col= "metric_color", alpha = 0.5) +
+  tm_borders(lwd = 0.1, col = "grey50") +
+  tm_layout(legend.outside = TRUE,
+            main.title.position = c("center", "top"),
+            main.title = "Flag score",
+            main.title.size = 0.5, 
+            inner.margins = c(0, 0, 0, 0),
+            outer.margins = c(0, 0, 0, 0))
+
+p2 <- tm_shape(polygons21) + 
+  tm_fill(col= "target_color", alpha = 0.5) +
+  tm_borders(lwd = 0.1, col = "grey50") +
+  tm_layout(legend.outside = TRUE,
+            main.title.position = c("center", "top"),
+            main.title = "Target counts",
+            main.title.size = 0.5, 
+            inner.margins = c(0, 0, 0, 0),
+            outer.margins = c(0, 0, 0, 0))
+
+p3 <- tm_shape(polygons21) + 
+  tm_fill(col= "area_color", alpha = 0.5) +
+  tm_borders(lwd = 0.1, col = "grey50") +
+  tm_layout(legend.outside = TRUE,
+            main.title.position = c("center", "top"),
+            main.title = "um area",
+            main.title.size = 0.5, 
+            inner.margins = c(0, 0, 0, 0),
+            outer.margins = c(0, 0, 0, 0))
+
+p4 <- tm_shape(polygons21) + 
+  tm_fill(col= "log_hw_color_lo", alpha = 0.5) +
+  tm_borders(lwd = 0.1, col = "grey50") +
+  tm_layout(legend.outside = TRUE,
+            main.title.position = c("center", "top"),
+            main.title = "Logged AspectRatio below",
+            main.title.size = 0.5, 
+            inner.margins = c(0, 0, 0, 0),
+            outer.margins = c(0, 0, 0, 0))
+
+p5 <- tm_shape(polygons21) + 
+  tm_fill(col= "log_hw_color_hi", alpha = 0.5) +
+  tm_borders(lwd = 0.1, col = "grey50") +
+  tm_layout(legend.outside = TRUE,
+            main.title.position = c("center", "top"),
+            main.title = "Logged AspectRatio above",
+            main.title.size = 0.5, 
+            inner.margins = c(0, 0, 0, 0),
+            outer.margins = c(0, 0, 0, 0))
+
+tmap_arrange(p1, p2, p3, p4, p5, ncol = 2)
+
+```
+
+```{r, out.width="150%", out.height="150%"}
+plot_list <- list(p1, p2, p3, p4, p5)
+for(i in 1:length(plot_list)){
+  print(plot_list[[i]])
+}
+```
+
+```{r, out.width="300%", out.height="300%"}
+
+flag_value <- c(round(quantile(polygons21$flag_score, probs = 0.1), 2),
+                round(quantile(polygons21$target_counts, probs = 0.1), 2),
+                round(quantile(polygons21$um_area, probs = 0.1), 2),
+                round(quantile(polygons21$log2_AspectRatio, probs = 0.1), 2),
+                round(quantile(polygons21$log2_AspectRatio, probs = 0.95), 2))
+
+flagged_cells <- c(sum(polygons21$metric_color=="red", na.rm = T),
+                   sum(polygons21$target_color=="red", na.rm = T),
+                   sum(polygons21$area_color=="red", na.rm = T),
+                   sum(polygons21$log_hw_color_lo=="red", na.rm = T),
+                   sum(polygons21$log_hw_color_hi=="red", na.rm = T))
+
+unflagged_cells <- c(sum(polygons21$metric_color=="white", na.rm = T),
+                     sum(polygons21$target_color=="white", na.rm = T),
+                     sum(polygons21$area_color=="white", na.rm = T),
+                     sum(polygons21$log_hw_color_lo=="white", na.rm = T),
+                     sum(polygons21$log_hw_color_hi=="white", na.rm = T))
+
+poly21 <- data.frame(threshold = c(0.1, 0.1, 0.1, 0.1, 0.95), flag_value = flag_value, unflagged_cells = unflagged_cells, flagged_cells = flagged_cells,
+                     row.names = c("Flag score", "Target counts", "Area in um", "Logged aspect ratio low", "Logged aspect ratio high"))
+
+kable(poly21, format = "html", col.names = c("Threshold", "Flag value", "Flagged cells", "Unflagged cells"), align = "c", caption = paste0("<center>Flagged cells by different metrics, total cells in fov: ", dim(polygons21)[1], ", total cells in whole sample: ", dim(polygons)[1], "</center>"),
+      padding = 1L)
+```
+
+Local feature map of flag score, fov 25
+
+```{r, out.width="150%", out.height="150%"}
+polygons25 <- filter(polygons, fov==25)
+
+tm_shape(polygons25) + 
+  tm_fill(col= "flag_score", alpha = 0.5) +
+  tm_borders(lwd = 0.1, col = "grey50") +
+  tm_layout(legend.outside = TRUE)
+
+```
+
+Local threshold map of flag score, 15th percentile
+
+```{r, out.width="300%", out.height="600%"}
+metric_color <- ifelse(polygons25$flag_score < quantile(spe$flag_score, probs = 0.15), "red", "white")
+target_color <- ifelse(polygons25$target_counts < quantile(spe$target_counts, probs = 0.15), "red", "white")
+area_color <- ifelse(polygons25$um_area < quantile(spe$um_area, probs = 0.15), "red", "white")
+log_hw_color_lo <- ifelse(polygons25$log2_AspectRatio < quantile(spe$log2_AspectRatio, probs = 0.15), "red", "white")
+log_hw_color_hi <- ifelse(polygons25$log2_AspectRatio > quantile(spe$log2_AspectRatio, probs = 0.90), "red", "white")
+
+polygons25 <- cbind(polygons25, metric_color = metric_color, target_color = target_color, area_color = area_color, log_hw_color_lo = log_hw_color_lo, 
+                    log_hw_color_hi = log_hw_color_hi)
+
+p1 <- tm_shape(polygons25) + 
+  tm_fill(col= "metric_color", alpha = 0.5) +
+  tm_borders(lwd = 0.1, col = "grey50") +
+  tm_layout(legend.outside = TRUE,
+            main.title.position = c("center", "top"),
+            main.title = "Flag score",
+            main.title.size = 0.5, 
+            inner.margins = c(0, 0, 0, 0),
+            outer.margins = c(0, 0, 0, 0))
+
+p2 <- tm_shape(polygons25) + 
+  tm_fill(col= "target_color", alpha = 0.5) +
+  tm_borders(lwd = 0.1, col = "grey50") +
+  tm_layout(legend.outside = TRUE,
+            main.title.position = c("center", "top"),
+            main.title = "Target counts",
+            main.title.size = 0.5, 
+            inner.margins = c(0, 0, 0, 0),
+            outer.margins = c(0, 0, 0, 0))
+
+p3 <- tm_shape(polygons25) + 
+  tm_fill(col= "area_color", alpha = 0.5) +
+  tm_borders(lwd = 0.1, col = "grey50") +
+  tm_layout(legend.outside = TRUE,
+            main.title.position = c("center", "top"),
+            main.title = "um area",
+            main.title.size = 0.5, 
+            inner.margins = c(0, 0, 0, 0),
+            outer.margins = c(0, 0, 0, 0))
+
+p4 <- tm_shape(polygons25) + 
+  tm_fill(col= "log_hw_color_lo", alpha = 0.5) +
+  tm_borders(lwd = 0.1, col = "grey50") +
+  tm_layout(legend.outside = TRUE,
+            main.title.position = c("center", "top"),
+            main.title = "Logged AspectRatio below",
+            main.title.size = 0.5, 
+            inner.margins = c(0, 0, 0, 0),
+            outer.margins = c(0, 0, 0, 0))
+
+p5 <- tm_shape(polygons25) + 
+  tm_fill(col= "log_hw_color_hi", alpha = 0.5) +
+  tm_borders(lwd = 0.1, col = "grey50") +
+  tm_layout(legend.outside = TRUE,
+            main.title.position = c("center", "top"),
+            main.title = "Logged AspectRatio above",
+            main.title.size = 0.5, 
+            inner.margins = c(0, 0, 0, 0),
+            outer.margins = c(0, 0, 0, 0))
+
+
+tmap_arrange(p1, p2, p3, p4, p5, ncol = 2)
+
+```
+
+```{r, out.width="150%", out.height="150%"}
+plot_list <- list(p1, p2, p3, p4, p5)
+for(i in 1:length(plot_list)){
+  print(plot_list[[i]])
+}
+```
+
+```{r, out.width="150%", out.height="150%"}
+
+flag_value <- c(round(quantile(polygons25$flag_score, probs = 0.15), 2),
+                round(quantile(polygons25$target_counts, probs = 0.15), 2),
+                round(quantile(polygons25$um_area, probs = 0.15), 2),
+                round(quantile(polygons25$log2_AspectRatio, probs = 0.15), 2),
+                round(quantile(polygons25$log2_AspectRatio, probs = 0.90), 2))
+
+flagged_cells <- c(sum(polygons25$metric_color=="red", na.rm = T),
+                   sum(polygons25$target_color=="red", na.rm = T),
+                   sum(polygons25$area_color=="red", na.rm = T),
+                   sum(polygons25$log_hw_color_lo=="red", na.rm = T),
+                   sum(polygons25$log_hw_color_hi=="red", na.rm = T))
+
+unflagged_cells <- c(sum(polygons25$metric_color=="white", na.rm = T),
+                     sum(polygons25$target_color=="white", na.rm = T),
+                     sum(polygons25$area_color=="white", na.rm = T),
+                     sum(polygons25$log_hw_color_lo=="white", na.rm = T),
+                     sum(polygons25$log_hw_color_hi=="white", na.rm = T))
+
+poly25 <- data.frame(threshold = c(0.15, 0.15, 0.15, 0.15, 0.90), flag_value = flag_value, unflagged_cells = unflagged_cells, flagged_cells = flagged_cells,
+                     row.names = c("Flag score", "Target counts", "Area in um", "Logged aspect ratio low", "Logged aspect ratio high"))
+
+kable(poly25, format = "html", col.names = c("Threshold", "Flag value", "Flagged cells", "Unflagged cells"), align = "c", caption = paste0("<center>Flagged cells by different metrics, total cells in fov: ", dim(polygons25)[1], ", total cells in whole sample: ", dim(polygons)[1], "</center>"),
+      padding = 1L)
+```
+
+Local feature map of flag score, fov 16
+
+```{r, out.width="150%", out.height="150%"}
+polygons16 <- filter(polygons, fov==16)
+
+tm_shape(polygons16) + 
+  tm_fill(col= "flag_score", alpha = 0.5) +
+  tm_borders(lwd = 0.1, col = "grey50") +
+  tm_layout(legend.outside = TRUE)
+
+```
+
+Local threshold map of flag score, 15th percentile
+
+```{r, out.width="300%", out.height="600%"}
+metric_color <- ifelse(polygons16$flag_score < quantile(spe$flag_score, probs = 0.15), "red", "white")
+target_color <- ifelse(polygons16$target_counts < quantile(spe$target_counts, probs = 0.15), "red", "white")
+area_color <- ifelse(polygons16$um_area < quantile(spe$um_area, probs = 0.15), "red", "white")
+log_hw_color_lo <- ifelse(polygons16$log2_AspectRatio < quantile(spe$log2_AspectRatio, probs = 0.15), "red", "white")
+log_hw_color_hi <- ifelse(polygons16$log2_AspectRatio > quantile(spe$log2_AspectRatio, probs = 0.90), "red", "white")
+
+polygons16 <- cbind(polygons16, metric_color = metric_color, target_color = target_color, area_color = area_color, log_hw_color_lo = log_hw_color_lo, 
+                    log_hw_color_hi = log_hw_color_hi)
+
+p1 <- tm_shape(polygons16) + 
+  tm_fill(col= "metric_color", alpha = 0.5) +
+  tm_borders(lwd = 0.1, col = "grey50") +
+  tm_layout(legend.outside = TRUE,
+            main.title.position = c("center", "top"),
+            main.title = "Flag score",
+            main.title.size = 0.5, 
+            inner.margins = c(0, 0, 0, 0),
+            outer.margins = c(0, 0, 0, 0))
+
+p2 <- tm_shape(polygons16) + 
+  tm_fill(col= "target_color", alpha = 0.5) +
+  tm_borders(lwd = 0.1, col = "grey50") +
+  tm_layout(legend.outside = TRUE,
+            main.title.position = c("center", "top"),
+            main.title = "Target counts",
+            main.title.size = 0.5, 
+            inner.margins = c(0, 0, 0, 0),
+            outer.margins = c(0, 0, 0, 0))
+
+p3 <- tm_shape(polygons16) + 
+  tm_fill(col= "area_color", alpha = 0.5) +
+  tm_borders(lwd = 0.1, col = "grey50") +
+  tm_layout(legend.outside = TRUE,
+            main.title.position = c("center", "top"),
+            main.title = "um area",
+            main.title.size = 0.5, 
+            inner.margins = c(0, 0, 0, 0),
+            outer.margins = c(0, 0, 0, 0))
+
+p4 <- tm_shape(polygons16) + 
+  tm_fill(col= "log_hw_color_lo", alpha = 0.5) +
+  tm_borders(lwd = 0.1, col = "grey50") +
+  tm_layout(legend.outside = TRUE,
+            main.title.position = c("center", "top"),
+            main.title = "Logged AspectRatio below",
+            main.title.size = 0.5, 
+            inner.margins = c(0, 0, 0, 0),
+            outer.margins = c(0, 0, 0, 0))
+
+p5 <- tm_shape(polygons16) + 
+  tm_fill(col= "log_hw_color_hi", alpha = 0.5) +
+  tm_borders(lwd = 0.1, col = "grey50") +
+  tm_layout(legend.outside = TRUE,
+            main.title.position = c("center", "top"),
+            main.title = "Logged AspectRatio above",
+            main.title.size = 0.5, 
+            inner.margins = c(0, 0, 0, 0),
+            outer.margins = c(0, 0, 0, 0))
+
+tmap_arrange(p1, p2, p3, p4, p5, ncol = 2)
+
+```
+
+```{r, out.width="150%", out.height="150%"}
+plot_list <- list(p1, p2, p3, p4, p5)
+for(i in 1:length(plot_list)){
+  print(plot_list[[i]])
+}
+```
+
+```{r, out.width="150%", out.height="150%"}
+
+flag_value <- c(round(quantile(polygons16$flag_score, probs = 0.15), 2),
+                round(quantile(polygons16$target_counts, probs = 0.15), 2),
+                round(quantile(polygons16$um_area, probs = 0.15), 2),
+                round(quantile(polygons16$log2_AspectRatio, probs = 0.15), 2),
+                round(quantile(polygons16$log2_AspectRatio, probs = 0.90), 2))
+
+flagged_cells <- c(sum(polygons16$metric_color=="red", na.rm = T),
+                   sum(polygons16$target_color=="red", na.rm = T),
+                   sum(polygons16$area_color=="red", na.rm = T),
+                   sum(polygons16$log_hw_color_lo=="red", na.rm = T),
+                   sum(polygons16$log_hw_color_hi=="red", na.rm = T))
+
+unflagged_cells <- c(sum(polygons16$metric_color=="white", na.rm = T),
+                     sum(polygons16$target_color=="white", na.rm = T),
+                     sum(polygons16$area_color=="white", na.rm = T),
+                     sum(polygons16$log_hw_color_lo=="white", na.rm = T),
+                     sum(polygons16$log_hw_color_hi=="white", na.rm = T))
+
+poly16 <- data.frame(threshold = c(0.15, 0.15, 0.15, 0.15, 0.90), flag_value = flag_value, unflagged_cells = unflagged_cells, flagged_cells = flagged_cells,
+                     row.names = c("Flag score", "Target counts", "Area in um", "Logged aspect ratio low", "Logged aspect ratio high"))
+
+kable(poly16, format = "html", col.names = c("Threshold", "Flag value", "Flagged cells", "Unflagged cells"), align = "c", caption = paste0("<center>Flagged cells by different metrics, total cells in fov: ", dim(polygons16)[1], ", total cells in whole sample: ", dim(polygons)[1], "</center>"),
+      padding = 1L)
+```
+
