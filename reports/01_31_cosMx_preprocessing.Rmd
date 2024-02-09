@@ -1,0 +1,760 @@
+---
+title: "CosMx_DBKero_BC_preprocessing_heatmap"
+author: "Benedetta Banzi"
+date: "2023-12-18"
+output: html_document
+---
+
+<STYLE TYPE="text/css">
+<!--
+  td{
+    font-family: Arial; 
+    font-size: 10 pt;
+    padding:0px;
+    cellpadding="0";
+    cellspacing="0"
+  }
+  th {
+    font-family: Arial; 
+    font-size: 10 pt;
+    height: 20px;
+    font-weight: bold;
+    text-align: "center";
+    background-color: #ccccff;
+    padding-left: 15px;
+    padding-right: 15px;
+  }
+  table { 
+    border-spacing: 4px;
+    border-collapse: collapse;
+  }
+--->
+</STYLE>
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Library import
+
+```{r}
+library(SpatialExperiment)
+library(data.table)
+library(scater) # it imports scuttle
+library(cowplot)
+library(ggplot2)
+theme_set(theme_bw())
+library(matrixStats)
+library(dplyr)
+library(tidyr)
+library(tibble)
+library(arrow)
+library(scales)
+library(sf)
+library(tmap)
+library(knitr)
+```
+
+Read-in function
+
+```{r}
+readCosmxSPE <- function(dirname = dirname, 
+                         countmatfpattern = "exprMat_file.csv", 
+                         metadatafpattern = "metadata_file.csv", 
+                         coord_names = c("CenterX_global_px",
+                                         "CenterY_global_px")){
+  
+  countmat_file <- file.path(dirname, list.files(dirname, countmatfpattern))
+  metadata_file <- file.path(dirname, list.files(dirname, metadatafpattern))
+  
+  # Read in 
+  countmat <- data.table::fread(countmat_file)
+  metadata <- data.table::fread(metadata_file)
+  
+  # Count matrix   
+  counts <- merge(countmat, metadata[, c("fov", "cell_ID")])
+  counts <- subset(counts, select = -c(fov, cell_ID))
+  cell_codes <- rownames(counts)
+  features <- colnames(counts)
+  counts <- t(counts)
+  
+  rownames(counts) <- features
+  colnames(counts) <- cell_codes
+  
+  # rowData (does not exist)
+  
+  # colData
+  colData <- merge(metadata, countmat[, c("fov", "cell_ID")])
+  
+  spe <- SpatialExperiment::SpatialExperiment(
+    assays = list(counts = counts),
+    # rowData = rowData,
+    colData = colData,
+    spatialCoordsNames = coord_names
+  )
+  
+  return(spe)
+}
+```
+
+Setting directories
+
+```{r}
+dirname <- "/NAS06/work/Spatial_omics/DBKero/CosMx_Breast/CosMX_data_Case2"
+count_pattern <- "Run5810_Case2_exprMat_file.csv"
+meta_pattern <- "Run5810_Case2_metadata_file.csv"
+sample_name <- "CosMx_DBKero_BC"
+```
+
+# CosMx dataset exploratory analysis for preprocessing
+
+SpatialExperiment object creation and exploration
+
+```{r}
+spe <- readCosmxSPE(dirname = dirname, countmatfpattern = count_pattern, metadatafpattern = meta_pattern)
+spe <- scuttle::addPerCellQC(spe, subsets=list(NegProb = grep("^NegPrb", rownames(spe))))
+names(colData(spe)@listData)
+```
+
+```{r}
+dim(spe)
+```
+
+Selecting only numeric and integer variables from metadata then only variables of interest from the list
+
+```{r}
+temp <- unlist(lapply(spe@colData@listData, function(x) is.numeric(x) | is.integer(x)))
+num_variables <- c()
+for (i in 1:length(temp)){
+  num_variables[i] <- ifelse(temp[i] == TRUE, names(temp[i]), NA)
+  num_variables <- num_variables[!is.na(num_variables)]
+}
+num_variables
+variables <- c("total", "detected")
+```
+
+## Large-scale to small-scale
+
+Approaching dataset preprocessing starting from global-scale, then fov-focused exploratory analysis
+
+# Global sample map
+
+To view the spatial organization of both the sample as it is and FOVs
+
+```{r}
+# Importing global coordinates from spatialCoords slot since they are not available in colData
+colData(spe)$CenterX_global_px <- spatialCoords(spe)[,1]
+colData(spe)$CenterY_global_px <- spatialCoords(spe)[,2]
+```
+
+```{r, out.width="150%", out.height="150%"}
+fov_pattern <- "Run5810_Case2_fov_positions_file.csv"
+fovpos_file <- file.path(dirname, list.files(dirname, fov_pattern))
+
+metadata <- data.table::fread(file.path(dirname, list.files(dirname, meta_pattern)))
+fov_positions <- data.table::fread(fovpos_file, header = T)
+fov_positions <- fov_positions[fov_positions$fov%in%unique(metadata$fov),]
+
+# image theme
+global_map_theme <- function(back.color="black",back.border=NA,title.col="white") {
+  theme(aspect.ratio = 1,
+        panel.border = element_blank(),
+        legend.key = element_blank(),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.ticks = element_blank(),
+        axis.text.y = element_blank(),
+        axis.text.x = element_blank(),
+        panel.grid = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.background = element_rect(fill = "transparent",colour = NA),
+        plot.title = element_text(color = title.col,hjust = 0.5,face = "bold"),
+        plot.background = element_rect(fill = "transparent",colour = back.border))
+}
+
+fov_size <- 4256
+
+ggplot() + 
+  geom_point(data = metadata, mapping = aes(x = CenterX_global_px, y = CenterY_global_px), colour = "darkmagenta", fill="darkmagenta", size = 0.05, alpha = 0.2) +
+  annotate("rect", xmin = fov_positions$x_global_px, 
+           xmax = fov_positions$x_global_px + fov_size, 
+           ymin = fov_positions$y_global_px, 
+           ymax = fov_positions$y_global_px + fov_size,
+           alpha = .2, color = "black",linewidth = 0.2) +
+  geom_text(aes(x = fov_positions$x_global_px+fov_size/2,
+                y = fov_positions$y_global_px+fov_size/2,
+                label = fov_positions$fov), color="black") +
+  ggtitle(sample_name) + 
+  global_map_theme(back.color = "white", back.border = "white", title.col = "black")
+```
+
+# Global feature maps
+
+To spot areas with anomalous feature values and spatial patterns on a global scale
+
+```{r, out.width="150%", out.height="150%"}
+spe$CenterX_global_um <- spe$CenterX_global_px*0.18
+spe$CenterY_global_um <- spe$CenterY_global_px*0.18  
+spe$logtot <- log10(spe$total)
+
+plotColData(spe, "CenterY_global_um", "CenterX_global_um", colour_by = "total", point_size = 0.1) + ggtitle("Total counts per cell") + theme(aspect.ratio = 1)
+```
+
+```{r, out.width="150%", out.height="150%"}
+plotColData(spe, "CenterY_global_um", "CenterX_global_um", colour_by = "logtot", point_size = 0.1) + ggtitle("Log-total counts per cell") + theme(aspect.ratio = 1)
+```
+
+```{r, out.width="150%", out.height="150%"}
+plotColData(spe, "CenterY_global_um", "CenterX_global_um", colour_by = "detected", point_size = 0.1) + ggtitle("Detected features per cell") + theme(aspect.ratio = 1)
+```
+
+```{r, out.width="150%", out.height="150%"}
+spe$um_area <- spe$Area*0.0324
+plotColData(spe, "CenterY_global_um", "CenterX_global_um", colour_by = "um_area", point_size = 0.1) + ggtitle("Area in μm per cell") + theme(aspect.ratio = 1)
+```
+
+```{r, out.width="150%", out.height="150%"}
+spe$log2_AspectRatio <- log2(spe$AspectRatio)
+plotColData(spe, "CenterY_global_um", "CenterX_global_um", colour_by = "log2_AspectRatio", point_size = 0.1) + ggtitle("Logged width/Height ratio per cell") + theme(aspect.ratio = 1)
+```
+
+```{r, out.width="150%", out.height="150%"}
+spe$target_counts <- spe$total - spe$subsets_NegProb_sum
+spe$target_detected <- spe$detected - spe$subsets_NegProb_detected
+spe$tot_det_ratio <- spe$target_counts/spe$target_detected
+plotColData(spe, "CenterY_global_um", "CenterX_global_um", colour_by = "tot_det_ratio", point_size = 0.1) + ggtitle("Target counts/detected features ratio per cell") + theme(aspect.ratio = 1)
+```
+
+```{r, out.width="150%", out.height="150%"}
+plotColData(spe, "CenterY_global_um", "CenterX_global_um", order_by = "subsets_NegProb_sum", colour_by = "subsets_NegProb_sum", point_size = 0.1) +
+  scale_color_gradient(low = "white", high = "red", name = "subsets_NegProb_sum") + ggtitle("Negative control probe counts per cell") +
+  theme(aspect.ratio = 1,
+        panel.background = element_rect(fill = "black",color = NA),
+        plot.background = element_rect(fill = "black",color = NA),
+        axis.title.x = element_text(color = "white"),
+        axis.title.y = element_text(color = "white"),
+        axis.ticks = element_line(color = "white"),
+        axis.text.y = element_text(color = "white"),
+        axis.text.x = element_text(color = "white"),
+        axis.line = element_line(color = "white"),
+        legend.title = element_text(color = "white"),
+        legend.text = element_text(color = "white"),
+        plot.title = element_text(color = "white"))
+```
+
+```{r}
+threshold <- 0.20
+spe$flagged_tot_20 <- as.factor(ifelse(colData(spe)$total < quantile(colData(spe)$total, probs = threshold), TRUE, FALSE))
+
+threshold <- 0.10
+spe$flagged_tot_10 <- as.factor(ifelse(colData(spe)$total < quantile(colData(spe)$total, probs = threshold), TRUE, FALSE))
+
+threshold <- 0.05
+spe$flagged_tot_5 <- as.factor(ifelse(colData(spe)$total < quantile(colData(spe)$total, probs = threshold), TRUE, FALSE))
+
+threshold <- 0.10
+spe$flagged_det_10 <- as.factor(ifelse(colData(spe)$detected < quantile(colData(spe)$detected, probs = threshold), TRUE, FALSE))
+
+threshold <- 0.05
+spe$flagged_det_5 <- as.factor(ifelse(colData(spe)$detected < quantile(colData(spe)$detected, probs = threshold), TRUE, FALSE))
+
+threshold <- 0.10
+spe$flagged_umarea_10 <- as.factor(ifelse(colData(spe)$um_area < quantile(colData(spe)$um_area, probs = threshold), TRUE, FALSE))
+
+threshold <- 0.05
+spe$flagged_umarea_5 <- as.factor(ifelse(colData(spe)$um_area < quantile(colData(spe)$um_area, probs = threshold), TRUE, FALSE))
+
+threshold <- 0.90
+spe$flagged_umarea_90 <- as.factor(ifelse(colData(spe)$um_area > quantile(colData(spe)$um_area, probs = threshold), TRUE, FALSE))
+
+threshold <- 0.10
+spe$flagged_aratio_10 <- as.factor(ifelse(colData(spe)$log2_AspectRatio < quantile(colData(spe)$log2_AspectRatio, probs = threshold), TRUE, FALSE))
+
+threshold <- 0.05
+spe$flagged_aratio_5 <- as.factor(ifelse(colData(spe)$log2_AspectRatio < quantile(colData(spe)$log2_AspectRatio, probs = threshold), TRUE, FALSE))
+
+threshold <- 0.90
+spe$flagged_aratio_90 <- as.factor(ifelse(colData(spe)$log2_AspectRatio > quantile(colData(spe)$log2_AspectRatio, probs = threshold), TRUE, FALSE))
+
+threshold <- 0.95
+spe$flagged_aratio_95 <- as.factor(ifelse(colData(spe)$log2_AspectRatio > quantile(colData(spe)$log2_AspectRatio, probs = threshold), TRUE, FALSE))
+
+threshold <- 0.10
+spe$flagged_tdratio_10 <- as.factor(ifelse(colData(spe)$tot_det_ratio < quantile(colData(spe)$tot_det_ratio, probs = threshold, na.rm = T), TRUE, FALSE))
+
+threshold <- 0.05
+spe$flagged_tdratio_5 <- as.factor(ifelse(colData(spe)$tot_det_ratio < quantile(colData(spe)$tot_det_ratio, probs = threshold, na.rm = T), TRUE, FALSE))
+
+threshold <- 1
+spe$flagged_tdratio_atomx <- as.factor(ifelse(colData(spe)$tot_det_ratio <= threshold, TRUE, FALSE))
+
+threshold <- 0.50
+spe$flagged_negprob_50 <- as.factor(ifelse(colData(spe)$subsets_NegProb_sum > quantile(colData(spe)$subsets_NegProb_sum, probs = threshold, na.rm = T), TRUE, FALSE))
+
+threshold <- 0.75
+spe$flagged_negprob_75 <- as.factor(ifelse(colData(spe)$subsets_NegProb_sum > quantile(colData(spe)$subsets_NegProb_sum, probs = threshold, na.rm = T), TRUE, FALSE))
+
+spe$ctrl_total_ratio <- spe$subsets_NegProb_sum/spe$total
+threshold <- 0.10
+spe$flagged_negprob_10 <- as.factor(ifelse(colData(spe)$ctrl_total_ratio > quantile(colData(spe)$ctrl_total_ratio, probs = threshold, na.rm = T), TRUE, FALSE))
+```
+
+
+# Feature histograms
+
+To check feature distribution before highlighting where extreme values are located in the global sample map
+
+```{r}
+variables <- c(variables, "logtot", "um_area", "log2_AspectRatio", "tot_det_ratio", "subsets_NegProb_sum")
+for (var in 1:length(variables)){
+  n <- grep(paste0("^", variables[var], "$"), colnames(spe@colData))
+  histo_var <- names(colData(spe))[n]
+  p <- ggplot(data = data.frame(colData(spe))) +
+    geom_histogram(aes(x = .data[[histo_var]]), fill = "#69b3a2") +
+    ggtitle(paste0(histo_var))
+  print(p)
+}  
+```
+
+# Global threshold map
+
+Cells below the selected feature threshold are highlighted in black, all the others are grey
+
+```{r, out.width="150%", out.height="150%"}
+threshold <- 0.20
+spe$flagged_tot_20 <- as.factor(ifelse(colData(spe)$total < quantile(colData(spe)$total, probs = threshold), TRUE, FALSE))
+plotColData(spe, "CenterY_global_um", "CenterX_global_um", colour_by = "flagged_tot_20", 
+            point_size = 0.1) + scale_color_manual(values = c("TRUE" = "black", "FALSE" = "lightgrey")) + ggtitle("Counts below 20% threshold (default by AtoMx guidelines)") + theme(legend.position="none") + labs(subtitle = paste0("Flagged cells = ", table(colData(spe)$flagged_tot_20)["TRUE"], " out of ", dim(spe)[2], ", ", round(table(colData(spe)$flagged_tot_20)["TRUE"]/dim(spe)[2]*100, 2), "% of total cells"))
+```
+
+```{r, out.width="150%", out.height="150%"}
+threshold <- 0.10
+spe$flagged_tot_10 <- as.factor(ifelse(colData(spe)$total < quantile(colData(spe)$total, probs = threshold), TRUE, FALSE))
+plotColData(spe, "CenterY_global_um", "CenterX_global_um", colour_by = "flagged_tot_10", 
+            point_size = 0.1) + scale_color_manual(values = c("TRUE" = "black","FALSE" = "lightgrey")) + ggtitle("Counts below 10% threshold")  + theme(legend.position="none") + labs(subtitle = paste0("Flagged cells = ", table(colData(spe)$flagged_tot_10)["TRUE"], " out of ", dim(spe)[2], ", ",  round(table(colData(spe)$flagged_tot_10)["TRUE"]/dim(spe)[2]*100, 2), "% of total cells"))
+```
+
+```{r, out.width="150%", out.height="150%"}
+threshold <- 0.05
+spe$flagged_tot_5 <- as.factor(ifelse(colData(spe)$total < quantile(colData(spe)$total, probs = threshold), TRUE, FALSE))
+plotColData(spe, "CenterY_global_um", "CenterX_global_um", colour_by = "flagged_tot_5", 
+            point_size = 0.1) + scale_color_manual(values = c("TRUE" = "black","FALSE" = "lightgrey")) + ggtitle("Counts below 5% threshold") + theme(legend.position="none") + labs(subtitle = paste0("Flagged cells = ", table(colData(spe)$flagged_tot_5)["TRUE"], " out of ", dim(spe)[2], ", ",  round(table(colData(spe)$flagged_tot_5)["TRUE"]/dim(spe)[2]*100, 2), "% of total cells")) 
+```
+
+
+
+```{r, out.width="300%", out.height="200%"}
+threshold <- 0.10
+spe$flagged_det_10 <- as.factor(ifelse(colData(spe)$detected < quantile(colData(spe)$detected, probs = threshold), TRUE, FALSE))
+plotColData(spe, "CenterY_global_um", "CenterX_global_um", colour_by = "flagged_det_10", 
+            point_size = 0.1) + scale_color_manual(values = c("TRUE" = "black","FALSE" = "lightgrey")) + ggtitle("Detected features below 10% threshold") + theme(legend.position="none") + labs(subtitle = paste0("Flagged cells = ", table(colData(spe)$flagged_det_10)["TRUE"], " out of ", dim(spe)[2], ", ",  round(table(colData(spe)$flagged_det_10)["TRUE"]/dim(spe)[2]*100, 2), "% of total cells"))
+```
+
+```{r, out.width="150%", out.height="150%"}
+threshold <- 0.05
+spe$flagged_det_5 <- as.factor(ifelse(colData(spe)$detected < quantile(colData(spe)$detected, probs = threshold), TRUE, FALSE))
+plotColData(spe, "CenterY_global_um", "CenterX_global_um", colour_by = "flagged_det_5", 
+            point_size = 0.1) + scale_color_manual(values = c("TRUE" = "black","FALSE" = "lightgrey")) + ggtitle("Detected features below 5% threshold")  + theme(legend.position="none") + labs(subtitle = paste0("Flagged cells = ", table(colData(spe)$flagged_det_5)["TRUE"], " out of ", dim(spe)[2], ", ",  round(table(colData(spe)$flagged_det_5)["TRUE"]/dim(spe)[2]*100, 2), "% of total cells"))
+```
+
+
+
+```{r, out.width="150%", out.height="150%"}
+threshold <- 0.10
+spe$flagged_umarea_10 <- as.factor(ifelse(colData(spe)$um_area < quantile(colData(spe)$um_area, probs = threshold), TRUE, FALSE))
+plotColData(spe, "CenterY_global_um", "CenterX_global_um", colour_by = "flagged_umarea_10", 
+            point_size = 0.1) + scale_color_manual(values = c("TRUE" = "black","FALSE" = "lightgrey")) + ggtitle("Area in μm below 10%") + theme(legend.position="none") + labs(subtitle = paste0("Flagged cells = ", table(colData(spe)$flagged_umarea_10)["TRUE"], " out of ", dim(spe)[2], ", ",  round(table(colData(spe)$flagged_umarea_10)["TRUE"]/dim(spe)[2]*100, 2), "% of total cells"))
+```
+
+```{r, out.width="150%", out.height="150%"}
+threshold <- 0.05
+spe$flagged_umarea_5 <- as.factor(ifelse(colData(spe)$um_area < quantile(colData(spe)$um_area, probs = threshold), TRUE, FALSE))
+plotColData(spe, "CenterY_global_um", "CenterX_global_um", colour_by = "flagged_umarea_5", 
+            point_size = 0.1) + scale_color_manual(values = c("TRUE" = "black","FALSE" = "lightgrey")) + ggtitle("Area in μm below 5%")  + theme(legend.position="none") + labs(subtitle = paste0("Flagged cells = ", table(colData(spe)$flagged_umarea_5)["TRUE"], " out of ", dim(spe)[2], ", ",  round(table(colData(spe)$flagged_umarea_5)["TRUE"]/dim(spe)[2]*100, 2), "% of total cells"))
+```
+
+
+Cells above the selected threshold are highlighted in red, all the others are grey
+
+```{r, out.width="150%", out.height="150%"}
+threshold <- 0.90
+spe$flagged_umarea_90 <- as.factor(ifelse(colData(spe)$um_area > quantile(colData(spe)$um_area, probs = threshold), TRUE, FALSE))
+plotColData(spe, "CenterY_global_um", "CenterX_global_um", colour_by = "flagged_umarea_90", 
+            point_size = 0.1) + scale_color_manual(values = c("TRUE" = "red","FALSE" = "lightgrey")) + ggtitle("Area in μm above 90% threshold") + theme(legend.position="none") + labs(subtitle = paste0("Flagged cells = ", table(colData(spe)$flagged_umarea_90)["TRUE"], " out of ", dim(spe)[2], ", ",  round(table(colData(spe)$flagged_umarea_90)["TRUE"]/dim(spe)[2]*100, 2), "% of total cells"))
+```
+
+```{r, out.width="150%", out.height="150%"}
+threshold <- 0.95
+spe$flagged_umarea_95 <- as.factor(ifelse(colData(spe)$um_area > quantile(colData(spe)$um_area, probs = threshold), TRUE, FALSE))
+plotColData(spe, "CenterY_global_um", "CenterX_global_um", colour_by = "flagged_umarea_95", 
+            point_size = 0.1) + scale_color_manual(values = c("TRUE" = "red","FALSE" = "lightgrey")) + ggtitle("Area in μm above 95% threshold")  + theme(legend.position="none") + labs(subtitle = paste0("Flagged cells = ", table(colData(spe)$flagged_umarea_95)["TRUE"], " out of ", dim(spe)[2], ", ",  round(table(colData(spe)$flagged_umarea_95)["TRUE"]/dim(spe)[2]*100, 2), "% of total cells"))
+```
+
+
+
+```{r, out.width="150%", out.height="150%"}
+threshold <- 0.10
+spe$flagged_aratio_10 <- as.factor(ifelse(colData(spe)$log2_AspectRatio < quantile(colData(spe)$log2_AspectRatio, probs = threshold), TRUE, FALSE))
+plotColData(spe, "CenterY_global_um", "CenterX_global_um", colour_by = "flagged_aratio_10", 
+            point_size = 0.1) + scale_color_manual(values = c("TRUE" = "black","FALSE" = "lightgrey")) + ggtitle("Width/height below 10% threshold") + theme(legend.position="none") + labs(subtitle = paste0("Flagged cells = ", table(colData(spe)$flagged_aratio_10)["TRUE"], " out of ", dim(spe)[2], ", ",  round(table(colData(spe)$flagged_aratio_10)["TRUE"]/dim(spe)[2]*100, 2), "% of total cells"))
+```
+
+```{r, out.width="150%", out.height="150%"}
+threshold <- 0.05
+spe$flagged_aratio_5 <- as.factor(ifelse(colData(spe)$log2_AspectRatio < quantile(colData(spe)$log2_AspectRatio, probs = threshold), TRUE, FALSE))
+plotColData(spe, "CenterY_global_um", "CenterX_global_um", colour_by = "flagged_aratio_5", 
+            point_size = 0.1) + scale_color_manual(values = c("TRUE" = "black","FALSE" = "lightgrey")) + ggtitle("Width/height below 5% threshold")  + theme(legend.position="none") + labs(subtitle = paste0("Flagged cells = ", table(colData(spe)$flagged_aratio_5)["TRUE"], " out of ", dim(spe)[2], ", ",  round(table(colData(spe)$flagged_aratio_5)["TRUE"]/dim(spe)[2]*100, 2), "% of total cells"))
+```
+
+
+
+```{r, out.width="150%", out.height="150%"}
+threshold <- 0.90
+spe$flagged_aratio_90 <- as.factor(ifelse(colData(spe)$log2_AspectRatio > quantile(colData(spe)$log2_AspectRatio, probs = threshold), TRUE, FALSE))
+plotColData(spe, "CenterY_global_um", "CenterX_global_um", colour_by = "flagged_aratio_90", 
+            point_size = 0.1) + scale_color_manual(values = c("TRUE" = "red","FALSE" = "lightgrey")) + ggtitle("Width/height above 90% threshold") + theme(legend.position="none") + labs(subtitle = paste0("Flagged cells = ", table(colData(spe)$flagged_aratio_90)["TRUE"], " out of ", dim(spe)[2], ", ",  round(table(colData(spe)$flagged_aratio_90)["TRUE"]/dim(spe)[2]*100, 2), "% of total cells"))
+```
+
+```{r, out.width="150%", out.height="150%"}
+threshold <- 0.95
+spe$flagged_aratio_95 <- as.factor(ifelse(colData(spe)$log2_AspectRatio > quantile(colData(spe)$log2_AspectRatio, probs = threshold), TRUE, FALSE))
+plotColData(spe, "CenterY_global_um", "CenterX_global_um", colour_by = "flagged_aratio_95", 
+            point_size = 0.1) + scale_color_manual(values = c("TRUE" = "red","FALSE" = "lightgrey")) + ggtitle("Width/height above 95% threshold")  + theme(legend.position="none") + labs(subtitle = paste0("Flagged cells = ", table(colData(spe)$flagged_aratio_95)["TRUE"], " out of ", dim(spe)[2], ", ",  round(table(colData(spe)$flagged_aratio_95)["TRUE"]/dim(spe)[2]*100, 2), "% of total cells"))
+```
+
+
+
+```{r, out.width="150%", out.height="150%"}
+threshold <- 0.10
+spe$flagged_tdratio_10 <- as.factor(ifelse(colData(spe)$tot_det_ratio < quantile(colData(spe)$tot_det_ratio, probs = threshold, na.rm = T), TRUE, FALSE))
+plotColData(spe, "CenterY_global_um", "CenterX_global_um", colour_by = "flagged_tdratio_10", 
+            point_size = 0.1) + scale_color_manual(values = c("TRUE" = "black","FALSE" = "lightgrey")) + ggtitle(paste0("Total counts/detected features below 10% threshold, ratio = ", round(quantile(colData(spe)$tot_det_ratio, probs = threshold, na.rm = T), 2))) + theme(legend.position="none") + labs(subtitle = paste0("Flagged cells = ", table(colData(spe)$flagged_tdratio_10)["TRUE"], " out of ", dim(spe)[2], ", ",  round(table(colData(spe)$flagged_tdratio_10)["TRUE"]/dim(spe)[2]*100, 2), "% of total cells"))
+```
+
+```{r, out.width="150%", out.height="150%"}
+threshold <- 0.05
+spe$flagged_tdratio_5 <- as.factor(ifelse(colData(spe)$tot_det_ratio < quantile(colData(spe)$tot_det_ratio, probs = threshold, na.rm = T), TRUE, FALSE))
+plotColData(spe, "CenterY_global_um", "CenterX_global_um", colour_by = "flagged_tdratio_5", 
+            point_size = 0.1) + scale_color_manual(values = c("TRUE" = "black","FALSE" = "lightgrey")) + ggtitle(paste0("Total counts/detected features below 5% threshold, ratio = ", round(quantile(colData(spe)$tot_det_ratio, probs = threshold, na.rm = T), 2)))  + theme(legend.position="none") + labs(subtitle = paste0("Flagged cells = ", table(colData(spe)$flagged_tdratio_5)["TRUE"], " out of ", dim(spe)[2], ", ",  round(table(colData(spe)$flagged_tdratio_5)["TRUE"]/dim(spe)[2]*100, 2), "% of total cells"))
+```
+
+ATOMX GUIDELINES FOR CELL QC
+
+Count distribution 
+flag cells where (total counts) / (number of detected genes) ≤1
+
+```{r, out.width="150%", out.height="150%"}
+threshold <- 1
+spe$flagged_tdratio_atomx <- as.factor(ifelse(colData(spe)$tot_det_ratio <= threshold, TRUE, FALSE))
+plotColData(spe, "CenterY_global_um", "CenterX_global_um", colour_by = "flagged_tdratio_atomx", 
+            point_size = 0.1) + scale_color_manual(values = c("TRUE" = "black","FALSE" = "lightgrey")) + ggtitle("Total counts/detected feature ratio below 1 (default by AtoMx guidelines), ratio = 1") + theme(legend.position="none") + labs(subtitle = paste0("Flagged cells = ", table(colData(spe)$flagged_tdratio_atomx)["TRUE"], " out of ", dim(spe)[2], ", ",  round(table(colData(spe)$flagged_tdratio_atomx)["TRUE"]/dim(spe)[2]*100, 2), "% of total cells")) 
+```
+
+
+```{r, out.width="150%", out.height="150%"}
+threshold <- 0.50
+spe$flagged_negprob_50 <- as.factor(ifelse(colData(spe)$subsets_NegProb_sum > quantile(colData(spe)$subsets_NegProb_sum, probs = threshold, na.rm = T), TRUE, FALSE))
+plotColData(spe, "CenterY_global_um", "CenterX_global_um", colour_by = "flagged_negprob_50", 
+            point_size = 0.1) + scale_color_manual(values = c("TRUE" = "red","FALSE" = "lightgrey")) + ggtitle("Negative probe counts above 50% threshold") + theme(legend.position="none") + labs(subtitle = paste0("Flagged cells = ", table(colData(spe)$flagged_negprob_50)["TRUE"], " out of ", dim(spe)[2], ", ",  round(table(colData(spe)$flagged_negprob_50)["TRUE"]/dim(spe)[2]*100, 2), "% of total cells"))
+```
+
+```{r, out.width="150%", out.height="150%"}
+threshold <- 0.75
+spe$flagged_negprob_75 <- as.factor(ifelse(colData(spe)$subsets_NegProb_sum > quantile(colData(spe)$subsets_NegProb_sum, probs = threshold, na.rm = T), TRUE, FALSE))
+plotColData(spe, "CenterY_global_um", "CenterX_global_um", colour_by = "flagged_negprob_75", 
+            point_size = 0.1) + scale_color_manual(values = c("TRUE" = "red","FALSE" = "lightgrey")) + ggtitle("Negative probe counts above 75% threshold")  + theme(legend.position="none") + labs(subtitle = paste0("Flagged cells = ", table(colData(spe)$flagged_negprob_75)["TRUE"], " out of ", dim(spe)[2], ", ",  round(table(colData(spe)$flagged_negprob_75)["TRUE"]/dim(spe)[2]*100, 2), "% of total cells"))
+```
+
+ATOMX GUIDELINES FOR CELL QC
+
+Proportion of negative counts
+flag cells where > 10% (0.1; default) of the counts are negative probes
+
+```{r, out.width="150%", out.height="150%"}
+spe$ctrl_total_ratio <- spe$subsets_NegProb_sum/spe$total
+threshold <- 0.10
+spe$flagged_negprob_10 <- as.factor(ifelse(colData(spe)$ctrl_total_ratio > quantile(colData(spe)$ctrl_total_ratio, probs = threshold, na.rm = T), TRUE, FALSE))
+plotColData(spe, "CenterY_global_um", "CenterX_global_um", colour_by = "flagged_negprob_10", 
+            point_size = 0.1) + scale_color_manual(values = c("TRUE" = "red","FALSE" = "lightgrey")) + ggtitle("Negative control probe/total counts ratio above 10% threshold (default by AtoMx guidelines)") + theme(legend.position="none") + labs(subtitle = paste0("Flagged cells = ", table(colData(spe)$flagged_negprob_10)["TRUE"], " out of ", dim(spe)[2], ", ", round(table(colData(spe)$flagged_negprob_10)["TRUE"]/dim(spe)[2]*100, 2), "% of total cells")) 
+```
+
+
+# Feature heatmaps by FOV 
+
+To compare at a glance FOV mean/median feature values and spot anomalous FOVs
+
+```{r}
+meta_df <- data.frame(colData(spe))
+meta_df <- group_by(meta_df, fov) |> summarize(n_cells = n(), mean_total = mean(total), mean_detected = mean(detected), mean_umarea = mean(um_area), mean_log2_AspectRatio = mean(log2_AspectRatio), mean_tot_det_ratio = mean(tot_det_ratio), mean_subsets_NegProb_sum = mean(subsets_NegProb_sum), median_total = median(total), median_detected = median(detected), median_umarea = median(um_area),median_log2_AspectRatio = median(log2_AspectRatio), median_tot_det_ratio = median(tot_det_ratio), median_subsets_NegProb_sum = median(subsets_NegProb_sum))
+
+fov_positions <- left_join(fov_positions, meta_df, by = join_by(fov))
+
+fov_size <- 4256
+poly_df <- transmute(fov_positions, x_1 = x_global_px, y_1 = y_global_px, 
+                     x_2 = x_global_px + fov_size, y_2 = y_global_px, 
+                     x_3 = x_global_px + fov_size, y_3 = y_global_px + fov_size, 
+                     x_4 = x_global_px, y_4 = y_global_px + fov_size)
+
+str(poly_df)
+
+ls_list <- list()
+for (k in 1:dim(fov_positions)[1]){
+  ls_list[[k]] <- st_linestring(matrix(as.numeric(poly_df[k]), ncol = 2, byrow = T))
+}
+
+sf_data <- st_as_sf(fov_positions, coords = c("x_global_px", "y_global_px"), geometry = st_sfc(ls_list))
+
+sf_data <- st_cast(sf_data, "POLYGON")
+
+# plot(sf_data)
+names(sf_data)
+sf_data$fov <- as.factor(sf_data$fov)
+```
+
+```{r, out.width="150%", out.height="150%"}
+ggplot() +
+  geom_sf(data = sf_data, aes(fill = n_cells)) + 
+  scale_fill_gradient(low = "purple4", high = "#FF8247") +
+  theme(axis.title.x = element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(), 
+        axis.title.y = element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank(),
+        panel.grid = element_blank()) +
+  geom_text(data = fov_positions, aes(x = fov_positions$x_global_px+fov_size/2,
+                y = fov_positions$y_global_px+fov_size/2,
+                label = fov_positions$n_cells), color="white", size = 1.8) +
+    ggtitle(paste0("Number of cells by fov"))
+```
+
+```{r, out.width="150%", out.height="150%"}
+heatmap_variables <- names(sf_data)[-c(1, 2, length(names(sf_data)), length(names(sf_data))-1)]
+for (var in 1:length(heatmap_variables)){
+  heat_var <- heatmap_variables[var]
+  p <- ggplot() +
+  geom_sf(data = sf_data, aes(fill = .data[[heat_var]])) + 
+  scale_fill_viridis_c() +
+  theme(axis.title.x = element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(), 
+        axis.title.y = element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank(),
+        panel.grid = element_blank()) +
+  geom_text(data = fov_positions, aes(x = fov_positions$x_global_px+fov_size/2,
+                y = fov_positions$y_global_px+fov_size/2,
+                label = fov_positions$fov), color="white", size = 2) +
+    ggtitle(paste0(heat_var, " by fov"))
+  print(p)
+}  
+```
+
+ATOMX GUIDELINES FOR FOV QC
+
+The Mean method (default) flags FOVs where the total count per cell average is below a threshold (default 100)
+
+```{r, out.width="150%", out.height="150%"}
+color <- ifelse(fov_positions$mean_total <= 100, "red", "white")
+fov_positions <- cbind(fov_positions, color)
+ggplot() +
+  geom_sf(data = sf_data, aes(fill = mean_total)) + 
+  scale_fill_viridis_c() +
+  theme(axis.title.x = element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(), 
+        axis.title.y = element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank(),
+        panel.grid = element_blank()) +
+  geom_text(data = fov_positions, aes(x = fov_positions$x_global_px+fov_size/2,
+                y = fov_positions$y_global_px+fov_size/2,
+                label = floor(fov_positions$mean_total)), color = color, size = 2) +
+    ggtitle(paste0("Mean_total by fov"))
+```
+
+ATOMX GUIDELINES FOR FOV QC
+
+The QC quantile must be greater than the negative probe median in order to pass QC. Default is 0, so it must be ≥ 0
+
+```{r, out.width="150%", out.height="150%"}
+threshold <- 0.90
+quant_df <-  data.frame(colData(spe))
+quant_df <- mutate(quant_df, target_counts = total - subsets_NegProb_sum)
+quant_df <- group_by(quant_df, fov) |> summarize(quantile_90 = quantile(target_counts, probs = threshold))
+fov_positions <- left_join(fov_positions, quant_df, by = join_by(fov))
+
+color <- ifelse(fov_positions$quantile_90 < fov_positions$median_subsets_NegProb_sum, "red", "white")
+sf_data$quantile_90 <- fov_positions$quantile_90
+
+ggplot() +
+  geom_sf(data = sf_data, aes(fill = quantile_90)) + 
+  scale_fill_viridis_c() +
+  theme(axis.title.x = element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(), 
+        axis.title.y = element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank(),
+        panel.grid = element_blank()) +
+  geom_text(data = fov_positions, aes(x = fov_positions$x_global_px+fov_size/2,
+                y = fov_positions$y_global_px+fov_size/2,
+                label = floor(fov_positions$quantile_90)), color = color, size = 1.8) +
+    ggtitle(paste0("FOV QC based on 90th quantile"))
+```
+
+
+# Feature boxplot by FOV
+
+To compare the distribution of each feature of interest among FOVs
+
+```{r, warnings = FALSE}
+variables <- c("total", "detected", "logtot", "um_area", "log2_AspectRatio", "tot_det_ratio", "subsets_NegProb_sum")
+
+for (var in 1:length(variables)){
+  n <- grep(paste0("^", variables[var], "$"), colnames(spe@colData))
+  boxplot(spe@colData@listData[[n]] ~ spe$fov, ylab = colnames(spe@colData)[n], cex = 0.2)
+  title(paste0(colnames(spe@colData)[n], "~fov"))
+}
+```
+
+# Cell counts barplot by FOV
+
+To view how many cells lie inside each FOV
+
+```{r}
+fov_df <- data.frame("n_cells" = as.integer(table(spe@colData@listData$fov)), "fov" = as.factor(names(table(spe@colData@listData$fov))))
+levels(fov_df$fov) <- order(levels(fov_df$fov), seq(1:length(fov_df$fov)))
+
+ggplot(data = fov_df, aes(x = fov, y = n_cells)) +
+  geom_col(fill = "#B0C4DE") + theme(legend.position ="none") +
+  ggtitle("Number of cells per fov") 
+```
+
+# Feature scatterplot
+
+To view anomalous relationships between two features highlighting probably problematic cells and FOVs
+
+Total counts ~ area in um
+
+```{r}
+cell_df <- as.data.frame(spe@colData@listData)
+
+ggplot(data = cell_df, aes(x = um_area, y = total)) +
+  geom_point() + 
+  ggtitle("Counts ~ μm area")
+```
+
+Detected features ~ area in um
+
+```{r}
+ggplot(data = cell_df, aes(x = um_area, y = detected)) +
+  geom_point() + 
+  ggtitle("Detected features ~ μm area")
+```
+
+Total counts ~ logged width/height ratio
+
+```{r}
+ggplot(data = cell_df, aes(x = log2_AspectRatio, y = total)) +
+  geom_point() + 
+  ggtitle("Counts ~ log2_AspectRatio")
+```
+
+# Feature scatterplot faceted by FOV
+
+Total counts ~ area in um 
+
+```{r}
+cell_df <- as.data.frame(spe@colData@listData)
+
+ggplot(data = cell_df, aes(x = um_area, y = total)) +
+  geom_point(size = 0.1) +
+  facet_wrap(~fov) + 
+  ggtitle("Total counts cell ~ μm area by fov")
+```
+
+Detected features ~ area in um 
+
+```{r}
+ggplot(data = cell_df, aes(x = um_area, y = detected)) +
+  geom_point(size = 0.1) +
+  facet_wrap(~fov) + 
+  ggtitle("Detected features ~ μm area by fov")
+```
+
+# Final report (transpose)
+
+```{r echo=T}
+data <- data.frame(colData(spe))
+
+df <- format(t(data.frame("Total_cell_number" = dim(spe)[2], "Total_counts" = sum(spe$total), "Total_features" = sum(spe$detected), "Total_ctrl_probe_counts" = sum(spe$subsets_NegProb_sum), "Median_counts_per_cell" = median(spe$total), "Median_features_per_cell" = median(spe$detected),  "Median_ctrl_probe_counts" = median(spe$subsets_NegProb_sum), "Median_um_area" = median(spe$um_area), "Median_log2_aspect_ratio" = median(spe$log2_AspectRatio), "Median_total_counts/features_ratio" = median(spe$tot_det_ratio, na.rm = T),  "Median_ctrl_probe_counts/total_counts_ratio" = median(spe$ctrl_total_ratio, na.rm = T))), scientific = FALSE)
+
+rownames(df) <- c("Total cell number", "Total counts", "Total features", "Total ctrl probe counts", "Median counts per cell", "Median features per cell", "Median ctrl probe counts", "Median um area", "Median log2 aspect ratio", "Median total counts/features ratio", "Median ctrl probe counts/total counts ratio")
+
+df[,1] <- round(as.numeric(df[,1]), 2)
+
+kable(df, format = "html", row.names = T, col.names = NULL, align = "c", caption = "<center>Global summary metrics</center>",
+      padding = 1L)
+```
+
+#
+#
+
+```{r}
+flag_variables <- c("flagged_tot_20", 
+                    "flagged_tot_10",
+                    "flagged_tot_5",
+                    "flagged_det_10",
+                    "flagged_det_5",
+                    "flagged_umarea_10",
+                    "flagged_umarea_5",
+                    "flagged_umarea_90",
+                    "flagged_umarea_95",
+                    "flagged_aratio_10",
+                    "flagged_aratio_5",
+                    "flagged_aratio_90",
+                    "flagged_aratio_95",
+                    "flagged_tdratio_10",
+                    "flagged_tdratio_5",
+                    "flagged_tdratio_atomx",
+                    "flagged_negprob_50",
+                    "flagged_negprob_75",
+                    "ctrl_total_ratio")
+
+flag_data <- data.frame(Unflagged_cells = as.integer(), Flagged_cells = as.integer(), Percentage_flagged = as.numeric())
+for(i in 1:length(flag_variables)){
+  var <- grep(paste0("^", flag_variables[i],"$"), names(colData(spe)))
+  list_i <- c(sum(colData(spe)[,var]==FALSE, na.rm = T), sum(colData(spe)[,var]==TRUE, na.rm = T), round(sum(colData(spe)[,var]==TRUE, na.rm = T)/dim(spe)[2]*100, 2))
+  flag_data[i, ] <- list_i
+}
+
+row.names(flag_data) <- c("Total counts < 20%", " Total counts < 10%", "Total counts < 5%", "Features < 10%", "Features < 5%", "Area < 10%", "Area < 5%", 
+                         "Area > 90%","Area > 95%", "H/w < 10%", "H/w < 5%", "H/w > 90%", "H/w > 95%", "Counts/features < 10%", "Counts/features < 5%",
+                         "Counts/features < 1", "Ctrl counts > 50%", "Ctrl counts > 75%", "Ctrl/total > 10%")
+
+kable(flag_data, format = "html", padding = 1L, align = "c", col.names = c("Unflagged cells", "Flagged cells", "% flagged cells"), caption = paste0("<center>Flagged vs unflagged cells, total cells: " , dim(spe)[2],"</center>"))
+```
+
+#
+#
+
+ATOMX GUIDELINES FOR TARGET LEVEL QC
+
+A value of 0.5 (default) will flag probes with lower total counts than the median (50th percentile) of thenegative control probes' counts
+
+```{r}
+ctrl_counts <- counts(spe)[grep("^NegPrb", rownames(spe)), ]
+target_counts <- counts(spe)[1:(dim(counts(spe))[1] - length(grep("^NegPrb", rownames(spe)))), ]
+temp <- rowSums(target_counts) > median(rowSums(ctrl_counts))
+count_data <- rowSums(counts(spe))
+color <- ifelse(count_data < median(rowSums(ctrl_counts)), "red", "black") 
+color <- ifelse(match(names(color), rownames(target_counts)), color, "grey")
+color <- replace_na(color, "grey") 
+count_df <- data_frame(count_data, color)
+count_df$log_count <- log10(count_df$count_data)
+plot(count_df$log_count, col = count_df$color)
+```
+
