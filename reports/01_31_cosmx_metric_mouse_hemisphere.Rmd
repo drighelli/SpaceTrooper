@@ -36,7 +36,7 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-Library import
+# Library import
 
 ```{r}
 library(SpatialExperiment)
@@ -59,7 +59,7 @@ library(ggpointdensity)
 library(spdep)
 ```
 
-Read-in function
+# Read-in function
 
 ```{r}
 readCosmxSPE <- function(dirname = dirname, 
@@ -101,9 +101,9 @@ readCosmxSPE <- function(dirname = dirname,
 }
 ```
 
-Setting directories
+# Setting directories
 
-```{r}
+```{r} 
 dirname <- "/NAS06/work/Spatial_omics/CosMx/Mouse_brain/coronal_hemisphere"
 count_pattern <- "Run1000_S1_Half_exprMat_file.csv"
 meta_pattern <- "Run1000_S1_Half_metadata_file.csv"
