@@ -1,6 +1,6 @@
-Package: SpatialMoleculeAnalysis
+Package: SpaceTrooper
 Type: Package
-Title: What the Package Does (Title Case)
+Title: SpaceTrooper performs Quality Control analysis of Image-Based spatial data
 Version: 0.1.0
 Author: Who wrote it
 Maintainer: The package maintainer <yourself@somewhere.net>
