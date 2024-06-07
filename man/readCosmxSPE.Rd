@@ -9,6 +9,7 @@ readCosmxSPE(
   countmatfpattern = "exprMat_file.csv",
   metadatafpattern = "metadata_file.csv",
   coord_names = c("CenterX_global_px", "CenterY_global_px"),
+  polygonsfpattern = "polygons.csv",
   fovposfpattern = "fov_positions_file.csv",
   fov_dims = c(xdim = 4256, ydim = 4256)
 )

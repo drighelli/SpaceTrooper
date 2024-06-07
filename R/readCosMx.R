@@ -61,6 +61,13 @@ readCosmxSPE <- function(dirname=dirname,
     ## two additional columns depends by technology version
 
     fov_positions <- as.data.frame(data.table::fread(fovpos_file, header = T))
+
+    ## patch for let this work also with older versions of CosMx fov position output file
+    fovcidx <- grep("FOV", colnames(fov_positions))
+    if(length(fovcidx)!=0) colnames(fov_positions)[fovcidx] <- "fov"
+    fovccdx <- grep("[X|Y]_px", colnames(fov_positions))
+    if(length(fovccdx)!=0) colnames(fov_positions)[fovccdx] <- gsub("_px", "_global_px", colnames(fov_positions)[fovccdx])
+
     ## tracking if one of more fov is not present in the metadata file
     idx <- fov_positions$fov %in% unique(metadata$fov)
     fov_positions <- fov_positions[idx,]
