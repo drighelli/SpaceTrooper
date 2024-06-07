@@ -1,6 +1,8 @@
 #' spatialPerCellQC
 #'
 #' @param spe
+#' @param negProbList
+#' @param micronConvFact
 #'
 #' @return
 #' @export
@@ -9,6 +11,7 @@
 #'
 #' @examples
 #' spe <- readCosmxSPE("~/Downloads/CosMx_data/DBKero/CosMx_Breast/CosMx_data_Case2/", sample_name="DBKero_BC")
+#' spe <- spatialPerCellQC(spe)
 spatialPerCellQC <- function(spe,
     negProbList=c("NegPrb", "Negative", "SystemControl", # CosMx
         "NegControlProbe", "NegControlCodeWord", "UnassignedCodeWord", # Xenium
@@ -40,7 +43,7 @@ spatialPerCellQC <- function(spe,
     spe$target_sum <- spe$sum - npc
     spe$target_detected <- spe$detected - npd
 
-    #### CHANGE SPE WITH COORDINATES IN COLDATA
+    #### CHANGE SPE constructor WITH COORDINATES IN COLDATA #########
     colData(spe) <- cbind.DataFrame(colData(spe), spatialCoords(spe))
 
     if(metadata(spe)$technology == "Nanostring_CosMx")
@@ -48,12 +51,15 @@ spatialPerCellQC <- function(spe,
         spnc <- spatialCoords(spe) * micronConvFact
         colnames(spnc) <- gsub("px", "um", spatialCoordsNames(spe))
         colData(spe) <- cbind.DataFrame(colData(spe), spnc)
+        spe$Area_um <- spe$Area * (micronConvFact^2)
     }
 
+    #### compute AspectRatio for other technologies ####
 
+    spe$log2AspectRatio <- log2(spe$AspectRatio)
 
-
-
+    spe$ctrl_total_ratio <- spe$control_sum/spe$total
+    spe$ctrl_total_ratio[which(is.na(spe$ctrl_total_ratio))] <- 0
 
     return(spe)
 }
