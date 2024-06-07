@@ -1,4 +1,4 @@
-#' Title
+#' readPolygonsCosMx
 #'
 #' @param polygonsfpattern
 #' @param x
@@ -42,14 +42,14 @@ readPolygonsCosMx <- function(polygonsFile, x="x_global_px", y="y_global_px",
     ### write polygons as parquet file
 
     ###############
-    um_area <- st_area(polygons)*(micronConvFact^2) # working on the global geometry
-    spe$um_area <- um_area
-    polygons$um_area <- um_area
-    aspect_ratio_list <- lapply(spe$polygons_whole_custom$geometry, function(x){
-        (max(x[[1]][,2]) - min(x[[1]][,2]))/(max(x[[1]][,1]) - min(x[[1]][,1]))
-    })
-    spe$polygons_whole_custom$log2_AspectRatio <- log2(unlist(aspect_ratio_list))
-    spe$log2_AspectRatio <- log2(unlist(aspect_ratio_list))
+    # um_area <- st_area(polygons)*(micronConvFact^2) # working on the global geometry
+    # spe$um_area <- um_area
+    # polygons$um_area <- um_area
+    # aspect_ratio_list <- lapply(spe$polygons_whole_custom$geometry, function(x){
+    #     (max(x[[1]][,2]) - min(x[[1]][,2]))/(max(x[[1]][,1]) - min(x[[1]][,1]))
+    # })
+    # spe$polygons_whole_custom$log2_AspectRatio <- log2(unlist(aspect_ratio_list))
+    # spe$log2_AspectRatio <- log2(unlist(aspect_ratio_list))
     ################
 }
 
