@@ -12,11 +12,11 @@
 #' @examples
 #' spe <- readCosmxSPE("~/Downloads/CosMx_data/DBKero/CosMx_Breast/CosMx_data_Case2/", sample_name="DBKero_BC")
 #' spe <- spatialPerCellQC(spe)
-spatialPerCellQC <- function(spe,
+spatialPerCellQC <- function(spe, micronConvFact=0.12,
     negProbList=c("NegPrb", "Negative", "SystemControl", # CosMx
         "NegControlProbe", "NegControlCodeWord", "UnassignedCodeWord", # Xenium
         "Blank" # MERFISH
-        ), micronConvFact=0.12)
+        ))
 {
     stopifnot(is(object=spe, "SpatialExperiment"))
     idxlist <- lapply(negProbList, function(ng){

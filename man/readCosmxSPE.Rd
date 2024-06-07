@@ -2,37 +2,25 @@
 % Please edit documentation in R/readCosMx.R
 \name{readCosmxSPE}
 \alias{readCosmxSPE}
-\title{readCosMx}
+\title{readCosmxSPE}
 \usage{
 readCosmxSPE(
-  dirname = dirname,
+  dirname,
+  sample_name = "sample01",
+  coord_names = c("CenterX_global_px", "CenterY_global_px"),
   countmatfpattern = "exprMat_file.csv",
   metadatafpattern = "metadata_file.csv",
-  coord_names = c("CenterX_global_px", "CenterY_global_px"),
   polygonsfpattern = "polygons.csv",
   fovposfpattern = "fov_positions_file.csv",
   fov_dims = c(xdim = 4256, ydim = 4256)
 )
 }
 \arguments{
-\item{sample}{character indicating the name of the sample}
-
-\item{path}{character indicating the path pointing to the sample}
-
-\item{rm.unmpd.tx}{logical (default TRUE) indicating if the unmapped
-molecules have to be discarded}
-
-\item{fov}{optional numeric indicating a list of FoVs to consider,
-if NULL (default) all FoVs are considered}
-
-\item{discard.tx}{character indicating a list of molecules to discard,
-if NULL (default) all genes are kept}
-
-\item{force}{logical, if TRUE the function uses the `path` as passed from
-the user}
-
-\item{verbose}{}
+\item{fov_dims}{}
+}
+\value{
+A SpatialExperiment object
 }
 \description{
-readCosMx
+readCosmxSPE
 }

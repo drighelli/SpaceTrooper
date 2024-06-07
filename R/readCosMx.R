@@ -20,11 +20,11 @@
 #' @importFrom SparseArray readSparseCSV
 #' @examples
 ## for old fovs consider dimensions 5472 x 3648 pixels.
-readCosmxSPE <- function(dirname=dirname,
+readCosmxSPE <- function(dirname,
                         sample_name="sample01",
+                        coord_names=c("CenterX_global_px", "CenterY_global_px"),
                         countmatfpattern="exprMat_file.csv",
                         metadatafpattern="metadata_file.csv",
-                        coord_names=c("CenterX_global_px", "CenterY_global_px"),
                         polygonsfpattern="polygons.csv",
                         fovposfpattern="fov_positions_file.csv",
                         fov_dims=c(xdim=4256, ydim=4256))
@@ -34,6 +34,9 @@ readCosmxSPE <- function(dirname=dirname,
     metadata_file <- list.files(dirname, metadatafpattern, full.names=TRUE)
     fovpos_file <- list.files(dirname, fovposfpattern, full.names=TRUE)
     pol_file <- list.files(dirname, polygonsfpattern, full.names=TRUE)
+
+    # stopifnot(all(file.exists(countmat_file), file.exists(metadata_file),
+    #               file.exists(fovpos_file), file.exists(pol_file)))
 
     # Read in
     countmat <- data.table::fread(countmat_file) # cell count matrix
@@ -90,3 +93,4 @@ readCosmxSPE <- function(dirname=dirname,
     )
     return(spe)
 }
+
