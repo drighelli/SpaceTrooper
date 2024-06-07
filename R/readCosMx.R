@@ -1,19 +1,19 @@
-#' readCosMx
+#' readCosmxSPE
 #'
 #' @description
 #'
-#' @param sample character indicating the name of the sample
-#' @param path character indicating the path pointing to the sample
-#' @param rm.unmpd.tx logical (default TRUE) indicating if the unmapped
-#' molecules have to be discarded
-#' @param fov optional numeric indicating a list of FoVs to consider,
-#' if NULL (default) all FoVs are considered
-#' @param discard.tx character indicating a list of molecules to discard,
-#' if NULL (default) all genes are kept
-#' @param scalefactor
-#' @param force logical, if TRUE the function uses the `path` as passed from
-#' the user
-#' @param verbose
+#'
+#' @param dirname
+#' @param sample_name
+#' @param countmatfpattern
+#' @param metadatafpattern
+#' @param coord_names
+#' @param polygonsfpattern
+#' @param fovposfpattern
+#' @param fov_dims
+#'
+#' @return A SpatialExperiment object
+#' @export
 #'
 #' @importFrom data.table fread merge
 #' @importFrom S4Vectors DataFrame
@@ -21,6 +21,7 @@
 #' @examples
 ## for old fovs consider dimensions 5472 x 3648 pixels.
 readCosmxSPE <- function(dirname=dirname,
+                        sample_name="sample01",
                         countmatfpattern="exprMat_file.csv",
                         metadatafpattern="metadata_file.csv",
                         coord_names=c("CenterX_global_px", "CenterY_global_px"),
@@ -57,6 +58,12 @@ readCosmxSPE <- function(dirname=dirname,
     colData <- DataFrame(merge(metadata, countmat[, c("fov", "cell_ID")]))
     rn <- paste0("f", colData$fov, "_c", colData$cell_ID)
     rownames(colData) <- rn
+
+    if(length(grep("cell_id", colnames(colData)))!=0)
+        message("Warning: overwriting existing cell_id column in colData")
+
+    colData$cell_id <- rn
+    colData <- colData[,c(1,2,dim(colData)[2], 3:(dim(colData)[2]-1))]
     ## multiply spatial coordinates in micron multiplying by 0.18 and store
     ## two additional columns depends by technology version
 
@@ -73,12 +80,13 @@ readCosmxSPE <- function(dirname=dirname,
     fov_positions <- fov_positions[idx,]
     fov_positions <- fov_positions[order(fov_positions$fov),]
     spe <- SpatialExperiment::SpatialExperiment(
+        sample_id=sample_name,
         assays = list(counts = counts),
         # rowData = rowData,
         colData = colData,
         spatialCoordsNames = coord_names,
         metadata=list(fov_positions=fov_positions, fov_dim=fov_dims,
-                        polygons=pol_file)
+                        polygons=pol_file, technology="Nanostring_CosMx")
     )
     return(spe)
 }
