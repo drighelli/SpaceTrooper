@@ -1,0 +1,601 @@
+---
+title: "05_08_xenium_human_lung_cancer_first_flag_scuttle"
+author: "Benedetta Banzi"
+date: "2024-05-22"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: hide
+---
+
+<STYLE TYPE="text/css">
+<!--
+  td{
+    font-family: Arial; 
+    font-size: 10 pt;
+    padding:0px;
+    cellpadding="0";
+    cellspacing="0"
+  }
+  th {
+    font-family: Arial; 
+    font-size: 10 pt;
+    height: 20px;
+    font-weight: bold;
+    text-align: "center";
+    background-color: #ccccff;
+    padding-left: 15px;
+    padding-right: 15px;
+  }
+  table { 
+    border-spacing: 4px;
+    border-collapse: collapse;
+  }
+--->
+</STYLE>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Preliminary steps
+
+Library import
+
+```{r}
+library(SpatialExperiment)
+library(data.table)
+library(scater) # it imports scuttle
+library(cowplot)
+library(ggplot2)
+theme_set(theme_bw())
+library(matrixStats)
+library(dplyr)
+library(tidyr)
+library(tibble)
+library(arrow)
+library(scales)
+library(sf)
+library(tmap)
+library(knitr)
+library(grid)
+library(ggpointdensity)
+library(ggpubr)
+library(spdep)
+library(ggExtra)
+library(DT)
+library(e1071)
+library(robustbase)
+library(UpSetR)
+```
+
+Read-in function
+
+Read-in function
+
+```{r}
+readXeniumSPE <- function(dirname, 
+                          countfname = "cell_feature_matrix.h5",
+                          coordfpattern = "cells.csv.gz", 
+                          coord_names = c("x_centroid", "y_centroid")){
+  countfpath <- file.path(dirname, countfname)
+  coord_file <- file.path(dirname, list.files(dirname, coordfpattern))
+  
+  # Count matrix + rowData
+  sce <- DropletUtils::read10xCounts(countfpath, col.names = TRUE)
+  
+  # Spatial and colData
+  colData <- read.csv(gzfile(coord_file), header = TRUE)
+  
+  if(attr(table(colnames(sce) == colData$cell_id), "dimnames")[[1]][1] == FALSE){
+    if(dim(colData)[1] < dim(sce)[2]){
+    sce <- sce[, colnames(sce) %in% colData$cell_id]
+    }
+  
+    if(dim(sce)[2] < dim(colData)[1]){
+    colData <- colData[colData$cell_id %in% colnames(sce),]
+    }
+
+  }
+  
+  # construct 'SpatialExperiment'
+  spe <- SpatialExperiment::SpatialExperiment(
+    assays = assays(sce),
+    rowData = rowData(sce),
+    colData = colData,
+    spatialCoordsNames = coord_names
+  )
+  
+  return(spe)
+}
+```
+
+Setting directories
+
+```{r}
+dirname <- "/NAS06/work/Spatial_omics/Xenium/Human_lung_cancer"
+sample_name <- "Xenium_human_lung_cancer"
+```
+
+# Xenium dataset exploratory analysis for preprocessing {.tabset .tabset-fade .tabset-pills}
+
+SpatialExperiment object creation and exploration
+
+```{r}
+spe <- readXeniumSPE(dirname = dirname)
+spe <- scuttle::addPerCellQC(spe, subsets=list(NegProb = grep("^NegControlProbe_", rownames(spe)), NegCodw = grep("^NegControlCodeword_", rownames(spe)), UnasCodw = grep("^UnassignedCodeword_", rownames(spe))))
+names(colData(spe)@listData)
+spe$control_counts <- rowSums(data.frame(colData(spe))[,grep("^subsets_.*_sum$", names(colData(spe)))])
+spe$control_detected <- rowSums(data.frame(colData(spe))[,grep("^subsets_.*_detected$", names(colData(spe)))])
+```
+
+Dataset dimensions
+
+```{r}
+dim(spe)
+```
+
+Added variables
+
+```{r}
+# Importing global coordinates from spatialCoords slot since they are not available in colData
+colData(spe)$CenterX_global_um <- spatialCoords(spe)[,1]
+colData(spe)$CenterY_global_um <- spatialCoords(spe)[,2]
+
+# Logged total counts
+spe$logtot <- log10(spe$total)
+
+# Keeping only target counts by subtracting counts referred to negative control probes
+spe$target_counts <- spe$total - spe$control_counts
+
+# Keeping only detected features by subtracting negative control probes
+spe$target_detected <- spe$detected - spe$control_detected
+
+# Proportion between counts referred only to target probes and detected features
+spe$tot_det_ratio <- spe$target_counts/spe$target_detected
+
+# Control probe counts/total counts
+ctrl_total_ratio <- spe$control_counts/spe$total
+ctrl_total_ratio <- replace_na(ctrl_total_ratio, 0)
+spe$ctrl_total_ratio <- ctrl_total_ratio
+
+# Target area ratio
+spe$target_area_ratio <- spe$target_counts/spe$cell_area
+```
+
+```{r}
+terra_rast <- terra::rast("/data01/Shared/Benedetta/spatial_transcriptomics/10X_Xenium/Datasets/human_lung_cancer/segmentation_cell_mask.tif")
+
+terra_polygon <- terra::as.polygons(terra_rast, value = T)
+
+terra_polygon <- terra::fillHoles(terra_polygon)
+
+names(terra_polygon) <- c("cell_id")
+
+valid_index <- terra::is.valid(terra_polygon)
+
+terra_polygon <- terra_polygon[valid_index]
+
+# no flipping is needed
+# terra_polygon <- terra::flip(terra_polygon, direction = "vertical")
+
+shift_horizontal_step <- 0
+
+shift_vertical_step <- dim(terra_rast)[1]
+
+terra_polygons <- terra::shift(terra_polygon,
+                             dx = shift_horizontal_step,
+                             dy = shift_vertical_step)
+
+if (terra_polygons$cell_id[1]==0){
+  terra_polygons <- terra::subset(terra_polygons, terra_polygons$cell_id!=0)}
+
+polygons_whole_custom <- st_as_sf(terra_polygons)
+
+spe$polygons_whole_custom <- polygons_whole_custom
+```
+
+Checking if the computed polygons are valid and removing elements that could result in geometry errors (Voyager)
+
+```{r}
+valid_poly <- st_is_valid(spe$polygons_whole_custom)
+table(valid_poly)
+```
+
+```{r}
+if(attr(table(valid_poly), "dimnames")[[1]][1] == FALSE){
+  spe$polygons_whole_custom <- st_buffer(spe$polygons_whole_custom, dist = 0)
+}
+valid_poly <- st_is_valid(spe$polygons_whole_custom)
+table(valid_poly)
+```
+
+Checking if all the geometries are polygons
+
+```{r}
+table(st_geometry_type(spe$polygons_whole_custom$geometry)) # 0 multipolygons
+```
+
+```{r}
+if (table(st_geometry_type(spe$polygons_whole_custom$geometry))[7] > 0){
+  cellids <- c() 
+  for(i in 1:dim(spe$polygons_whole_custom)[1]){
+	cellids[i] <- attr(spe$polygons_whole_custom$geometry[[i]], "class")[2]
+	cellids[i] <- cellids[i] == "MULTIPOLYGON"
+	}
+ spe <- spe[, cellids == FALSE]
+}
+
+table(st_geometry_type(spe$polygons_whole_custom))
+```
+
+```{r}
+spe$cell_area <- st_area(spe$polygons_whole_custom)/22.15
+spe$polygons_whole_custom$cell_area <- spe$cell_area 
+
+AspectRatio <- c()
+for(i in 1:dim(spe$polygons_whole_custom)[1]){
+ AspectRatio[i] <- (max(spe$polygons_whole_custom$geometry[[i]][[1]][,2]) -     min(spe$polygons_whole_custom$geometry[[i]][[1]][,2]))/(max(spe$polygons_whole_custom$geometry[[i]][[1]][,1]) - min(spe$polygons_whole_custom$geometry[[i]][[1]][,1]))
+}
+
+spe$polygons_whole_custom$log2_AspectRatio <- log2(AspectRatio) 
+spe$log2_AspectRatio <- log2(AspectRatio) 
+```
+
+# Large-scale to small-scale {.tabset .tabset-fade .tabset-pills}
+
+Approaching dataset preprocessing starting from global-scale, then fov-focused exploratory analysis
+
+## Global sample map
+
+To view the spatial organization of both the sample as it is and FOVs
+
+```{r, out.width="600%", out.height="150%"}
+tm_shape(polygons_whole_custom)+
+  tm_borders(lwd = 0.1, col = "grey50")+
+  tm_layout(legend.outside = TRUE,
+            main.title.position = c("center", "top"),
+            main.title = sample_name,
+            main.title.size = 0.5,
+            inner.margins = c(0, 0, 0, 0),
+            outer.margins = c(0, 0, 0, 0))
+```
+
+## Global feature maps
+
+To spot areas with anomalous feature values and spatial patterns on a global scale
+
+```{r, out.width="150%", out.height="150%"}
+plotColData(spe, "CenterY_global_um", "CenterX_global_um", colour_by = "total", point_size = 0.1) + ggtitle("Total counts per cell") + theme(aspect.ratio = 1)
+```
+
+```{r, out.width="150%", out.height="150%"}
+plotColData(spe, "CenterY_global_um", "CenterX_global_um", colour_by = "logtot", point_size = 0.1) + ggtitle("Log-total counts per cell") + theme(aspect.ratio = 1)
+```
+
+```{r, out.width="150%", out.height="150%"}
+plotColData(spe, "CenterY_global_um", "CenterX_global_um", colour_by = "detected", point_size = 0.1) + ggtitle("Detected features per cell") + theme(aspect.ratio = 1)
+```
+
+```{r, out.width="150%", out.height="150%"}
+plotColData(spe, "CenterY_global_um", "CenterX_global_um", colour_by = "nucleus_area", point_size = 0.1) + ggtitle("Cell area in μm per cell") + theme(aspect.ratio = 1)
+```
+
+```{r, out.width="150%", out.height="150%"}
+plotColData(spe, "CenterY_global_um", "CenterX_global_um", colour_by = "nucleus_area", point_size = 0.1) + ggtitle("Nucleus area in μm per cell") + theme(aspect.ratio = 1)
+```
+
+```{r, out.width="150%", out.height="150%"}
+plotColData(spe, "CenterY_global_um", "CenterX_global_um", colour_by = "log2_AspectRatio", point_size = 0.1) + ggtitle("Logged width/height ratio per cell") + theme(aspect.ratio = 1)
+```
+
+```{r, out.width="150%", out.height="150%"}
+plotColData(spe, "CenterY_global_um", "CenterX_global_um", colour_by = "tot_det_ratio", point_size = 0.1) + ggtitle("Target counts/detected features ratio per cell") + theme(aspect.ratio = 1)
+```
+
+```{r, out.width="150%", out.height="150%"}
+plotColData(spe, "CenterY_global_um", "CenterX_global_um", order_by = "control_counts", colour_by = "control_counts", point_size = 0.1) +
+  scale_color_gradient(low = "white", high = "red", name = "control_counts") + ggtitle("Negative control probe counts per cell") +
+  theme(aspect.ratio = 1,
+        panel.background = element_rect(fill = "black",color = NA),
+        plot.background = element_rect(fill = "black",color = NA),
+        axis.title.x = element_text(color = "white"),
+        axis.title.y = element_text(color = "white"),
+        axis.ticks = element_line(color = "white"),
+        axis.text.y = element_text(color = "white"),
+        axis.text.x = element_text(color = "white"),
+        axis.line = element_line(color = "white"),
+        legend.title = element_text(color = "white"),
+        legend.text = element_text(color = "white"),
+        plot.title = element_text(color = "white"))
+```
+
+```{r, out.width="150%", out.height="150%"}
+plotColData(spe, "CenterY_global_um", "CenterX_global_um", colour_by = "ctrl_total_ratio", point_size = 0.1) + ggtitle("Control counts/total counts ratio per cell") + theme(aspect.ratio = 1)
+```
+
+# Feature histograms 
+
+To check feature distribution before highlighting where extreme values are located in the global sample map
+
+```{r}
+variables <- c("total", "detected", "logtot", "cell_area", "nucleus_area", "log2_AspectRatio", "tot_det_ratio", "control_counts", "ctrl_total_ratio")
+for (var in 1:length(variables)){
+  n <- grep(paste0("^", variables[var], "$"), colnames(spe@colData))
+  histo_var <- names(colData(spe))[n]
+  p <- ggplot(data = data.frame(colData(spe))) +
+    geom_histogram(aes(x = .data[[histo_var]]), fill = "#69b3a2") +
+    ggtitle(paste0(histo_var))
+  print(p)
+}  
+```
+
+# First cell skimming with constant values {.tabset .tabset-fade .tabset-pills}
+
+Coarse-grain cell filtering to remove gross segmentation errors.
+
+## Total counts
+
+```{r}
+summary(spe$total)
+```
+
+```{r, out.width="150%", out.height="150%"}
+hist(spe$total)
+```
+
+```{r, out.width="150%", out.height="150%"}
+boxplot(spe$total)
+```
+
+```{r, out.width="150%", out.height="150%"}
+threshold <- 0
+spe$flagged_0total <- as.factor(ifelse(colData(spe)$total == 0, TRUE, FALSE))
+spe$polygons_whole_custom$flagged_0total <- ifelse(spe$flagged_0total == TRUE, "red", "grey80")
+
+tm_shape(spe$polygons_whole_custom) + 
+  tm_fill(col = "flagged_0total") +
+  tm_layout(legend.outside = TRUE,
+            main.title.position = c("center", "top"),
+            main.title = paste0("Cells having 0 total counts", "\nFlagged cells = ",
+                                table(colData(spe)$flagged_0total)["TRUE"], " out of ", dim(spe)[2], ", ",
+                                round(table(colData(spe)$flagged_0total)["TRUE"]/dim(spe)[2]*100, 2), "% of total cells"),
+            main.title.fontface = 2,
+            main.title.size = 1, 
+            inner.margins = c(0, 0, 0, 0),
+            outer.margins = c(0, 0, 0, 0))
+```
+
+```{r}
+total0_spe <- spe[,spe$flagged_0total == FALSE]
+dim(total0_spe)
+```
+
+## Control count / total counts
+
+```{r}
+summary(spe$ctrl_total_ratio)
+```
+
+```{r, out.width="150%", out.height="150%"}
+hist(spe$ctrl_total_ratio)
+```
+
+```{r, out.width="150%", out.height="150%"}
+boxplot(spe$ctrl_total_ratio)
+```
+
+```{r, out.width="150%", out.height="150%"}
+spe$outlier_ctrl_tot <- spe$ctrl_total_ratio > 0.1 # Voyager
+spe$polygons_whole_custom$outlier_ctrl_tot <- ifelse(spe$outlier_ctrl_tot == TRUE, "red", "grey80")
+
+tm_shape(spe$polygons_whole_custom) + 
+  tm_fill(col= "outlier_ctrl_tot") +
+  tm_layout(legend.outside = TRUE,
+            main.title.position = c("center", "top"),
+            main.title = paste0("Outlier cells for control / total counts ratio > 0.1, \nflagged cells = ",
+                                table(colData(spe)$outlier_ctrl_tot)["TRUE"], " out of ", dim(spe)[2], ", ",
+                                round(table(colData(spe)$outlier_ctrl_tot)["TRUE"]/dim(spe)[2]*100, 2), "% of total cells"),
+            main.title.fontface = 2,
+            main.title.size = 1, 
+            inner.margins = c(0, 0, 0, 0),
+            outer.margins = c(0, 0, 0, 0))
+
+```
+
+```{r}
+ctrltot_spe <- spe[, spe$outlier_ctrl_tot == FALSE]
+dim(ctrltot_spe)
+```
+
+```{r}
+summary(ctrltot_spe$ctrl_total_ratio)
+```
+
+```{r, out.width="150%", out.height="150%"}
+hist(ctrltot_spe$ctrl_total_ratio)
+```
+
+```{r, out.width="150%", out.height="150%"}
+boxplot(ctrltot_spe$ctrl_total_ratio)
+```
+
+## nucleus area NAs
+
+```{r, out.width="150%", out.height="150%"}
+spe$polygons_whole_custom$nucleus_na <- ifelse(is.na(spe$nucleus_area) == TRUE, "red", "grey80")
+
+tm_shape(spe$polygons_whole_custom) + 
+  tm_fill(col= "nucleus_na") +
+  tm_layout(legend.outside = TRUE,
+            main.title.position = c("center", "top"),
+            main.title = paste0("Outlier cells for control / total counts ratio > 0.1, \nflagged cells = ",
+                                table(is.na(colData(spe)$nucleus_area))["TRUE"], " out of ", dim(spe)[2], ", ",
+                                round(table(is.na(colData(spe)$nucleus_area))["TRUE"]/dim(spe)[2]*100, 2), "% of total cells"),
+            main.title.fontface = 2,
+            main.title.size = 1, 
+            inner.margins = c(0, 0, 0, 0),
+            outer.margins = c(0, 0, 0, 0))
+
+```
+
+```{r}
+nucleusna_spe <- spe[, is.na(spe$nucleus_area) == FALSE]
+dim(nucleusna_spe)
+```
+
+# First cell skimming with scuttle::isOutlier {.tabset .tabset-fade .tabset-pills}
+
+```{r}
+spe$polygons_whole_custom$control_counts <- spe$control_counts
+spe$polygons_whole_custom$ctrl_total_ratio <- spe$ctrl_total_ratio
+spe$polygons_whole_custom$um_area <- spe$um_area
+spe$polygons_whole_custom$log2_AspectRatio <- spe$log2_AspectRatio
+spe$polygons_whole_custom$Mean.DAPI <- spe$Mean.DAPI
+```
+
+## Um area
+
+```{r}
+summary(spe$cell_area)
+```
+
+```{r, out.width="150%", out.height="150%"}
+hist(spe$cell_area)
+```
+
+```{r,  out.width="150%", out.height="150%"}
+boxplot(spe$cell_area)
+```
+
+```{r, out.width="150%", out.height="150%"}
+spe$outlier_cellarea <- scuttle::isOutlier(colData(spe)$cell_area, type = "both")
+spe$polygons_whole_custom$outlier_cellarea <- ifelse(spe$outlier_cellarea == TRUE, "red", "grey80")
+
+tm_shape(spe$polygons_whole_custom) + 
+  tm_fill(col = "outlier_cellarea") +
+  tm_layout(legend.outside = TRUE,
+            main.title.position = c("center", "top"),
+            main.title = paste0("Outlier cells for custom cell area", 
+                                "\n lower thr. = " , round(attr(spe$outlier_cellarea,"thresholds")["lower"], 2), ", higher thr. = ",
+                                round(attr(spe$outlier_cellarea,"thresholds")["higher"], 2),
+                                "\nFlagged cells = ",
+                                table(colData(spe)$outlier_cellarea)["TRUE"], " out of ", dim(spe)[2], ", ",
+                                round(table(colData(spe)$outlier_cellarea)["TRUE"]/dim(spe)[2]*100, 2), "% of total cells"),
+            main.title.fontface = 2,
+            main.title.size = 1, 
+            inner.margins = c(0, 0, 0, 0),
+            outer.margins = c(0, 0, 0, 0))
+```
+
+```{r}
+area_spe <- spe[, spe$outlier_cellarea == FALSE]
+summary(area_spe$cell_area)
+```
+
+```{r, out.width="150%", out.height="150%"}
+hist(area_spe$cell_area)
+```
+
+```{r, out.width="150%", out.height="150%"}
+boxplot(area_spe$cell_area)
+```
+
+```{r}
+dim(area_spe)
+```
+
+
+## Nucleus area
+
+```{r}
+summary(spe$nucleus_area)
+```
+
+```{r, out.width="150%", out.height="150%"}
+hist(spe$nucleus_area)
+```
+
+```{r,  out.width="150%", out.height="150%"}
+boxplot(spe$nucleus_area)
+```
+
+```{r, out.width="150%", out.height="150%"}
+spe$outlier_nucleusarea <- scuttle::isOutlier(spe$nucleus_area, type = "both")
+spe$polygons_whole_custom$outlier_nucleusarea <- ifelse(spe$outlier_nucleusarea == TRUE, "red", "grey80")
+
+tm_shape(spe$polygons_whole_custom) + 
+  tm_fill(col = "outlier_nucleusarea") +
+  tm_layout(legend.outside = TRUE,
+            main.title.position = c("center", "top"),
+            main.title = paste0("Outlier cells for nucleus area", 
+                                "\n lower thr. = " , round(attr(spe$outlier_nucleusarea,"thresholds")["lower"], 2), ", higher thr. = ",
+                                round(attr(spe$outlier_nucleusarea,"thresholds")["higher"], 2),
+                                "\nFlagged cells = ",
+                                table(colData(spe)$outlier_nucleusarea)["TRUE"], " out of ", dim(spe)[2], ", ",
+                                round(table(colData(spe)$outlier_nucleusarea)["TRUE"]/dim(spe)[2]*100, 2), "% of total cells"),
+            main.title.fontface = 2,
+            main.title.size = 1, 
+            inner.margins = c(0, 0, 0, 0),
+            outer.margins = c(0, 0, 0, 0))
+```
+
+```{r}
+chr_nucleusarea <- replace_na(as.character(spe$outlier_nucleusarea), "NA_values")
+nucleusarea_spe <- spe[, !chr_nucleusarea == "TRUE" ]
+summary(nucleusarea_spe$nucleus_area)
+```
+
+```{r, out.width="150%", out.height="150%"}
+hist(nucleusarea_spe$nucleus_area)
+```
+
+```{r, out.width="150%", out.height="150%"}
+boxplot(nucleusarea_spe$nucleus_area)
+```
+
+```{r}
+dim(nucleusarea_spe)
+```
+
+```{r}
+out_boundaries <- c(0, 0.1, "NA",
+               paste(round(attr(spe$outlier_cellarea,"thresholds")["lower"], 2), round(attr(spe$outlier_cellarea,"thresholds")["higher"], 2)),
+               paste(round(attr(spe$outlier_nucleusarea,"thresholds")["lower"], 2), round(attr(spe$outlier_nucleusarea,"thresholds")["higher"], 2)))
+
+flagged_cells <- c(sum(spe$polygons_whole_custom$flagged_0total=="red", na.rm = T),
+                   sum(spe$polygons_whole_custom$outlier_ctrl_tot=="red", na.rm = T),
+                   sum(spe$polygons_whole_custom$nucleus_na=="red", na.rm = T),
+                   sum(spe$polygons_whole_custom$outlier_cellarea=="red",na.rm = T),
+                   sum(spe$polygons_whole_custom$outlier_nucleusarea=="red",na.rm = T))
+
+unflagged_cells <- c(sum(spe$polygons_whole_custom$flagged_0total=="grey80", na.rm = T),
+                     sum(spe$polygons_whole_custom$outlier_ctrl_tot=="grey80", na.rm = T),
+                     sum(spe$polygons_whole_custom$nucleus_na=="grey80", na.rm = T),
+                     sum(spe$polygons_whole_custom$outlier_cellarea=="grey80",na.rm = T),
+                     sum(spe$polygons_whole_custom$outlier_nucleusarea=="grey80",na.rm = T))
+
+percent_flagged <- round(flagged_cells/dim(spe)[2]*100, 2)
+
+union_flagged <- length(unique(c(spe[,spe$polygons_whole_custom$flagged_0total == "red"]$cell_id,
+                   spe[,spe$polygons_whole_custom$outlier_ctrl_tot == "red"]$cell_id,
+                   spe[,spe$polygons_whole_custom$nucleus_na == "red"]$cell_id,
+                   spe[,spe$polygons_whole_custom$outlier_cellarea == "red"]$cell_id,
+                   spe[,spe$polygons_whole_custom$outlier_nucleusarea == "red" & !is.na(spe$polygons_whole_custom$outlier_nucleusarea)]$cell_id)))
+
+stat_df <- data.frame(out_boundaries = out_boundaries, unflagged_cells = unflagged_cells, flagged_cells = flagged_cells, percent_flagged = percent_flagged, row.names = c("Total counts", "Control/total counts ratio", "NA nucleus cells", "Cell area in um", "Nucleus area in um"))
+
+kable(stat_df, format = "html", col.names = c("Outlier boundaries", "Unflagged cells", "Flagged cells", "% flagged cells"), align = "c", caption = paste0("<center>Flagged cells by different metrics, total cells in whole sample: ", dim(spe$polygons_whole_custom)[1], ", total unique flagged cells in whole sample: ", union_flagged, ", % unique flagged cells: ",
+round(union_flagged/dim(spe)[2]*100, 2), "</center>"), padding = 1L)
+```
+
+```{r}
+list_input <- list(flagged_0total = spe[,spe$polygons_whole_custom$flagged_0total == "red"]$cell_id, 
+           outlier_ctrl_tot = spe[,spe$polygons_whole_custom$outlier_ctrl_tot == "red"]$cell_id,
+           nucleus_na = spe[,spe$polygons_whole_custom$nucleus_na == "red"]$cell_id,
+           cellarea_outlier = spe[,spe$polygons_whole_custom$outlier_cellarea == "red"]$cell_id,
+           nucleusarea_outlier = spe[,spe$polygons_whole_custom$outlier_nucleusarea == "red" & !is.na(spe$polygons_whole_custom$outlier_nucleusarea)]$cell_id)
+
+upset(fromList(list_input))
+```
