@@ -75,6 +75,8 @@ readPolygonsCosMx <- function(polygonsFile, x="x_global_px", y="y_global_px",
     return(polygons)
 }
 
+## EXPORT PARQUET FILE
+
 #' Title
 #' @description checks validity on the active geometry of `sf` parameter
 #' @param sf
@@ -91,12 +93,14 @@ readPolygonsCosMx <- function(polygonsFile, x="x_global_px", y="y_global_px",
 
     if(sum(sf_tf)!=dim(sf)[1]) sf <- st_buffer(sf, dist=0)
     gmn <- .getActiveGeometryName(sf)
-    #    Subsetting to remove non-polygons
+    # Subsetting to remove non-polygons
     cellids <- unlist(apply(sf, 1, function(geom)
     {
-        if(attr(geom[[gmn]], "class")[2] == "MULTIPOLYGON") {
+        if(attr(geom[[gmn]], "class")[2] == "MULTIPOLYGON")
+        {
             return(geom$cell_id)
         }
+        ## print an alert on the detection/removal of multipolygons
     }))
 
     if(length(cellids)!=0) sf <- sf[sf$cell_id!=cellids,]
