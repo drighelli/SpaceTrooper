@@ -26,6 +26,7 @@ readCosmxSPE <- function(dirname,
                         countmatfpattern="exprMat_file.csv",
                         metadatafpattern="metadata_file.csv",
                         polygonsfpattern="polygons.csv",
+                        ## polygons=FALSE/in memory/parquet
                         fovposfpattern="fov_positions_file.csv",
                         fov_dims=c(xdim=4256, ydim=4256))
 {
@@ -33,7 +34,7 @@ readCosmxSPE <- function(dirname,
     countmat_file <- list.files(dirname, countmatfpattern, full.names=TRUE)
     metadata_file <- list.files(dirname, metadatafpattern, full.names=TRUE)
     fovpos_file <- list.files(dirname, fovposfpattern, full.names=TRUE)
-    pol_file <- list.files(dirname, polygonsfpattern, full.names=TRUE)
+    pol_file <- list.files(dirname, polygonsfpattern, full.names=TRUE) #check if parquet
 
     # stopifnot(all(file.exists(countmat_file), file.exists(metadata_file),
     #               file.exists(fovpos_file), file.exists(pol_file)))
@@ -72,16 +73,18 @@ readCosmxSPE <- function(dirname,
 
     fov_positions <- as.data.frame(data.table::fread(fovpos_file, header = T))
 
-    ## patch for let this work also with older versions of CosMx fov position output file
+    ## patch for let this work also with older versions of CosMx fov position
+    ## output file
     fovcidx <- grep("FOV", colnames(fov_positions))
     if(length(fovcidx)!=0) colnames(fov_positions)[fovcidx] <- "fov"
     fovccdx <- grep("[X|Y]_px", colnames(fov_positions))
     if(length(fovccdx)!=0) colnames(fov_positions)[fovccdx] <- gsub("_px", "_global_px", colnames(fov_positions)[fovccdx])
 
-    ## tracking if one of more fov is not present in the metadata file
+    ## tracking if one of more fov is not present in the metadata file ##
     idx <- fov_positions$fov %in% unique(metadata$fov)
     fov_positions <- fov_positions[idx,]
     fov_positions <- fov_positions[order(fov_positions$fov),]
+    ####
     spe <- SpatialExperiment::SpatialExperiment(
         sample_id=sample_name,
         assays = list(counts = counts),
@@ -90,6 +93,7 @@ readCosmxSPE <- function(dirname,
         spatialCoordsNames = coord_names,
         metadata=list(fov_positions=fov_positions, fov_dim=fov_dims,
                         polygons=pol_file, technology="Nanostring_CosMx")
+        ## keep atomx versioning in metadata, if possible
     )
     return(spe)
 }
