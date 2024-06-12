@@ -28,16 +28,22 @@ readPolygonsCosMx <- function(polygonsFile, x="x_global_px", y="y_global_px",
 
     st_geometry(polygons) <- "geometry.1"
     st_geometry(polygons) <- "local"
-    polygons <- .checkPolygonsValidity(polygons)
+    st_geometry(polygons) <- "geometry"
     st_geometry(polygons) <- "global"
-    polygons <- .checkPolygonsValidity(polygons)
+
     if (sum(rownames(polygons) == colnames(spe)) != dim(spe)[2])
     {
-        cd <- colData(spe)
-        polygons <- merge(polygons, cd[,"cell_id"])
-        cd <- merge(cd, polygons[,"cell_id"])
-        spe <- spe[, rownames(cd)]
+        cd <- data.frame(colData(spe))
+        polygons <- left_join(polygons, cd[,c("fov","cellID")], by=c("fov","cellID"))
+        cd <- left_join(cd, polygons[,c("fov","cellID")], by=c("fov","cellID"))
+        rownames(cd) <- cd$cell_id
+        rownames(polygons) <- polygons$cell_id
+        spe <- spe[, spe$cell_id%in%rownames(polygons)]
+        polygons <- polygons[polygons$cell_id%in%rownames(cd),]
     }
+
+    polygons <- .checkPolygonsValidity(polygons)
+    return(polygons)
 
     ### write polygons as parquet file
 
@@ -71,7 +77,7 @@ readPolygonsCosMx <- function(polygonsFile, x="x_global_px", y="y_global_px",
                                       x=x, y=y,
                                       polygon_id=polygon_id, keep=TRUE)
     polygons <- polygons[base::order(polygons$fov, polygons$cellID),]
-    rownames(polygons) <- polygons$cell_id
+    polygons$cell_id <- paste0("f", polygons$fov, "_c", polygons$cellID) # serve l'identificativo univoco
     return(polygons)
 }
 
@@ -103,8 +109,26 @@ readPolygonsCosMx <- function(polygonsFile, x="x_global_px", y="y_global_px",
         ## print an alert on the detection/removal of multipolygons
     }))
 
-    if(length(cellids)!=0) sf <- sf[sf$cell_id!=cellids,]
+    if(length(cellids)!=0) sf$is_multi <- sf$cell_id%in%cellids
     return(sf)
 }
+
+#mancava questa funzione!
+
+#' .getActiveGeometryName
+#'
+#' @param sf
+#'
+#' @return
+#' @keywords internal
+#' @importFrom
+#'
+#' @examples
+
+.getActiveGeometryName<-function(sf){
+    col = attr(sf,"sf_column");
+    return(col);
+}
+
 
 
