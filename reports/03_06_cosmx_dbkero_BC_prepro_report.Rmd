@@ -1,0 +1,265 @@
+---
+title: "03_06_cosmx_dbkero_BC_prepro_report"
+author: "Benedetta Banzi"
+date: "2024-03-07"
+output: html_document
+---
+
+<STYLE TYPE="text/css">
+<!--
+  td{
+    font-family: Arial; 
+    font-size: 10 pt;
+    padding:0px;
+    cellpadding="0";
+    cellspacing="0"
+  }
+  th {
+    font-family: Arial; 
+    font-size: 10 pt;
+    height: 20px;
+    font-weight: bold;
+    text-align: "center";
+    background-color: #ccccff;
+    padding-left: 15px;
+    padding-right: 15px;
+  }
+  table { 
+    border-spacing: 4px;
+    border-collapse: collapse;
+  }
+--->
+</STYLE>
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Library import
+
+```{r}
+library(SpatialExperiment)
+library(data.table)
+library(scater) # it imports scuttle
+library(cowplot)
+library(ggplot2)
+theme_set(theme_bw())
+library(matrixStats)
+library(dplyr)
+library(tidyr)
+library(tibble)
+library(arrow)
+library(scales)
+library(sf)
+library(tmap)
+library(knitr)
+library(grid)
+library(ggpointdensity)
+library(ggpubr)
+library(spdep)
+library(ggExtra)
+library(terra)
+```
+
+Read-in function
+
+```{r}
+readCosmxSPE <- function(dirname = dirname, 
+                         countmatfpattern = "exprMat_file.csv", 
+                         metadatafpattern = "metadata_file.csv", 
+                         coord_names = c("CenterX_global_px",
+                                         "CenterY_global_px")){
+  
+  countmat_file <- file.path(dirname, list.files(dirname, countmatfpattern))
+  metadata_file <- file.path(dirname, list.files(dirname, metadatafpattern))
+  
+  # Read in 
+  countmat <- data.table::fread(countmat_file)
+  metadata <- data.table::fread(metadata_file)
+  
+  # Count matrix   
+  counts <- merge(countmat, metadata[, c("fov", "cell_ID")])
+  counts <- subset(counts, select = -c(fov, cell_ID))
+  cell_codes <- rownames(counts)
+  features <- colnames(counts)
+  counts <- t(counts)
+  
+  rownames(counts) <- features
+  colnames(counts) <- cell_codes
+  
+  # rowData (does not exist)
+  
+  # colData
+  colData <- merge(metadata, countmat[, c("fov", "cell_ID")])
+  
+  spe <- SpatialExperiment::SpatialExperiment(
+    assays = list(counts = counts),
+    # rowData = rowData,
+    colData = colData,
+    spatialCoordsNames = coord_names
+  )
+  
+  return(spe)
+}
+```
+
+Setting directories
+
+```{r}
+dirname <- "/NAS06/work/Spatial_omics/DBKero/CosMx_Breast/CosMX_data_Case2"
+count_pattern <- "Run5810_Case2_exprMat_file.csv"
+meta_pattern <- "Run5810_Case2_metadata_file.csv"
+sample_name <- "CosMx_DBKero_BC"
+```
+
+# CosMx dataset exploratory analysis for preprocessing
+
+SpatialExperiment object creation and exploration
+
+```{r}
+spe <- readCosmxSPE(dirname = dirname, countmatfpattern = count_pattern, metadatafpattern = meta_pattern)
+spe <- scuttle::addPerCellQC(spe, subsets=list(NegProb = grep("^NegPrb", rownames(spe))))
+names(colData(spe)@listData)
+```
+
+```{r}
+dim(spe)
+```
+
+## Large-scale to small-scale
+
+Approaching dataset preprocessing starting from global-scale, then fov-focused exploratory analysis
+
+# Global sample map
+
+To view the spatial organization of both the sample as it is and FOVs
+
+```{r}
+# Importing global coordinates from spatialCoords slot since they are not available in colData
+colData(spe)$CenterX_global_px <- spatialCoords(spe)[,1]
+colData(spe)$CenterY_global_px <- spatialCoords(spe)[,2]
+```
+
+```{r, out.width="600%", out.height="150%"}
+fov_pattern <- "Run5810_Case2_fov_positions_file.csv"
+fovpos_file <- file.path(dirname, list.files(dirname, fov_pattern))
+
+metadata <- data.table::fread(file.path(dirname, list.files(dirname, meta_pattern)))
+fov_positions <- data.table::fread(fovpos_file, header = T)
+fov_positions <- fov_positions[fov_positions$fov %in% unique(metadata$fov),]
+
+# image theme
+global_map_theme <- function(back.color="black",back.border=NA,title.col="white") {
+  theme(aspect.ratio = 1,
+        panel.border = element_blank(),
+        legend.key = element_blank(),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.ticks = element_blank(),
+        axis.text.y = element_blank(),
+        axis.text.x = element_blank(),
+        panel.grid = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.background = element_rect(fill = "transparent",colour = NA),
+        plot.title = element_text(color = title.col,hjust = 0.5,face = "bold"),
+        plot.background = element_rect(fill = "transparent",colour = back.border))
+}
+
+fov_size <- 4256
+
+ggplot() + 
+  geom_point(data = metadata, mapping = aes(x = CenterX_global_px, y = CenterY_global_px), colour = "darkmagenta", fill="darkmagenta", size = 0.05, alpha = 0.2) +
+  annotate("rect", xmin = fov_positions$X_px - 1/32*fov_size, 
+         xmax = fov_positions$X_px + fov_size - 1/32*fov_size, 
+         ymin = fov_positions$Y_px - fov_size - 1/16*fov_size, 
+         ymax = fov_positions$Y_px - 1/16*fov_size,
+         alpha = .2, color = "black",linewidth = 0.2) +
+  geom_text(aes(x = fov_positions$X_px+11/10*fov_size/2,
+                y = fov_positions$Y_px-11/10*fov_size/2,
+                label = fov_positions$FOV), color="black", size = 3) +
+  ggtitle(sample_name) +
+  global_map_theme(back.color = "white", back.border = "white", title.col = "black")
+```
+
+# Added variables
+
+```{r}
+fov_size <- 4256
+
+spe$id_fov <- paste0(spe$cellID, spe$fov, sep = "_")
+
+# Importing global coordinates from spatialCoords slot since they are not available in colData
+spe$CenterX_global_px <- spatialCoords(spe)[,1]
+spe$CenterY_global_px <- spatialCoords(spe)[,2]
+
+# Converting global coordinates to um 
+spe$CenterX_global_um <- spe$CenterX_global_px*0.18
+spe$CenterY_global_um <- spe$CenterY_global_px*0.18 
+
+# Logged total counts
+spe$logtot <- log10(spe$total)
+
+# Converting area in um
+spe$um_area <- spe$Area*0.0324
+
+# Logged width/height ratio so there are no holes in the distribution in the middle and also negative values can be appreciated
+spe$log2_AspectRatio <- log2(spe$AspectRatio)
+
+# Keeping only target counts by subtracting counts referred to negative control probes
+spe$target_counts <- spe$total - spe$subsets_NegProb_sum
+
+# Keeping only detected features by subtracting negative control probes
+spe$target_detected <- spe$detected - spe$subsets_NegProb_detected
+
+# Proportion between counts referred only to target probes and detected features
+spe$tot_det_ratio <- spe$target_counts/spe$target_detected
+
+spe$ctrl_total_ratio <- spe$subsets_NegProb_sum/spe$total
+
+metadata <- data.frame(colData(spe))
+```
+
+Creating custom polygon file to add 
+
+```{r}
+tif_list <- list()
+for(i in 1:length(table(metadata$fov))){
+  prefix <- ifelse(i < 10, "F00", "F0")
+  tif_list[[i]] <- file.path(dirname, "CellLabels", paste0("CellLabels_", prefix, i, ".tif"))
+}
+
+sf_list <- lapply(tif_list, function(x){
+  terra_rast <- terra::rast(x)
+  terra_polygon <- terra::as.polygons(terra_rast, value = TRUE)
+  terra_polygon <- terra::fillHoles(terra_polygon)
+  names(terra_polygon) <- c("cellID")
+  terra_polygon$fov <- rep(which(tif_list == x), dim(terra_polygon)[1])
+  valid_index <- terra::is.valid(terra_polygon)
+  terra_polygon <- terra_polygon[valid_index]
+  terra_polygon <- terra::flip(terra_polygon, direction = "vertical")
+        shift_horizontal_step <- 0
+        shift_vertical_step <- dim(terra_rast)[1]
+        terra_polygon = terra::shift(terra_polygon,
+                                     dx = shift_horizontal_step,
+                                     dy = shift_vertical_step)
+  if (terra_polygon$cellID[1]==0){
+    terra_polygon <- terra::subset(terra_polygon, terra_polygon$cellID!=0)}
+  st_as_sf(terra_polygon)      
+
+
+
+polygons <- bind_rows(sf_list)
+metadata$id_fov <- paste(metadata$cell_ID, metadata$fov, sep = "_")
+polygons$id_fov <- paste(polygons$cellID, polygons$fov, sep = "_")
+polygons$custom_area <- st_area(polygons)
+polygons$custom_um_area <- polygons$custom_area*0.0324
+
+metadata <- left_join(metadata, data.frame(id_fov = polygons$id_fov, custom_area = polygons$custom_area, custom_um_area = polygons$custom_um_area), by = join_by(id_fov))
+polygons <- left_join(polygons, metadata, by = join_by(id_fov))
+```
+
+
+
+

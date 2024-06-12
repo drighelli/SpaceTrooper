@@ -1,0 +1,684 @@
+---
+title: "05_08_mouse_brain_hemi_auto_first_flag_scuttle"
+author: "Benedetta Banzi"
+date: "2024-05-20"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: hide
+---
+
+<STYLE TYPE="text/css">
+<!--
+  td{
+    font-family: Arial; 
+    font-size: 10 pt;
+    padding:0px;
+    cellpadding="0";
+    cellspacing="0"
+  }
+  th {
+    font-family: Arial; 
+    font-size: 10 pt;
+    height: 20px;
+    font-weight: bold;
+    text-align: "center";
+    background-color: #ccccff;
+    padding-left: 15px;
+    padding-right: 15px;
+  }
+  table { 
+    border-spacing: 4px;
+    border-collapse: collapse;
+  }
+--->
+</STYLE>
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Library import
+
+```{r}
+library(SpatialExperiment)
+library(data.table)
+library(scater) # it imports scuttle
+library(cowplot)
+library(ggplot2)
+theme_set(theme_bw())
+library(matrixStats)
+library(dplyr)
+library(tidyr)
+library(tibble)
+library(arrow)
+library(scales)
+library(sf)
+library(tmap)
+library(knitr)
+library(grid)
+library(ggpointdensity)
+library(ggpubr)
+library(spdep)
+library(ggExtra)
+library(terra)
+library(DT)
+library(e1071)
+library(robustbase)
+library(InSituType)
+library(UpSetR)
+```
+
+Read-in function
+
+```{r}
+readCosmxSPE <- function(dirname = dirname, 
+                         countmatfpattern = "exprMat_file.csv", 
+                         metadatafpattern = "metadata_file.csv", 
+                         coord_names = c("CenterX_global_px",
+                                         "CenterY_global_px")){
+  
+  countmat_file <- file.path(dirname, list.files(dirname, countmatfpattern))
+  metadata_file <- file.path(dirname, list.files(dirname, metadatafpattern))
+  
+  # Read in 
+  countmat <- t(data.table::fread(countmat_file))
+  metadata <- data.table::fread(metadata_file)
+  
+  metadata$fov_id <- paste(metadata$fov, metadata$cell_ID, sep = "_")
+  colnames(countmat) <- paste(countmat["fov",], countmat["cell_ID",], sep = "_")
+  metadata <- metadata[base::order(metadata$fov, metadata$cell_ID), ]
+  countmat <- countmat[, base::order(countmat["fov",], countmat["cell_ID",])]
+  
+  # Count matrix 
+  counts <- countmat[,metadata$fov_id]
+  counts <- counts[!rownames(counts) %in% c("fov", "cell_ID"), ]
+  
+  # rowData (does not exist)
+  
+  # colData
+  colData <- metadata
+  
+  spe <- SpatialExperiment::SpatialExperiment(
+    assays = list(counts = counts),
+    # rowData = rowData,
+    colData = colData,
+    spatialCoordsNames = coord_names
+  )
+  
+  return(spe)
+}
+```
+
+Setting directories
+
+```{r}
+dirname <- "/NAS06/work/Spatial_omics/CosMx/Mouse_brain/coronal_hemisphere"
+count_pattern <- "Run1000_S1_Half_exprMat_file.csv"
+meta_pattern <- "Run1000_S1_Half_metadata_file.csv"
+sample_name <- "CosMx_Mouse_hemisphere"
+```
+
+# CosMx dataset preprocessing {.tabset .tabset-fade .tabset-pills}
+
+Data import and SpatialExperiment object creation
+
+```{r}
+spe <- readCosmxSPE(dirname = dirname, countmatfpattern = count_pattern, metadatafpattern = meta_pattern)
+spe <- scuttle::addPerCellQC(spe, subsets=list(NegProb = grep("^NegPrb", rownames(spe))))
+names(colData(spe)@listData)
+spe$control_counts <- spe$subsets_NegProb_sum
+spe$control_detected <- spe$subsets_NegProb_detected
+```
+
+Dataset dimensions
+
+```{r}
+dim(spe)
+```
+
+Adding variables
+
+```{r, class.source = 'fold-show'}
+fov_size <- 4256
+
+names(colData(spe))[names(colData(spe)) == "cell_ID"] <- "cell_id"
+
+# Importing global coordinates from spatialCoords slot since they are not available in colData
+# coordinates are retrieved from the slot spe@int_colData@listData$spatialCoords
+spe$CenterX_global_px <- spatialCoords(spe)[,1]
+spe$CenterY_global_px <- spatialCoords(spe)[,2]
+
+# Converting global coordinates to um 
+spe$CenterX_global_um <- spe$CenterX_global_px*0.18
+spe$CenterY_global_um <- spe$CenterY_global_px*0.18 
+
+# Logged total counts
+spe$logtot <- log10(spe$total)
+
+# Converting area in um
+spe$um_area <- spe$Area*0.0324
+
+# Keeping only target counts by subtracting counts referred to control probes
+spe$target_counts <- spe$total - spe$control_counts
+
+# Target area ratio
+spe$target_area_ratio <- spe$target_counts/spe$um_area
+
+# Logged width/height ratio so there are no holes in the distribution in the middle and also negative values can be appreciated
+spe$log2_AspectRatio <- log2(spe$AspectRatio)
+
+# Keeping only detected features by subtracting negative control probes
+spe$target_detected <- spe$detected - spe$control_detected
+
+# Proportion between counts referred only to target probes and detected features
+spe$tot_det_ratio <- spe$target_counts/spe$target_detected
+
+# Control probe counts/total counts
+ctrl_total_ratio <- spe$control_counts/spe$total
+ctrl_total_ratio <- replace_na(ctrl_total_ratio, 0)
+spe$ctrl_total_ratio <- ctrl_total_ratio
+```
+
+Loading custom polygon file and setting the correct format as sf object
+
+Creating custom polygon file to add 
+
+```{r}
+fov_pattern <- "Run1000_S1_Half_fov_positions_file.csv"
+fovpos_file <- file.path(dirname, list.files(dirname, fov_pattern))
+
+metadata <- data.frame(colData(spe))
+fov_positions <- data.table::fread(fovpos_file, header = T)
+fov_positions <- fov_positions[fov_positions$fov %in% unique(metadata$fov),]
+fov_positions <- fov_positions[order(fov_positions$fov), ]
+
+spat_obj <- data.table::fread(file.path(dirname, "Run1000_S1_Half-polygons.csv"))
+names(spat_obj)[names(spat_obj) == "cellID"] <- "cell_id"
+
+sf_global <- st_as_sf(spat_obj, coords = c("x_global_px", "y_global_px"))
+
+polygons_whole <- sf_global %>%
+  group_by(fov, cell_id) %>%
+  summarize(geometry = st_combine(geometry))#st_combine = combine several feature geometries into one, without unioning or resolving internal boundaries
+
+polygons_whole <- st_cast(polygons_whole, "POLYGON")  
+
+polygons_whole <- polygons_whole[base::order(polygons_whole$fov, polygons_whole$cell_id),]
+rownames(polygons_whole) <- paste(polygons_whole$fov, polygons_whole$cell_id, sep = "_")
+
+if(attr(table(rownames(polygons_whole) == colnames(spe)), "dimnames")[[1]][1] == FALSE){
+  spe <- spe[, base::order(spe$fov, spe$cell_id)]
+  colnames(spe) <- paste(spe$fov, spe$cell_id, sep = "_")
+  if(dim(spe)[2] > dim(polygons_whole)[1]){
+    spe <- spe[, colnames(spe) %in% rownames(polygons_whole)]
+  }
+  else{
+    polygons_whole <- polygons_whole[rownames(polygons_whole) %in% colnames(spe),]
+  }
+}
+
+spe$polygons_whole <- polygons_whole
+```
+
+# Creating sf using local coordinates for geometry
+
+```{r}
+sf_local <- st_as_sf(spat_obj, coords = c("x_local_px", "y_local_px"))
+
+polygons <- sf_local %>%
+  group_by(fov, cell_id) %>%
+  summarize(geometry = st_combine(geometry))#st_combine = combine several feature geometries into one, without unioning or resolving internal boundaries
+
+polygons <- st_cast(polygons, "POLYGON")
+
+polygons <- polygons[base::order(polygons$fov, polygons$cell_id),]
+rownames(polygons) <- paste(polygons$fov, polygons$cell_id, sep = "_") 
+
+if(attr(table(rownames(polygons) == colnames(spe)), "dimnames")[[1]][1] == FALSE){
+  spe <- spe[, base::order(spe$fov, spe$cell_id)]
+  colnames(spe) <- paste(spe$fov, spe$cell_id, sep = "_")
+  if(dim(spe)[2] > dim(polygons)[1]){
+    spe <- spe[, colnames(spe) %in% rownames(polygons)]
+  }
+  else{
+    polygons <- polygons[rownames(polygons) %in% colnames(spe),]
+  }
+}
+
+spe$polygons <- polygons
+```
+
+Checking if the computed polygons are valid and removing elements that could result in geometry errors (Voyager)
+
+```{r}
+valid_poly <- st_is_valid(spe$polygons_whole)
+table(valid_poly)
+```
+
+```{r}
+if(attr(table(valid_poly), "dimnames")[[1]][1] == FALSE){
+  spe$polygons_whole <- st_buffer(spe$polygons_whole, dist = 0)
+}
+valid_poly <- st_is_valid(spe$polygons_whole)
+table(valid_poly)
+```
+
+Checking if all the geometries are polygons
+
+```{r}
+table(st_geometry_type(spe$polygons_whole$geometry)) # 2046 multipolygons
+```
+
+Subsetting to remove non-polygons
+
+```{r}
+cellids <- c() 
+for(i in 1:dim(spe$polygons_whole)[1]){
+	cellids[i] <- attr(spe$polygons_whole$geometry[[i]], "class")[2]
+	cellids[i] <- cellids[i] == "MULTIPOLYGON"
+	
+}
+
+spe <- spe[, cellids == FALSE]
+table(st_geometry_type(spe$polygons_whole))
+```
+
+```{r}
+custom_area <- st_area(spe$polygons_whole)
+spe$um_area <- custom_area*0.0324
+spe$polygons_custom_whole$um_area <- spe$um_area 
+
+AspectRatio <- c()
+for(i in 1:dim(spe$polygons_whole)[1]){
+ AspectRatio[i] <- (max(spe$polygons_whole$geometry[[i]][[1]][,2]) -     min(spe$polygons_whole$geometry[[i]][[1]][,2]))/(max(spe$polygons_whole$geometry[[i]][[1]][,1]) - min(spe$polygons_whole$geometry[[i]][[1]][,1]))
+}
+
+spe$polygons_whole$log2_AspectRatio <- log2(AspectRatio) 
+spe$log2_AspectRatio <- log2(AspectRatio) 
+```
+
+Checking if local polygons are valid
+
+```{r}
+valid_poly <- st_is_valid(spe$polygons)
+table(valid_poly)
+```
+
+```{r}
+if(attr(table(valid_poly), "dimnames")[[1]][1] == FALSE){
+  spe$polygons <- st_buffer(spe$polygons, dist = 0)
+}
+
+valid_poly <- st_is_valid(spe$polygons)
+table(valid_poly)
+```
+
+Checking if all the geometries are polygons
+
+```{r}
+table(st_geometry_type(spe$polygons$geometry))
+```
+
+# Large-scale to small-scale {.tabset .tabset-fade .tabset-pills}
+
+Approaching dataset preprocessing starting from global-scale, then fov-focused exploratory analysis
+
+## Global sample map
+
+To view the spatial organization of both the sample as it is and FOVs
+
+```{r, out.width="600%", out.height="150%"}
+# image theme
+global_map_theme <- function(back.color="black",back.border=NA,title.col="white") {
+  theme(aspect.ratio = 1,
+        panel.border = element_blank(),
+        legend.key = element_blank(),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.ticks = element_blank(),
+        axis.text.y = element_blank(),
+        axis.text.x = element_blank(),
+        panel.grid = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.background = element_rect(fill = "transparent",colour = NA),
+        plot.title = element_text(color = title.col,hjust = 0.5,face = "bold"),
+        plot.background = element_rect(fill = "transparent",colour = back.border))
+}
+
+ggplot() + 
+  geom_point(data = metadata, mapping = aes(x = CenterX_global_px, y = CenterY_global_px), colour = "darkmagenta", fill="darkmagenta", size = 0.05, alpha = 0.2) +
+  annotate("rect", xmin = fov_positions$x_global_px, 
+           xmax = fov_positions$x_global_px + fov_size, 
+           ymin = fov_positions$y_global_px, 
+           ymax = fov_positions$y_global_px + fov_size,
+           alpha = .2, color = "black",linewidth = 0.2) +
+  geom_text(aes(x = fov_positions$x_global_px+fov_size/2,
+                y = fov_positions$y_global_px+fov_size/2,
+                label = fov_positions$fov), color="black") +
+  ggtitle(sample_name) + 
+  global_map_theme(back.color = "white", back.border = "white", title.col = "black")
+```
+
+## Global polygon map
+
+```{r, out.width="600%", out.height="900%"}
+tm_shape(spe$polygons_whole) +
+  tm_borders(lwd = 0.1, col = "grey50") +
+  tm_layout(legend.outside = TRUE,
+            main.title.position = c("center", "top"),
+            main.title = sample_name,
+            main.title.size = 0.5,
+            inner.margins = c(0, 0, 0, 0),
+            outer.margins = c(0, 0, 0, 0))
+```
+
+## Global feature maps
+
+To spot areas with anomalous feature values and spatial patterns on a global scale
+
+```{r, out.width="150%", out.height="150%"}
+plotColData(spe, "CenterY_global_um", "CenterX_global_um", colour_by = "total", point_size = 0.1) + ggtitle("Total counts per cell") + theme(aspect.ratio = 1)
+```
+
+```{r, out.width="150%", out.height="150%"}
+plotColData(spe, "CenterY_global_um", "CenterX_global_um", colour_by = "logtot", point_size = 0.1) + ggtitle("Log-total counts per cell") + theme(aspect.ratio = 1)
+```
+
+```{r, out.width="150%", out.height="150%"}
+plotColData(spe, "CenterY_global_um", "CenterX_global_um", colour_by = "detected", point_size = 0.1) + ggtitle("Detected features per cell") + theme(aspect.ratio = 1)
+```
+
+```{r, out.width="150%", out.height="150%"}
+plotColData(spe, "CenterY_global_um", "CenterX_global_um", colour_by = "um_area", point_size = 0.1) + ggtitle("Area in μm per cell") + theme(aspect.ratio = 1)
+```
+
+```{r, out.width="150%", out.height="150%"}
+plotColData(spe, "CenterY_global_um", "CenterX_global_um", colour_by = "log2_AspectRatio", point_size = 0.1) + ggtitle("Logged width/height ratio per cell") + theme(aspect.ratio = 1)
+```
+
+```{r, out.width="150%", out.height="150%"}
+plotColData(spe, "CenterY_global_um", "CenterX_global_um", colour_by = "tot_det_ratio", point_size = 0.1) + ggtitle("Target counts/detected features ratio per cell") + theme(aspect.ratio = 1)
+```
+
+```{r, out.width="150%", out.height="150%"}
+plotColData(spe, "CenterY_global_um", "CenterX_global_um", order_by = "control_counts", colour_by = "control_counts", point_size = 0.1) +
+  scale_color_gradient(low = "white", high = "red", name = "control_counts") + ggtitle("Negative control probe counts per cell") +
+  theme(aspect.ratio = 1,
+        panel.background = element_rect(fill = "black",color = NA),
+        plot.background = element_rect(fill = "black",color = NA),
+        axis.title.x = element_text(color = "white"),
+        axis.title.y = element_text(color = "white"),
+        axis.ticks = element_line(color = "white"),
+        axis.text.y = element_text(color = "white"),
+        axis.text.x = element_text(color = "white"),
+        axis.line = element_line(color = "white"),
+        legend.title = element_text(color = "white"),
+        legend.text = element_text(color = "white"),
+        plot.title = element_text(color = "white"))
+```
+
+```{r, out.width="150%", out.height="150%"}
+plotColData(spe, "CenterY_global_um", "CenterX_global_um", colour_by = "ctrl_total_ratio", point_size = 0.1) + ggtitle("Control counts/total counts ratio per cell") + theme(aspect.ratio = 1)
+```
+
+# Feature histograms 
+
+To check feature distribution before highlighting where extreme values are located in the global sample map
+
+```{r}
+variables <- c("total", "detected", "logtot", "um_area", "log2_AspectRatio", "tot_det_ratio", "control_counts", "Mean.DAPI", "ctrl_total_ratio")
+for (var in 1:length(variables)){
+  n <- grep(paste0("^", variables[var], "$"), colnames(spe@colData))
+  histo_var <- names(colData(spe))[n]
+  p <- ggplot(data = data.frame(colData(spe))) +
+    geom_histogram(aes(x = .data[[histo_var]]), fill = "#69b3a2") +
+    ggtitle(paste0(histo_var))
+  print(p)
+}  
+```
+
+# First cell skimming with constant values {.tabset .tabset-fade .tabset-pills}
+
+Coarse-grain cell filtering to remove gross segmentation errors.
+
+## Total counts
+
+```{r}
+summary(spe$total)
+```
+
+```{r, out.width="150%", out.height="150%"}
+hist(spe$total)
+```
+
+```{r, out.width="150%", out.height="150%"}
+boxplot(spe$total)
+```
+
+```{r, out.width="150%", out.height="150%"}
+threshold <- 0
+spe$flagged_0total <- as.factor(ifelse(colData(spe)$total == 0, TRUE, FALSE))
+spe$polygons_whole$flagged_0total <- ifelse(spe$flagged_0total == TRUE, "red", "grey80")
+
+tm_shape(spe$polygons_whole) + 
+  tm_fill(col = "flagged_0total") +
+  tm_layout(legend.outside = TRUE,
+            main.title.position = c("center", "top"),
+            main.title = paste0("Cells having 0 total counts", "\nFlagged cells = ",
+                                table(colData(spe)$flagged_0total)["TRUE"], " out of ", dim(spe)[2], ", ",
+                                round(table(colData(spe)$flagged_0total)["TRUE"]/dim(spe)[2]*100, 2), "% of total cells"),
+            main.title.fontface = 2,
+            main.title.size = 1, 
+            inner.margins = c(0, 0, 0, 0),
+            outer.margins = c(0, 0, 0, 0))
+```
+
+```{r}
+total0_spe <- spe[,spe$flagged_0total == FALSE]
+dim(total0_spe)
+```
+
+## Control count / total counts
+
+```{r}
+summary(spe$ctrl_total_ratio)
+```
+
+```{r, out.width="150%", out.height="150%"}
+hist(spe$ctrl_total_ratio)
+```
+
+```{r, out.width="150%", out.height="150%"}
+boxplot(spe$ctrl_total_ratio)
+```
+
+```{r, out.width="150%", out.height="150%"}
+spe$outlier_ctrl_tot <- spe$ctrl_total_ratio > 0.1 # Voyager
+spe$polygons_whole$outlier_ctrl_tot <- ifelse(spe$outlier_ctrl_tot == TRUE, "red", "grey80")
+
+tm_shape(spe$polygons_whole) + 
+  tm_fill(col= "outlier_ctrl_tot") +
+  tm_layout(legend.outside = TRUE,
+            main.title.position = c("center", "top"),
+            main.title = paste0("Outlier cells for control / total counts ratio > 0.1, \nflagged cells = ",
+                                table(colData(spe)$outlier_ctrl_tot)["TRUE"], " out of ", dim(spe)[2], ", ",
+                                round(table(colData(spe)$outlier_ctrl_tot)["TRUE"]/dim(spe)[2]*100, 2), "% of total cells"),
+            main.title.fontface = 2,
+            main.title.size = 1, 
+            inner.margins = c(0, 0, 0, 0),
+            outer.margins = c(0, 0, 0, 0))
+
+```
+
+```{r}
+ctrltot_spe <- spe[, spe$outlier_ctrl_tot == FALSE]
+dim(ctrltot_spe)
+```
+
+```{r}
+summary(ctrltot_spe$ctrl_total_ratio)
+```
+
+```{r, out.width="150%", out.height="150%"}
+hist(ctrltot_spe$ctrl_total_ratio)
+```
+
+```{r, out.width="150%", out.height="150%"}
+boxplot(ctrltot_spe$ctrl_total_ratio)
+```
+
+# First cell skimming with scuttle::isOutlier {.tabset .tabset-fade .tabset-pills}
+
+```{r}
+spe$polygons_whole$control_counts <- spe$control_counts
+spe$polygons_whole$ctrl_total_ratio <- spe$ctrl_total_ratio
+spe$polygons_whole$um_area <- spe$um_area
+spe$polygons_whole$log2_AspectRatio <- spe$log2_AspectRatio
+spe$polygons_whole$Mean.DAPI <- spe$Mean.DAPI
+```
+
+## Um area
+
+```{r}
+summary(spe$um_area)
+```
+
+```{r, out.width="150%", out.height="150%"}
+hist(spe$um_area)
+```
+
+```{r,  out.width="150%", out.height="150%"}
+boxplot(spe$um_area)
+```
+
+```{r, out.width="150%", out.height="150%"}
+spe$outlier_umarea <- scuttle::isOutlier(colData(spe)$um_area, type = "both")
+spe$polygons_whole$outlier_umarea <- ifelse(spe$outlier_umarea == TRUE, "red", "grey80")
+
+tm_shape(spe$polygons_whole) + 
+  tm_fill(col= "outlier_umarea") +
+  tm_layout(legend.outside = TRUE,
+            main.title.position = c("center", "top"),
+            main.title = paste0("Outlier cells for custom um area", 
+                                "\n lower thr. = " , round(attr(spe$outlier_umarea,"thresholds")["lower"], 2), ", higher thr. = ",
+                                round(attr(spe$outlier_umarea,"thresholds")["higher"], 2),
+                                "\nFlagged cells = ",
+                                table(colData(spe)$outlier_umarea)["TRUE"], " out of ", dim(spe)[2], ", ",
+                                round(table(colData(spe)$outlier_umarea)["TRUE"]/dim(spe)[2]*100, 2), "% of total cells"),
+            main.title.fontface = 2,
+            main.title.size = 1, 
+            inner.margins = c(0, 0, 0, 0),
+            outer.margins = c(0, 0, 0, 0))
+```
+
+```{r}
+area_spe <- spe[, spe$outlier_umarea == FALSE]
+summary(area_spe$um_area)
+```
+
+```{r, out.width="150%", out.height="150%"}
+hist(area_spe$um_area)
+```
+
+```{r, out.width="150%", out.height="150%"}
+boxplot(area_spe$um_area)
+```
+
+```{r}
+dim(area_spe)
+```
+
+
+## DAPI signal
+
+```{r}
+summary(spe$Mean.DAPI)
+```
+
+```{r, out.width="150%", out.height="150%"}
+hist(spe$Mean.DAPI)
+```
+
+```{r, out.width="150%", out.height="150%"}
+boxplot(spe$Mean.DAPI)
+```
+
+```{r, out.width="150%", out.height="150%"}
+spe$outlier_dapi <- scuttle::isOutlier(colData(spe)$Mean.DAPI, type = "both")
+spe$polygons_whole$outlier_dapi<- ifelse(spe$outlier_dapi == TRUE, "red", "grey80")
+
+tm_shape(spe$polygons_whole) + 
+  tm_fill(col= "outlier_dapi") +
+  tm_layout(legend.outside = TRUE,
+            main.title.position = c("center", "top"),
+            main.title = paste0("Outlier cells for DAPI signal",
+                                "\n lower thr. = " , round(attr(spe$outlier_dapi,"thresholds")["lower"], 2), ", higher thr. = ",
+                                round(attr(spe$outlier_dapi,"thresholds")["higher"], 2),
+                                "\nFlagged cells = ",
+                                table(colData(spe)$outlier_dapi)["TRUE"], " out of ", dim(spe)[2], ", ",
+                                round(table(colData(spe)$outlier_dapi)["TRUE"]/dim(spe)[2]*100, 2), "% of total cells"),
+            main.title.fontface = 2,
+            main.title.size = 1, 
+            inner.margins = c(0, 0, 0, 0),
+            outer.margins = c(0, 0, 0, 0))
+```
+
+```{r}
+dapi_spe <- spe[, spe$outlier_dapi == FALSE]
+summary(dapi_spe$Mean.DAPI)
+```
+
+```{r, out.width="150%", out.height="150%"}
+hist(dapi_spe$Mean.DAPI)
+```
+
+```{r, out.width="150%", out.height="150%"}
+boxplot(dapi_spe$Mean.DAPI)
+```
+
+```{r}
+dapi_spe <- spe[, spe$polygons_whole$outlier_dapi == "grey80"]
+dim(dapi_spe)
+```
+
+```{r}
+out_boundaries <- c(0, 0.1,
+               paste(round(attr(spe$outlier_umarea,"thresholds")["lower"], 2), round(attr(spe$outlier_umarea,"thresholds")["higher"], 2)),
+               paste(round(attr(spe$outlier_dapi,"thresholds")["lower"], 2), round(attr(spe$outlier_dapi,"thresholds")["higher"], 2)))
+
+flagged_cells <- c(sum(spe$polygons_whole$flagged_0total=="red", na.rm = T),
+                   sum(spe$polygons_whole$outlier_ctrl_tot=="red", na.rm = T),
+                   sum(spe$polygons_whole$outlier_umarea=="red",na.rm = T),
+                   sum(spe$polygons_whole$outlier_dapi=="red",na.rm = T))
+
+unflagged_cells <- c(sum(spe$polygons_whole$flagged_0total=="grey80", na.rm = T),
+                     sum(spe$polygons_whole$outlier_ctrl_tot=="grey80", na.rm = T),
+                     sum(spe$polygons_whole$outlier_umarea=="grey80",na.rm = T),
+                     sum(spe$polygons_whole$outlier_dapi=="grey80",na.rm = T))
+
+percent_flagged <- round(flagged_cells/dim(spe)[2]*100, 2)
+
+union_flagged <- length(unique(c(spe[,spe$polygons_whole$flagged_0total == "red"]$fov_id,
+                   spe[,spe$polygons_whole$outlier_ctrl_tot == "red"]$fov_id,
+                   spe[,spe$polygons_whole$outlier_umarea == "red"]$fov_id,
+                   spe[,spe$polygons_whole$outlier_dapi == "red"]$fov_id)))
+
+stat_df <- data.frame(out_boundaries = out_boundaries, unflagged_cells = unflagged_cells, flagged_cells = flagged_cells, percent_flagged = percent_flagged, row.names = c("Total counts", "Control/total counts ratio", "Cell area in um", "Mean DAPI signal"))
+
+kable(stat_df, format = "html", col.names = c("Outlier boundaries", "Unflagged cells", "Flagged cells", "% flagged cells"), align = "c", caption = paste0("<center>Flagged cells by different metrics, total cells in whole sample: ", dim(spe$polygons_whole)[1], ", total unique flagged cells in whole sample: ", union_flagged, ", % unique flagged cells: ",
+round(union_flagged/dim(spe)[2]*100, 2),"</center>"), padding = 1L)
+
+```
+
+```{r}
+list_input <- list(flagged_0total = spe[,spe$polygons_whole$flagged_0total == "red"]$fov_id,
+                   outlier_ctrl_tot = spe[,spe$polygons_whole$outlier_ctrl_tot == "red"]$fov_id,
+           umarea_outlier = spe[,spe$polygons_whole$outlier_umarea == "red"]$fov_id,
+           dapi_outlier = spe[,spe$polygons_whole$outlier_dapi == "red"]$fov_id)
+
+upset(fromList(list_input))
+```
