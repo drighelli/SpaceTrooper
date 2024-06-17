@@ -10,8 +10,10 @@
 #' @return
 #' @export
 #' @importFrom data.table fread
+#' @importFrom sf st_geometry
 #'
 #' @examples
+# polygons <- readPolygonsCosMx("~/Downloads/CosMx_data/DBKero/CosMx_Breast/CosMx_data_Case2/Run5810_Case2-polygons.csv")
 readPolygonsCosMx <- function(polygonsFile, x="x_global_px", y="y_global_px",
                             xloc="x_local_px", yloc="y_local_px",
                             micronConvFact=0.12)
@@ -21,28 +23,22 @@ readPolygonsCosMx <- function(polygonsFile, x="x_global_px", y="y_global_px",
                                spat_obj$cellID)
     spat_obj$cell_id <- as.factor(spat_obj$cell_id)
 
-    polygons_glo <- .createPolygons(spat_obj, x=x, y=y, polygon_id="cell_id")[,-c(4,5)]
-    polygons_loc <- .createPolygons(spat_obj, x=xloc, y=yloc, polygon_id="cell_id")[,-c(4,5)]
+    polygons_glo <- .createPolygons(spat_obj, x=x, y=y,
+                                    polygon_id="cell_id")[,-c(4,5)]
+    polygons_loc <- .createPolygons(spat_obj, x=xloc, y=yloc,
+                                    polygon_id="cell_id")[,-c(4,5)]
 
     polygons <- cbind(polygons_glo, polygons_loc$geometry)
 
-    st_geometry(polygons) <- "geometry.1"
-    st_geometry(polygons) <- "local"
-    st_geometry(polygons) <- "geometry"
-    st_geometry(polygons) <- "global"
-
-    if (sum(rownames(polygons) == colnames(spe)) != dim(spe)[2])
-    {
-        cd <- data.frame(colData(spe))
-        polygons <- left_join(polygons, cd[,c("fov","cellID")], by=c("fov","cellID"))
-        cd <- left_join(cd, polygons[,c("fov","cellID")], by=c("fov","cellID"))
-        rownames(cd) <- cd$cell_id
-        rownames(polygons) <- polygons$cell_id
-        spe <- spe[, spe$cell_id%in%rownames(polygons)]
-        polygons <- polygons[polygons$cell_id%in%rownames(cd),]
-    }
+    sf::st_geometry(polygons) <- "geometry.1"
+    sf::st_geometry(polygons) <- "local"
+    sf::st_geometry(polygons) <- "geometry"
+    sf::st_geometry(polygons) <- "global"
 
     polygons <- .checkPolygonsValidity(polygons)
+
+    if(!identical(polygons$global, polygons$local))
+        warning("Global and Local geometries are not identical")
     return(polygons)
 
     ### write polygons as parquet file
@@ -57,6 +53,37 @@ readPolygonsCosMx <- function(polygonsFile, x="x_global_px", y="y_global_px",
     # spe$polygons_whole_custom$log2_AspectRatio <- log2(unlist(aspect_ratio_list))
     # spe$log2_AspectRatio <- log2(unlist(aspect_ratio_list))
     ################
+}
+
+#' Title
+#'
+#' @param spe
+#' @param polygons
+#'
+#' @return
+#' @importFrom dplyr left_join
+#' @export
+#'
+#' @examples
+addPolygonsToSPE <- function(spe, polygons)
+{
+    stopifnot(all(is(spe, "SpatialExperiment"), is(polygons, "sf")))
+
+    if (sum(rownames(polygons) == colnames(spe)) != dim(spe)[2])
+    {
+        cd <- data.frame(colData(spe))
+        polygons <- left_join(polygons, cd[, c("fov", "cellID")],
+                              by=c("fov", "cellID"))
+        cd <- left_join(cd, polygons[ , c("fov", "cellID")],
+                        by=c("fov","cellID"))
+        rownames(cd) <- cd$cell_id
+        rownames(polygons) <- polygons$cell_id
+        spe <- spe[, spe$cell_id %in% rownames(polygons)]
+        polygons <- polygons[polygons$cell_id %in% rownames(cd),]
+    }
+    spe <- spe[, rownames(polygons)]
+    colData(spe)$polygons <- polygons
+    return(spe)
 }
 
 #' .createPolygons
@@ -111,23 +138,6 @@ readPolygonsCosMx <- function(polygonsFile, x="x_global_px", y="y_global_px",
 
     if(length(cellids)!=0) sf$is_multi <- sf$cell_id%in%cellids
     return(sf)
-}
-
-#mancava questa funzione!
-
-#' .getActiveGeometryName
-#'
-#' @param sf
-#'
-#' @return
-#' @keywords internal
-#' @importFrom
-#'
-#' @examples
-
-.getActiveGeometryName<-function(sf){
-    col = attr(sf,"sf_column");
-    return(col);
 }
 
 

@@ -27,15 +27,13 @@ spatialPerCellQC <- function(spe, micronConvFact=0.12,
 
     spe <- addPerCellQC(spe, subsets=idxlist)
     idx <- grep("^subsets_.*_sum$", colnames(colData(spe)))
-    if(length(idx)>1)
-    {   ## TO TEST -> BENEDETTA
-        npc <- rowSums(data.frame(colData(spe)[,idx])) # meglio dataframe, perché rowsums non funziona
+
+    if ( length(idx) !=0 )
+    {
+        ## TO TEST -> BENEDETTA
+        npc <- rowSums(as.matrix(colData(spe)[ , idx, drop=FALSE])) # meglio dataframe, perché rowsums non funziona
         ## getting detected probes as the column suddenly after the sum column
-        npd <- rowSums(data.frame(colData(spe)[,idx+1])) # not robust at all!
-    } else{
-        npc <- colData(spe)[,idx] # no matrice e no drop
-        ## getting detected probes as the column suddenly after the sum column
-        npd <- colData(spe)[, idx+1] # not robust at all!
+        npd <- rowSums(as.matrix(colData(spe)[ , idx+1, drop=FALSE])) # not robust at all!
     }
 
     spe$control_sum <- npc
@@ -48,7 +46,6 @@ spatialPerCellQC <- function(spe, micronConvFact=0.12,
 
     if(metadata(spe)$technology == "Nanostring_CosMx")
     {
-        names(colData(spe))[names(colData(spe))=="cell_ID"] <- "cellID" # nei polygons si chiama così la colonna corrispondente
         spnc <- spatialCoords(spe) * micronConvFact
         colnames(spnc) <- gsub("px", "um", spatialCoordsNames(spe))
         colData(spe) <- cbind.DataFrame(colData(spe), spnc)

@@ -12,5 +12,8 @@ LazyData: true
 Depends: 
     SpatialExperiment
 Imports:
+    sf,
+    data.table,
+    dplyr
 Suggests:
 RoxygenNote: 7.2.3

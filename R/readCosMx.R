@@ -17,7 +17,6 @@
 #'
 #' @importFrom data.table fread merge
 #' @importFrom S4Vectors DataFrame
-#' @importFrom SparseArray readSparseCSV
 #' @examples
 ## for old fovs consider dimensions 5472 x 3648 pixels.
 readCosmxSPE <- function(dirname,
@@ -47,6 +46,7 @@ readCosmxSPE <- function(dirname,
     counts <- merge(countmat, metadata[, c("fov", "cell_ID")])
     cn <- paste0("f", counts$fov, "_c", counts$cell_ID)
     counts <- subset(counts, select = -c(fov, cell_ID))
+
     # cell_codes <- rownames(counts)
     features <- colnames(counts)
     counts <- t(counts)
@@ -56,7 +56,7 @@ readCosmxSPE <- function(dirname,
 
     # rowData (does not exist)
     # To be associated to the tx file
-    # use readSparseCSV from harve pege
+    # use readSparseCSV sparseArray from harve pege
 
     # colData
     colData <- DataFrame(merge(metadata, countmat[, c("fov", "cell_ID")]))
@@ -78,7 +78,11 @@ readCosmxSPE <- function(dirname,
     fovcidx <- grep("FOV", colnames(fov_positions))
     if(length(fovcidx)!=0) colnames(fov_positions)[fovcidx] <- "fov"
     fovccdx <- grep("[X|Y]_px", colnames(fov_positions))
-    if(length(fovccdx)!=0) colnames(fov_positions)[fovccdx] <- gsub("_px", "_global_px", colnames(fov_positions)[fovccdx])
+    if(length(fovccdx)!=0)
+    {
+        colnames(fov_positions)[fovccdx] <- gsub("_px", "_global_px",
+                                            colnames(fov_positions)[fovccdx])
+    }
 
     ## tracking if one of more fov is not present in the metadata file ##
     idx <- fov_positions$fov %in% unique(metadata$fov)
@@ -95,6 +99,9 @@ readCosmxSPE <- function(dirname,
                         polygons=pol_file, technology="Nanostring_CosMx")
         ## keep atomx versioning in metadata, if possible
     )
+    # Polygons file has cellID instead of cell_ID and it distinguish better
+    # when compared to our cell_id
+    names(colData(spe))[names(colData(spe))=="cell_ID"] <- "cellID"
     return(spe)
 }
 
