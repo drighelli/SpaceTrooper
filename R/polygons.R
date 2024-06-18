@@ -36,11 +36,14 @@ readPolygonsCosMx <- function(polygonsFile, x="x_global_px", y="y_global_px",
     sf::st_geometry(polygons) <- "global"
 
     polygons <- .checkPolygonsValidity(polygons)
+    rownames(polygons) <- polygons$cell_id #### if not here, then the check
+    #### in addPolygonsToSPE cannot be be done
 
-    if(!identical(polygons$global, polygons$local))
+    #### identical cannot work since coordinates are different, but the validity
+    #### and the geometries as well should stay the same
+    if(!table(st_is_valid(polygons$global))==table(st_is_valid(polygons$global)))
         warning("Global and Local geometries are not identical")
     return(polygons)
-
     ### write polygons as parquet file
 
     ###############

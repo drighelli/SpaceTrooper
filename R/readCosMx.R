@@ -49,7 +49,7 @@ readCosmxSPE <- function(dirname,
 
     # cell_codes <- rownames(counts)
     features <- colnames(counts)
-    counts <- t(counts)
+    counts <- t(as.matrix(counts)) #### faster when it comes to big numbers
 
     rownames(counts) <- features
     colnames(counts) <- cn
