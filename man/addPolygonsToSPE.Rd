@@ -2,7 +2,7 @@
 % Please edit documentation in R/polygons.R
 \name{addPolygonsToSPE}
 \alias{addPolygonsToSPE}
-\title{Title}
+\title{addPolygonsToSPE}
 \usage{
 addPolygonsToSPE(spe, polygons)
 }
@@ -10,5 +10,5 @@ addPolygonsToSPE(spe, polygons)
 \item{polygons}{}
 }
 \description{
-Title
+addPolygonsToSPE
 }

@@ -10,11 +10,16 @@ readPolygonsCosMx(
   y = "y_global_px",
   xloc = "x_local_px",
   yloc = "y_local_px",
-  micronConvFact = 0.12
+  micronConvFact = 0.12,
+  keepMultiPol = TRUE,
+  verbose = FALSE
 )
 }
 \arguments{
-\item{micronConvFact}{}
+\item{verbose}{}
+}
+\value{
+an sf object with the loaded and validated polygons
 }
 \description{
 readPolygonsCosMx

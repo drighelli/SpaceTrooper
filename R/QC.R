@@ -18,6 +18,7 @@ spatialPerCellQC <- function(spe, micronConvFact=0.12,
         "Blank" # MERFISH
         ))
 {
+    ## CHECK EXISTENCE OF POLYGONS/AREAS ETC -> create function for metrics creation
     stopifnot(is(object=spe, "SpatialExperiment"))
     idxlist <- lapply(negProbList, function(ng){
         grep(paste0("^", ng), rownames(spe))

@@ -2,14 +2,35 @@
 % Please edit documentation in R/polygons.R
 \name{.checkPolygonsValidity}
 \alias{.checkPolygonsValidity}
-\title{Title}
+\title{.checkPolygonsValidity}
 \usage{
-.checkPolygonsValidity(sf)
+.checkPolygonsValidity(
+  sf,
+  geometry = NULL,
+  keepMultiPol = TRUE,
+  verbose = FALSE
+)
 }
 \arguments{
-\item{sf}{}
+\item{sf}{an sf class object}
+
+\item{geometry}{character for the geometry to check validity, if `NULL`
+it checks the active geometry (default is `NULL`)}
+
+\item{keepMultiPol}{logical for keeping/removing moltipolygons, if any
+(default is `TRUE`, so keeping the multipolygons)}
+
+\item{verbose}{logical to print verbose output (default is `FALSE`)}
 }
 \description{
-checks validity on the active geometry of `sf` parameter
+checks validity on a geometry of `sf` object.
+It removes multipolygons when `keepMultiPol` is `FALSE`
+}
+\details{
+In case geometry is NULL validity is checked on the active geometry,
+otherwise it is checked on the passed geometry without changing the active
+geometry of the sf object.
+In case of not valid polygons, these are removed.
+If keeMultiPol is FALSE, possible detected multipolygons are removed.
 }
 \keyword{internal}

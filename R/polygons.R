@@ -1,13 +1,16 @@
 #' readPolygonsCosMx
 #'
-#' @param polygonsfpattern
+#' @param polygonsFile
 #' @param x
 #' @param y
 #' @param xloc
 #' @param yloc
 #' @param micronConvFact
+#' @param keepMultiPol
+#' @param verbose
 #'
-#' @return
+#' @return an sf object with the loaded and validated polygons
+#'
 #' @export
 #' @importFrom data.table fread
 #' @importFrom sf st_geometry
@@ -16,7 +19,8 @@
 # polygons <- readPolygonsCosMx("~/Downloads/CosMx_data/DBKero/CosMx_Breast/CosMx_data_Case2/Run5810_Case2-polygons.csv")
 readPolygonsCosMx <- function(polygonsFile, x="x_global_px", y="y_global_px",
                             xloc="x_local_px", yloc="y_local_px",
-                            micronConvFact=0.12)
+                            micronConvFact=0.12, keepMultiPol=TRUE,
+                            verbose=FALSE)
 {
     spat_obj <- fread(polygonsFile)
     spat_obj$cell_id <- paste0("f", spat_obj$fov, "_c",
@@ -30,19 +34,22 @@ readPolygonsCosMx <- function(polygonsFile, x="x_global_px", y="y_global_px",
 
     polygons <- cbind(polygons_glo, polygons_loc$geometry)
 
-    sf::st_geometry(polygons) <- "geometry.1"
-    sf::st_geometry(polygons) <- "local"
-    sf::st_geometry(polygons) <- "geometry"
-    sf::st_geometry(polygons) <- "global"
+    polygons <- .renameGeometry(polygons, "geometry", "global")
+    polygons <- .renameGeometry(polygons, "geometry.1", "local")
+    if(verbose) message("Polygons detected: ", dim(polygons))
 
-    polygons <- .checkPolygonsValidity(polygons)
+    polygons <- .checkPolygonsValidity(polygons, keepMultiPol=keepMultiPol,
+                                        verbose=verbose)
+
     rownames(polygons) <- polygons$cell_id #### if not here, then the check
     #### in addPolygonsToSPE cannot be be done
 
     #### identical cannot work since coordinates are different, but the validity
     #### and the geometries as well should stay the same
-    if(!table(st_is_valid(polygons$global))==table(st_is_valid(polygons$global)))
-        warning("Global and Local geometries are not identical")
+    #### needs to be changed or ignored
+    # if(!table(st_is_valid(polygons$global))==table(st_is_valid(polygons$global)))
+    #     warning("Global and Local geometries are not identical")
+    if(verbose) message("Polygons after validity: ", dim(polygons))
     return(polygons)
     ### write polygons as parquet file
 
@@ -58,7 +65,75 @@ readPolygonsCosMx <- function(polygonsFile, x="x_global_px", y="y_global_px",
     ################
 }
 
-#' Title
+
+#' .checkPolygonsValidity
+#' @description checks validity on a geometry of `sf` object.
+#' It removes multipolygons when `keepMultiPol` is `FALSE`
+#'
+#' @details
+#' In case geometry is NULL validity is checked on the active geometry,
+#' otherwise it is checked on the passed geometry without changing the active
+#' geometry of the sf object.
+#' In case of not valid polygons, these are removed.
+#' If keeMultiPol is FALSE, possible detected multipolygons are removed.
+#'
+#'
+#' @param sf an sf class object
+#' @param geometry character for the geometry to check validity, if `NULL`
+#' it checks the active geometry (default is `NULL`)
+#' @param keepMultiPol logical for keeping/removing moltipolygons, if any
+#' (default is `TRUE`, so keeping the multipolygons)
+#' @param verbose logical to print verbose output (default is `FALSE`)
+#'
+#' @return
+#' @keywords internal
+#' @importFrom sf st_is_valid st_buffer
+#'
+#' @examples
+.checkPolygonsValidity <- function(sf, geometry=NULL, keepMultiPol=TRUE,
+                                    verbose=FALSE)
+{
+    stopifnot(is(sf, "sf"))
+    if(is.null(geometry))
+    {
+        geometry <- .getActiveGeometryName(sf)
+    } else {
+        act <- .getActiveGeometryName(sf)
+        sf <- .setActiveGeometry(sf, geometry)
+    }
+    sf_tf <- st_is_valid(sf) # to parallelize? how? split sf in multiple sf and parallelize on it?
+
+    if(sum(sf_tf)!=dim(sf)[1]) sf <- st_buffer(sf, dist=0)
+
+    # Subsetting to remove non-polygons
+    cellids <- unlist(apply(sf, 1, function(geom)
+    {
+        # just in case of custom in cosmx but present in automatic in xenium
+        if(attr(geom[[geometry]], "class")[2] == "MULTIPOLYGON")
+        {
+            return(geom$cell_id)
+        }
+    }))
+
+    ## print an alert on the detection/removal of multipolygons
+    if(length(cellids)!=0)
+    {
+        if(verbose) message("Detected ", length(cellids), " multipolygons.")
+        sf$is_multi <- sf$cell_id %in% cellids
+    }
+    if(!keepMultiPol)
+    {
+        if(verbose) message("Removing ", sum(sf$is_multi), " multipolygons.")
+        sf <- sf[!sf$is_multi,]
+    }
+
+    if(exists("act")) sf <- .setActiveGeometry(sf, act)
+
+    return(sf)
+}
+
+
+#' addPolygonsToSPE
 #'
 #' @param spe
 #' @param polygons
@@ -112,36 +187,6 @@ addPolygonsToSPE <- function(spe, polygons)
 }
 
 ## EXPORT PARQUET FILE
-
-#' Title
-#' @description checks validity on the active geometry of `sf` parameter
-#' @param sf
-#'
-#' @return
-#' @keywords internal
-#' @importFrom sf st_is_valid st_buffer
-#'
-#' @examples
-.checkPolygonsValidity <- function(sf)
-{
-    stopifnot(is(sf, "sf"))
-    sf_tf <- st_is_valid(sf) # to parallelize? how? split sf in multiple sf and parallelize on it?
-
-    if(sum(sf_tf)!=dim(sf)[1]) sf <- st_buffer(sf, dist=0)
-    gmn <- .getActiveGeometryName(sf)
-    # Subsetting to remove non-polygons
-    cellids <- unlist(apply(sf, 1, function(geom)
-    {
-        if(attr(geom[[gmn]], "class")[2] == "MULTIPOLYGON")
-        {
-            return(geom$cell_id)
-        }
-        ## print an alert on the detection/removal of multipolygons
-    }))
-
-    if(length(cellids)!=0) sf$is_multi <- sf$cell_id%in%cellids
-    return(sf)
-}
 
 
 
