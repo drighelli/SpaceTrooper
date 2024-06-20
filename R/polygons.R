@@ -36,7 +36,8 @@ readPolygonsCosMx <- function(polygonsFile, x="x_global_px", y="y_global_px",
 
     polygons <- .renameGeometry(polygons, "geometry", "global")
     polygons <- .renameGeometry(polygons, "geometry.1", "local")
-    if(verbose) message("Polygons detected: ", dim(polygons))
+    if(verbose) message("Polygons detected: ", dim(polygons)[1])#### otherwise
+    #### will print number of columns next to the numer of rows
 
     polygons <- .checkPolygonsValidity(polygons, keepMultiPol=keepMultiPol,
                                         verbose=verbose)
@@ -49,7 +50,8 @@ readPolygonsCosMx <- function(polygonsFile, x="x_global_px", y="y_global_px",
     #### needs to be changed or ignored
     # if(!table(st_is_valid(polygons$global))==table(st_is_valid(polygons$global)))
     #     warning("Global and Local geometries are not identical")
-    if(verbose) message("Polygons after validity: ", dim(polygons))
+    if(verbose) message("Polygons after validity: ", dim(polygons)[1])#### otherwise
+    #### will print number of columns next to the numer of rows
     return(polygons)
     ### write polygons as parquet file
 

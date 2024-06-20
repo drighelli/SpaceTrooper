@@ -66,25 +66,40 @@
 #' @importFrom DropletUtils read10xCounts
 #' @importFrom SpatialExperiment SpatialExperiment
 readXeniumSPE <- function(dirname,
-                          countfname = "cell_feature_matrix.h5",
-                          coordfpattern = "cells.csv.gz",
-                          coord_names = c("x_centroid", "y_centroid"))
+                          sample_name="sample01",
+                          coord_names = c("x_centroid", "y_centroid"),
+                          countmatfpattern = "cell_feature_matrix.h5",
+                          metadatafpattern = "cells.csv.gz",
+                          polygonsfpattern="cell_boundaries.parquet")
 {
-    countfpath <- file.path(dirname, countfname)
-    coord_file <- file.path(dirname, list.files(dirname, coordfpattern))
+    #### stop if not how should be structured?
+    countmat_file <- list.files(dirname, countmatfpattern, full.names=TRUE)
+    metadata_file <- list.files(dirname, metadatafpattern, full.names=TRUE)
+    pol_file <- list.files(dirname, polygonsfpattern, full.names=TRUE)
+
+    # stopifnot(all(file.exists(countmat_file), file.exists(metadata_file),
+    #               file.exists(pol_file)))
 
     # Count matrix + rowData
-    sce <- DropletUtils::read10xCounts(countfpath, col.names = TRUE)
+    sce <- DropletUtils::read10xCounts(countmat_file, col.names = TRUE)
 
     # Spatial and colData
-    colData <- read.csv(gzfile(coord_file), header = TRUE)
+    colData <- fread(metadata_file, header = TRUE)
+    rownames(colData) <- colData$cell_id
+
+    if(!dim(sce)[2]==dim(colData)[1]){
+        sce <- sce[,colnames(sce)%in%rownames(colData)]
+        colData <- colData[rownames(colData)%in%colnames(sce),]
+    }
 
     # construct 'SpatialExperiment'
     spe <- SpatialExperiment::SpatialExperiment(
+        sample_id=sample_name,
         assays = assays(sce),
         rowData = rowData(sce),
         colData = colData,
-        spatialCoordsNames = coord_names
+        spatialCoordsNames = coord_names,
+        metadata=list(polygons=pol_file, technology="10X_Xenium")
     )
 
     return(spe)
