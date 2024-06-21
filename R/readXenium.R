@@ -8,15 +8,16 @@
 #'
 #' @param dirname a directory path to Xenium Output Bundle download that contains
 #' files of interest.
-#' @param countfname a folder directory or the h5 file for the count matrix.
+#' @param sample_name
+#' @param countmatfpattern a folder directory or the h5 file for the count matrix.
 #' Default value is \code{"cell_feature_matrix.h5"}, alternative value is
 #' \code{"cell_feature_matrix"} that takes a bit longer. The count matrix is
 #' read in and stored in a \code{SingleCellExperiment} object, using
 #' \code{DropletUtils::read10xCounts()}
-#' @param coordfpattern a filename pattern of the zipped .csv file that
-#' contains spatial coords. Default value is \code{"cells.csv.gz"}, and there is no
+#' @param metadatafpattern a filename pattern of the zipped .csv file that
+#' contains cell metadata and spatial coords. Default value is \code{"cells.csv.gz"}, and there is no
 #' need to change.
-#' @param coord_names a vector of two strings specify the spatial coord names.
+#' @param polygonsfpattern a vector of two strings specify the spatial coord names.
 #' Default value is \code{c("x_centroid", "y_centroid")}, and there is no need to change.
 #'
 #'
@@ -64,6 +65,7 @@
 #' xe_spe <- xe_spe[rowData(xe_spe)$Type == "Gene Expression"]
 #' }
 #' @importFrom DropletUtils read10xCounts
+#' @importFrom data.table fread
 #' @importFrom SpatialExperiment SpatialExperiment
 readXeniumSPE <- function(dirname,
                           sample_name="sample01",

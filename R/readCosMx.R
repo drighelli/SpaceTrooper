@@ -17,6 +17,7 @@
 #'
 #' @importFrom data.table fread merge
 #' @importFrom S4Vectors DataFrame
+#' @importFrom SpatialExperiment SpatialExperiment
 #' @examples
 ## for old fovs consider dimensions 5472 x 3648 pixels.
 readCosmxSPE <- function(dirname,
