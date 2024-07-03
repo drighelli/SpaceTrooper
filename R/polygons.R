@@ -1,4 +1,4 @@
-#' readPolygonsCosMx
+#' readPolygons
 #'
 #' @param polygonsFile
 #' @param x
@@ -13,29 +13,47 @@
 #'
 #' @export
 #' @importFrom data.table fread
+#' @importFrom arrow read_parquet
 #' @importFrom sf st_geometry
 #'
 #' @examples
 # polygons <- readPolygonsCosMx("~/Downloads/CosMx_data/DBKero/CosMx_Breast/CosMx_data_Case2/Run5810_Case2-polygons.csv")
-readPolygonsCosMx <- function(polygonsFile, x="x_global_px", y="y_global_px",
+readPolygons <- function(polygonsFile, type=c("csv", "parquet"),
+                            x=c("x_global_px", "vertex_x"),
+                            y=c("y_global_px", "vertex_y"),
                             xloc="x_local_px", yloc="y_local_px",
-                            micronConvFact=0.12, keepMultiPol=TRUE,
+                            #micronConvFact=0.12,
+                            keepMultiPol=TRUE,
                             verbose=FALSE)
 {
-    spat_obj <- fread(polygonsFile)
-    spat_obj$cell_id <- paste0("f", spat_obj$fov, "_c",
-                               spat_obj$cellID)
+
+    stopifnot(file.exists(polygonsFile))
+    type <- match.arg(type)
+    # type <- grep("csv", polygonsFile)
+
+    spat_obj <- switch(type, csv=fread(polygonsFile),
+                            parquet=read_parquet(polygonsFile))
+    if (! "cell_id" %in% colnames(spat_obj))
+    {
+        spat_obj$cell_id <- paste0("f", spat_obj$fov, "_c", spat_obj$cellID)
+    }
+
     spat_obj$cell_id <- as.factor(spat_obj$cell_id)
 
-    polygons_glo <- .createPolygons(spat_obj, x=x, y=y,
-                                    polygon_id="cell_id")[,-c(4,5)]
-    polygons_loc <- .createPolygons(spat_obj, x=xloc, y=yloc,
-                                    polygon_id="cell_id")[,-c(4,5)]
-
-    polygons <- cbind(polygons_glo, polygons_loc$geometry)
-
+    polygons <- .createPolygons(spat_obj, x=x, y=y,
+                                    polygon_id="cell_id")
     polygons <- .renameGeometry(polygons, "geometry", "global")
-    polygons <- .renameGeometry(polygons, "geometry.1", "local")
+
+    if(all(c(xloc, yloc) %in% colnames(spat_obj)))
+    {
+        idxs <- which(colnames(polygons) %in% c(xloc, yloc))
+        polygons <- polygons[,-idxs]
+        polygons_loc <- .createPolygons(spat_obj, x=xloc, y=yloc,
+                                        polygon_id="cell_id")[,-c(4,5)]
+        polygons <- cbind(polygons, polygons_loc$geometry)
+        polygons <- .renameGeometry(polygons, "geometry.1", "local")
+    }
+
     if(verbose) message("Polygons detected: ", dim(polygons)[1])#### otherwise
     #### will print number of columns next to the numer of rows
 
@@ -55,7 +73,7 @@ readPolygonsCosMx <- function(polygonsFile, x="x_global_px", y="y_global_px",
     return(polygons)
     ### write polygons as parquet file
 
-    ###############
+    ############### custom metrics computed on custom read polygons -> to implement in separate function(s)
     # um_area <- st_area(polygons)*(micronConvFact^2) # working on the global geometry
     # spe$um_area <- um_area
     # polygons$um_area <- um_area
@@ -183,12 +201,32 @@ addPolygonsToSPE <- function(spe, polygons)
     polygons <- sfheaders::sf_polygon(obj=spat_obj,
                                       x=x, y=y,
                                       polygon_id=polygon_id, keep=TRUE)
-    polygons <- polygons[base::order(polygons$fov, polygons$cellID),]
-    polygons$cell_id <- paste0("f", polygons$fov, "_c", polygons$cellID) # serve l'identificativo univoco
+    # polygons <- polygons[order(polygons$cell_id),]
     return(polygons)
 }
 
-## EXPORT PARQUET FILE
+#' Title
+#'
+#' @param polygonsFile
+#' @param type
+#' @param x
+#' @param y
+#' @param keepMultiPol
+#' @param verbose
+#'
+#' @return
+#' @export
+#'
+#' @examples
+readPolygonsXenium <- function(polygonsFile, type=c("parquet", "csv"),
+                   x="vertex_x", y="vertex_y", keepMultiPol=TRUE,
+                   verbose=FALSE)
+{
+    type <- match.arg(type)
+    readPolygons(polygonsFile=polygonsFile, type=type, x=x, y=y,
+        keepMultiPol=keepMultiPol, verbose=verbose)
+}
+
 
 
 

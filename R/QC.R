@@ -54,8 +54,13 @@ spatialPerCellQC <- function(spe, micronConvFact=0.12,
     }
 
     #### compute AspectRatio for other technologies ####
-
-    spe$log2AspectRatio <- log2(spe$AspectRatio)
+    if ("AspectRatio" %in% colnames(colData(spe)))
+    {
+        warning(paste0("Missing aspect ratio in colData...\n",
+                "NB: This could lead to additional warnings or errors.\n",
+                "Missing AspectRatio can be computed by loading polygons."))
+        spe$log2AspectRatio <- log2(spe$AspectRatio)
+    }
 
     spe$ctrl_total_ratio <- spe$control_sum/spe$total
     spe$ctrl_total_ratio[which(is.na(spe$ctrl_total_ratio))] <- 0

@@ -30,7 +30,7 @@ readCosmxSPE <- function(dirname,
                         fovposfpattern="fov_positions_file.csv",
                         fov_dims=c(xdim=4256, ydim=4256))
 {
-    stopifnot(all(names(fov_dims) == c("xdim", "ydim")))
+    stopifnot(all(names(fov_dims) == c("xdim", "ydim"), file.exists(dirname)))
     countmat_file <- list.files(dirname, countmatfpattern, full.names=TRUE)
     metadata_file <- list.files(dirname, metadatafpattern, full.names=TRUE)
     fovpos_file <- list.files(dirname, fovposfpattern, full.names=TRUE)
