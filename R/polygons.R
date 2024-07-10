@@ -18,7 +18,7 @@
 #'
 #' @examples
 # polygons <- readPolygonsCosMx("~/Downloads/CosMx_data/DBKero/CosMx_Breast/CosMx_data_Case2/Run5810_Case2-polygons.csv")
-readPolygons <- function(polygonsFile, type=c("csv", "parquet"),
+readPolygons <- function(polygonsFile, type=c("csv", "parquet", "h5"),
                             x=c("x_global_px", "vertex_x"),
                             y=c("y_global_px", "vertex_y"),
                             xloc="x_local_px", yloc="y_local_px",
@@ -31,46 +31,51 @@ readPolygons <- function(polygonsFile, type=c("csv", "parquet"),
     type <- match.arg(type)
     # type <- grep("csv", polygonsFile)
 
-    spat_obj <- switch(type, csv=fread(polygonsFile),
-                            parquet=read_parquet(polygonsFile))
-    if (! "cell_id" %in% colnames(spat_obj))
+    if(type=="h5")
     {
-        spat_obj$cell_id <- paste0("f", spat_obj$fov, "_c", spat_obj$cellID)
+        # polygons <- readh5Polygons(polygonsFile)
+    } else {
+        spat_obj <- switch(type, csv=fread(polygonsFile),
+                                parquet=read_parquet(polygonsFile))
+        if (! "cell_id" %in% colnames(spat_obj))
+        {
+            spat_obj$cell_id <- paste0("f", spat_obj$fov, "_c", spat_obj$cellID)
+        }
+
+        spat_obj$cell_id <- as.factor(spat_obj$cell_id)
+
+        polygons <- .createPolygons(spat_obj, x=x, y=y,
+                                        polygon_id="cell_id")
+        polygons <- .renameGeometry(polygons, "geometry", "global")
+
+        if(all(c(xloc, yloc) %in% colnames(spat_obj)))
+        {
+            idxs <- which(colnames(polygons) %in% c(xloc, yloc))
+            polygons <- polygons[,-idxs]
+            polygons_loc <- .createPolygons(spat_obj, x=xloc, y=yloc,
+                                            polygon_id="cell_id")[,-c(4,5)]
+            polygons <- cbind(polygons, polygons_loc$geometry)
+            polygons <- .renameGeometry(polygons, "geometry.1", "local")
+        }
+
+        if(verbose) message("Polygons detected: ", dim(polygons)[1])#### otherwise
+        #### will print number of columns next to the numer of rows
+
+        polygons <- .checkPolygonsValidity(polygons, keepMultiPol=keepMultiPol,
+                                            verbose=verbose)
+
+        rownames(polygons) <- polygons$cell_id #### if not here, then the check
+        #### in addPolygonsToSPE cannot be be done
+
+        #### identical cannot work since coordinates are different, but the validity
+        #### and the geometries as well should stay the same
+        #### needs to be changed or ignored
+        # if(!table(st_is_valid(polygons$global))==table(st_is_valid(polygons$global)))
+        #     warning("Global and Local geometries are not identical")
+        if(verbose) message("Polygons after validity: ", dim(polygons)[1])#### otherwise
+        #### will print number of columns next to the numer of rows
+        return(polygons)
     }
-
-    spat_obj$cell_id <- as.factor(spat_obj$cell_id)
-
-    polygons <- .createPolygons(spat_obj, x=x, y=y,
-                                    polygon_id="cell_id")
-    polygons <- .renameGeometry(polygons, "geometry", "global")
-
-    if(all(c(xloc, yloc) %in% colnames(spat_obj)))
-    {
-        idxs <- which(colnames(polygons) %in% c(xloc, yloc))
-        polygons <- polygons[,-idxs]
-        polygons_loc <- .createPolygons(spat_obj, x=xloc, y=yloc,
-                                        polygon_id="cell_id")[,-c(4,5)]
-        polygons <- cbind(polygons, polygons_loc$geometry)
-        polygons <- .renameGeometry(polygons, "geometry.1", "local")
-    }
-
-    if(verbose) message("Polygons detected: ", dim(polygons)[1])#### otherwise
-    #### will print number of columns next to the numer of rows
-
-    polygons <- .checkPolygonsValidity(polygons, keepMultiPol=keepMultiPol,
-                                        verbose=verbose)
-
-    rownames(polygons) <- polygons$cell_id #### if not here, then the check
-    #### in addPolygonsToSPE cannot be be done
-
-    #### identical cannot work since coordinates are different, but the validity
-    #### and the geometries as well should stay the same
-    #### needs to be changed or ignored
-    # if(!table(st_is_valid(polygons$global))==table(st_is_valid(polygons$global)))
-    #     warning("Global and Local geometries are not identical")
-    if(verbose) message("Polygons after validity: ", dim(polygons)[1])#### otherwise
-    #### will print number of columns next to the numer of rows
-    return(polygons)
     ### write polygons as parquet file
 
     ############### custom metrics computed on custom read polygons -> to implement in separate function(s)
@@ -205,7 +210,7 @@ addPolygonsToSPE <- function(spe, polygons)
     return(polygons)
 }
 
-#' Title
+#' readPolygonsXenium
 #'
 #' @param polygonsFile
 #' @param type
@@ -227,6 +232,71 @@ readPolygonsXenium <- function(polygonsFile, type=c("parquet", "csv"),
         keepMultiPol=keepMultiPol, verbose=verbose)
 }
 
+#' Title
+#'
+#' @param polygonsFolder
+#' @param type
+#' @param hdf5pattern
+#'
+#' @return
+#' @export
+#'
+#' @examples
+readPolygonsMerfish <- function(polygonsFolder, type=c("HDF5", "parquet"),
+                                keepMultiPol=TRUE, hdf5pattern="hdf5")
+{
+    type <- match.arg(type)
+    if (type=="HDF5")
+    {
+        polfiles <- list.files(polygonsFolder, pattern=hdf5pattern,
+                                full.names=TRUE)
+        dfsfl <- lapply(seq_along(polfiles), function(i)
+        {
+            poll <- readh5polygons(pol_file=polfiles[i])
+            df <- data.frame(cell_id=paste0("f", i-1, "_c", poll$ids),
+                             cell_ID=poll$ids,
+                             fov=i-1, geometry=sf::st_sfc(poll$g))
+            dfsf <- sf::st_sf(df)
+        })
+        polygons <- do.call(rbind, dfsfl)
+        polygons <- .checkPolygonsValidity(polygons, keepMultiPol=keepMultiPol)
+        return(polygons)
+    }
+}
+
+computeAreaFromPolygons <- function(polygons, coldata)
+{
+    cd <- coldata
+    cd$Area <- NA
+    ## area <- st_area(polygons)
+    posz <- match(names(area), rownames(cd))
+    cd$area[posz] <- unlist(area)
+    return(cd)
+}
+
+computeAspectRatioFromPolygons <- function(polygons, coldata)
+{
+    cd <- coldata
+    aspRatL <- lapply(polygons$global[!polygons$is_multi], function(x)
+    {
+        (max(x[[1]][,2]) - min(x[[1]][,2]))/(max(x[[1]][,1]) - min(x[[1]][,1]))
+    })
+    names(aspRatL) <- polygons$cell_id[!polygons$is_multi]
+
+    cd$AspectRatio <- NA
+    posz <- match(names(aspRatL), rownames(cd))
+    cd$AspectRatio[posz] <- unlist(aspRatL)
+    return(cd)
+}
 
 
+readh5polygons <- function(pol_file)
+{
+    l <- rhdf5::h5dump(pol_file)[[1]]
+    cell_ids <- names(l)
+    geometries <- lapply(l, function(m) {
+        sf::st_polygon(list(t(m[["zIndex_0"]]$p_0$coordinates[,,1])))
+    })
+    return(list(g=geometries, ids=cell_ids))
+}
 

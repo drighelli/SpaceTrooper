@@ -5,10 +5,14 @@
 #'
 #' @param dirname
 #' @param sample_name
+#' @compute_missing_metrics boolean
+#' @boundaries_type one of HDF5, parquet.
+#' If HDF5 indicate the polygons folder in `polygonspattern` where the HDF5
+#' polygons files are stored
 #' @param countmatfpattern
 #' @param metadatafpattern
 #' @param coord_names
-#' @param polygonsfpattern
+#' @param polygonspattern
 #' @param fov_dims
 #'
 #' @return A SpatialExperiment object
@@ -21,6 +25,9 @@
 #' @examples
 ## for old fovs consider dimensions 5472 x 3648 pixels.
 readMerfishSPE <- function(dirname,
+                           sample_name="sample01",
+                           compute_missing_metrics=TRUE,
+                           boundaries_type=c("HDF5", "parquet"),
                            countmatfpattern = "cell_by_gene.csv",
                            metadatafpattern = "cell_metadata.csv",
                            polygonsfpattern = "cell_boundaries.parquet",
@@ -58,7 +65,11 @@ readMerfishSPE <- function(dirname,
     colData <- left_join(metadata, countmat[, "cell_id"], by = "cell_id")
     rownames(metadata) <- metadata$cell_id
     colData <- subset(colData, select = c(2,1,3:dim(colData)[2]))
-
+    if (compute_missing_metrics)
+    {
+        message("Computing missing metrics, this could take some time...")
+        cd <- computeMissingMetricsMerfish(pol_file, cd)
+    }
 
     spe <- SpatialExperiment::SpatialExperiment(
         sample_id=sample_name,
@@ -72,3 +83,12 @@ readMerfishSPE <- function(dirname,
     return(spe)
 
 }
+
+computeMissingMetricsMerfish <- function(pol_file, coldata)
+{
+    polygons <- readPolygonsMerfish(pol_file, keepMultiPol=TRUE)
+    cd <- computeAreaFromPolygons(polygons, coldata)
+    cd <- computeAspectRatioFromPolygons(polygons, cd)
+    return(cd)
+}
+

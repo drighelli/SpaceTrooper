@@ -9,17 +9,16 @@
 #' @param dirname a directory path to Xenium Output Bundle download that contains
 #' files of interest.
 #' @param sample_name
-#' @param countmatfpattern a folder directory or the h5 file for the count matrix.
-#' Default value is \code{"cell_feature_matrix.h5"}, alternative value is
-#' \code{"cell_feature_matrix"} that takes a bit longer. The count matrix is
-#' read in and stored in a \code{SingleCellExperiment} object, using
-#' \code{DropletUtils::read10xCounts()}
+#' @param type
+#' @param coord_names
+#' @param boundaries_type
+#' @param compute_missing_metrics
+#' @param countsfilepattern
 #' @param metadatafpattern a filename pattern of the zipped .csv file that
 #' contains cell metadata and spatial coords. Default value is \code{"cells.csv.gz"}, and there is no
 #' need to change.
 #' @param polygonsfpattern a vector of two strings specify the spatial coord names.
 #' Default value is \code{c("x_centroid", "y_centroid")}, and there is no need to change.
-#'
 #'
 #' @details # WHAT ABOUT THE OTHER PARAMETERS/FILES? WHAT ABOUT THE OUTS FOLDER(added)?
 #' The constructor assumes the downloaded unzipped Xenium Output Bundle has the
@@ -71,11 +70,11 @@
 readXeniumSPE <- function(dirname,
                           sample_name="sample01",
                           type=c("HDF5", "sparse"),
-                          coord_names = c("x_centroid", "y_centroid"),
+                          coord_names=c("x_centroid", "y_centroid"),
                           boundaries_type=c("parquet", "csv"),
                           compute_missing_metrics=TRUE,
-                          countsfilepattern = "cell_feature_matrix",
-                          metadatafpattern = "cells",
+                          countsfilepattern="cell_feature_matrix",
+                          metadatafpattern="cells",
                           polygonsfpattern="cell_boundaries")
 {
     stopifnot(file.exists(dirname))
@@ -83,7 +82,17 @@ readXeniumSPE <- function(dirname,
     boundaries_type <- match.arg(boundaries_type)
 
     # add "outs/" directory if not already included
-    if(basename(dirname) != "outs") dirname <- file.path(dirname, "outs")
+    if(basename(dirname) != "outs")
+    {
+        dirbkup <- dirname
+        dirname <- file.path(dirname, "outs")
+        if (!file.exists(dirname))
+        {
+            dirname <- dirbkup
+        } else {
+            warning("automatically detected/added outs dir in the 10x filepath")
+        }
+    }
 
     cfm <- paste0(countsfilepattern, switch(type, HDF5=".h5", ""))
     counts <- file.path(dirname, cfm)
@@ -109,7 +118,8 @@ readXeniumSPE <- function(dirname,
     }
     if (compute_missing_metrics)
     {
-        cd <- computeAspectRatioXenium(pol_file, cd)
+        message("Computing missing metrics, this could take some time...")
+        cd <- computeMissingMetricsXenium(pol_file, cd)
     }
     # construct 'SpatialExperiment'
     spe <- SpatialExperiment::SpatialExperiment(
@@ -124,24 +134,10 @@ readXeniumSPE <- function(dirname,
 }
 
 
-computeAspectRatioXenium <- function(pol_file, coldata)
+computeMissingMetricsXenium <- function(pol_file, coldata)
 {
     polygons <- readPolygonsXenium(pol_file, keepMultiPol=TRUE)
     cd <- computeAspectRatioFromPolygons(polygons, coldata)
     return(cd)
 }
 
-computeAspectRatioFromPolygons <- function(polygons, coldata)
-{
-    cd <- coldata
-    aspRatL <- lapply(polygons$global[!polygons$is_multi], function(x)
-    {
-        (max(x[[1]][,2]) - min(x[[1]][,2]))/(max(x[[1]][,1]) - min(x[[1]][,1]))
-    })
-    names(aspRatL) <- polygons$cell_id[!polygons$is_multi]
-
-    cd$AspectRatio <- NA
-    posz <- match(names(aspRatL), rownames(cd))
-    cd$AspectRatio[posz] <- unlist(aspRatL)
-    return(cd)
-}
