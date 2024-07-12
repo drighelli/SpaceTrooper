@@ -42,9 +42,10 @@ readMerfishSPE <- function(dirname,
 
     # Read in
     countmat <- data.table::fread(countmat_file)
-    names(countmat)[names(countmat) == "V1"] <- "cell_id"
+    names(countmat)[names(countmat) %in% c("V1", "cell")] <- "cell_id"
+
     metadata <- data.table::fread(metadata_file) # cell metadata
-    names(metadata)[names(metadata) == "V1"] <- "cell_id"
+    names(metadata)[names(metadata) %in% c("EntityID", "V1")] <- "cell_id"
 
     # Count matrix
     countmat <- left_join(countmat, metadata[, "cell_id"], by = "cell_id")
@@ -68,7 +69,7 @@ readMerfishSPE <- function(dirname,
     if (compute_missing_metrics)
     {
         message("Computing missing metrics, this could take some time...")
-        cd <- computeMissingMetricsMerfish(pol_file, cd)
+        cd <- computeMissingMetricsMerfish(pol_file, colData)
     }
 
     spe <- SpatialExperiment::SpatialExperiment(

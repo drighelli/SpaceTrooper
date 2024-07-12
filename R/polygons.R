@@ -33,7 +33,17 @@ readPolygons <- function(polygonsFile, type=c("csv", "parquet", "h5"),
 
     if(type=="h5")
     {
-        # polygons <- readh5Polygons(polygonsFile)
+        polfiles <- list.files(polygonsFolder, pattern=hdf5pattern,
+                               full.names=TRUE)
+        dfsfl <- lapply(seq_along(polfiles), function(i)
+        {
+            poll <- readh5polygons(pol_file=polfiles[i])
+            df <- data.frame(cell_id=paste0("f", i-1, "_c", poll$ids),
+                             cell_ID=poll$ids,
+                             fov=i-1, geometry=sf::st_sfc(poll$g))
+            dfsf <- sf::st_sf(df)
+        })
+        polygons <- do.call(rbind, dfsfl)
     } else {
         spat_obj <- switch(type, csv=fread(polygonsFile),
                                 parquet=read_parquet(polygonsFile))
@@ -130,22 +140,33 @@ readPolygons <- function(polygonsFile, type=c("csv", "parquet", "h5"),
 
     if(sum(sf_tf)!=dim(sf)[1]) sf <- st_buffer(sf, dist=0)
 
+    ############ CHECKING MULTIPOLYGONS
     # Subsetting to remove non-polygons
-    cellids <- unlist(apply(sf, 1, function(geom)
-    {
+    # cellids <- unlist(apply(sf, 1, function(geom)
+    # {
+
         # just in case of custom in cosmx but present in automatic in xenium
-        if(attr(geom[[geometry]], "class")[2] == "MULTIPOLYGON")
-        {
-            return(geom$cell_id)
-        }
-    }))
+        # if(attr(geom[[geometry]], "class")[2] == "MULTIPOLYGON")
+        # {
+        #     return(geom$cell_id)
+        # }
+    # }))
+    ll <- lapply(polygons[[geometry]], lengths)
+    sums <- lapply(ll, sum)
+    idx <- which(sums==1)
+    polygons$is_multi <- FALSE
+    polygons$is_multi[!idx] <- TRUE
+    polygons$multi_n <- 1
+    polygons$multi_n[!idx] <- sums[!idx]
+    if(verbose) message("Detected ", length(idx), " multipolygons.")
 
     ## print an alert on the detection/removal of multipolygons
-    if(length(cellids)!=0)
-    {
-        if(verbose) message("Detected ", length(cellids), " multipolygons.")
-        sf$is_multi <- sf$cell_id %in% cellids
-    }
+    # if(length(cellids)!=0)
+    # {
+    #     if(verbose) message("Detected ", length(cellids), " multipolygons.")
+    #     sf$is_multi <- sf$cell_id %in% cellids
+    # }
+    #############
     if(!keepMultiPol)
     {
         if(verbose) message("Removing ", sum(sf$is_multi), " multipolygons.")
@@ -199,13 +220,27 @@ addPolygonsToSPE <- function(spe, polygons)
 #' @return
 #' @keywords internal
 #' @importFrom sfheaders sf_polygon
+#' @importFrom sf st_as_sf
 #'
 #' @examples
-.createPolygons <- function(spat_obj, x, y, polygon_id)
+.createPolygons <- function(spat_obj, x=NULL, y=NULL, polygon_id=NULL, geometry="Geometry")
 {
-    polygons <- sfheaders::sf_polygon(obj=spat_obj,
+    if(all(!is.null(x), !is.null(y)))
+    {
+        polygons <- sfheaders::sf_polygon(obj=spat_obj,
                                       x=x, y=y,
                                       polygon_id=polygon_id, keep=TRUE)
+    } else {
+        polygons <- sf::st_as_sf(as.data.frame(spat_obj))
+        # ll <- lapply(polygons$Geometry, lengths)
+        # sums <- lapply(ll, sum)
+        # idx <- which(sums==1)
+        # polygons$is_multi <- FALSE
+        # polygons$is_multi[!idx] <- TRUE
+        # polygons$multi_n <- 1
+        # polygons$multi_n[!idx] <- sums[!idx]
+        # polygons[idx, ] <- sf::st_cast(polygons[idx, ], "POLYGON")
+    }
     # polygons <- polygons[order(polygons$cell_id),]
     return(polygons)
 }
@@ -240,10 +275,15 @@ readPolygonsXenium <- function(polygonsFile, type=c("parquet", "csv"),
 #'
 #' @return
 #' @export
+#' @importFrom sf st_sf st_cast st_sfc
+#' @importFrom arrow read_parquet
 #'
 #' @examples
 readPolygonsMerfish <- function(polygonsFolder, type=c("HDF5", "parquet"),
-                                keepMultiPol=TRUE, hdf5pattern="hdf5")
+                                keepMultiPol=TRUE, hdf5pattern="hdf5",
+                                z_lev=3L, zcolumn="ZIndex",
+                                geometry="Geometry",
+                                verbose=FALSE)
 {
     type <- match.arg(type)
     if (type=="HDF5")
@@ -255,32 +295,55 @@ readPolygonsMerfish <- function(polygonsFolder, type=c("HDF5", "parquet"),
             poll <- readh5polygons(pol_file=polfiles[i])
             df <- data.frame(cell_id=paste0("f", i-1, "_c", poll$ids),
                              cell_ID=poll$ids,
-                             fov=i-1, geometry=sf::st_sfc(poll$g))
+                             fov=i-1, geometry=sf::st_sfc(poll$g)) ## geometry can be a simple column
             dfsf <- sf::st_sf(df)
         })
         polygons <- do.call(rbind, dfsfl)
+        ## check if polygons geometry are polygons
         polygons <- .checkPolygonsValidity(polygons, keepMultiPol=keepMultiPol)
         return(polygons)
+    } else { ## case parquet
+        polfile <- list.files(polygonsFolder, pattern=type,
+                              full.names=TRUE)
+        polygons <- arrow::read_parquet(polfile, as_data_frame=TRUE)
+        polygons <- polygons[polygons[[zcolumn]]==z_lev,]
+        polygons$cell_id <- polygons$EntityID
+        polygons <- .createPolygons(polygons)
+        polygons <- .renameGeometry(polygons, geometry, "global")
+        polygons <- .checkPolygonsValidity(polygons, keepMultiPol=keepMultiPol,
+                                        verbose=verbose) ###### TO FIX
     }
+
+    polygons
 }
 
+#' Title
+#'
+#' @param polygons
+#' @param coldata
+#'
+#' @return
+#' @export
+#'
+#' @examples
 computeAreaFromPolygons <- function(polygons, coldata)
 {
     cd <- coldata
-    cd$Area <- NA
-    ## area <- st_area(polygons)
-    posz <- match(names(area), rownames(cd))
-    cd$area[posz] <- unlist(area)
+    # cd$Area <- NA
+    area <- sf::st_area(polygons)
+    # idx <- match(names(area), rownames(cd))
+    cd$um_area <- unlist(area)
     return(cd)
 }
 
 computeAspectRatioFromPolygons <- function(polygons, coldata)
 {
     cd <- coldata
-    aspRatL <- lapply(polygons$global[!polygons$is_multi], function(x)
+    aspRatL <- lapply(polygons$global[!polygons$is_multi], function(x) ## get active name of geometry instead of global
     {
+        x <- sf::st_cast(x, "POLYGON")
         (max(x[[1]][,2]) - min(x[[1]][,2]))/(max(x[[1]][,1]) - min(x[[1]][,1]))
-    })
+    }) ## to parallelize with bplapply
     names(aspRatL) <- polygons$cell_id[!polygons$is_multi]
 
     cd$AspectRatio <- NA
