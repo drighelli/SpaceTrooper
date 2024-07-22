@@ -26,12 +26,6 @@ need to change.}
 
 \item{polygonsfpattern}{a vector of two strings specify the spatial coord names.
 Default value is \code{c("x_centroid", "y_centroid")}, and there is no need to change.}
-
-\item{countmatfpattern}{a folder directory or the h5 file for the count matrix.
-Default value is \code{"cell_feature_matrix.h5"}, alternative value is
-\code{"cell_feature_matrix"} that takes a bit longer. The count matrix is
-read in and stored in a \code{SingleCellExperiment} object, using
-\code{DropletUtils::read10xCounts()}}
 }
 \value{
 a \code{\link{SpatialExperiment}} object

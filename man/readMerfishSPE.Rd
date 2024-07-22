@@ -6,6 +6,9 @@
 \usage{
 readMerfishSPE(
   dirname,
+  sample_name = "sample01",
+  compute_missing_metrics = TRUE,
+  boundaries_type = c("HDF5", "parquet"),
   countmatfpattern = "cell_by_gene.csv",
   metadatafpattern = "cell_metadata.csv",
   polygonsfpattern = "cell_boundaries.parquet",

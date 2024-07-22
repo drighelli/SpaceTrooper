@@ -35,7 +35,7 @@ readMerfishSPE <- function(dirname,
 {
     countmat_file <- list.files(dirname, countmatfpattern, full.names=TRUE)
     metadata_file <- list.files(dirname, metadatafpattern, full.names=TRUE)
-    pol_file <- list.files(dirname, polygonsfpattern, full.names=TRUE) #check if parquet
+    # pol_file <- list.files(dirname, polygonsfpattern, full.names=TRUE) #check if parquet
 
     # stopifnot(all(file.exists(countmat_file), file.exists(metadata_file),
     #               file.exists(fovpos_file), file.exists(pol_file)))
@@ -69,7 +69,7 @@ readMerfishSPE <- function(dirname,
     if (compute_missing_metrics)
     {
         message("Computing missing metrics, this could take some time...")
-        cd <- computeMissingMetricsMerfish(pol_file, colData)
+        cd <- computeMissingMetricsMerfish(dirname, colData, boundaries_type)
     }
 
     spe <- SpatialExperiment::SpatialExperiment(
@@ -85,9 +85,11 @@ readMerfishSPE <- function(dirname,
 
 }
 
-computeMissingMetricsMerfish <- function(pol_file, coldata)
+computeMissingMetricsMerfish <- function(polygonsFolder, coldata, boundaries_type)
 {
-    polygons <- readPolygonsMerfish(pol_file, keepMultiPol=TRUE)
+
+    polygons <- readPolygonsMerfish(polygonsFolder, keepMultiPol=TRUE,
+                                    type=boundaries_type)
     cd <- computeAreaFromPolygons(polygons, coldata)
     cd <- computeAspectRatioFromPolygons(polygons, cd)
     return(cd)

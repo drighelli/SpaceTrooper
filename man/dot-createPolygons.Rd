@@ -4,7 +4,13 @@
 \alias{.createPolygons}
 \title{.createPolygons}
 \usage{
-.createPolygons(spat_obj, x, y, polygon_id)
+.createPolygons(
+  spat_obj,
+  x = NULL,
+  y = NULL,
+  polygon_id = NULL,
+  geometry = "Geometry"
+)
 }
 \arguments{
 \item{polygon_id}{}

@@ -72,7 +72,7 @@ readCosmxSPE <- function(dirname,
     ## multiply spatial coordinates in micron multiplying by 0.18 and store
     ## two additional columns depends by technology version
 
-    fov_positions <- as.data.frame(data.table::fread(fovpos_file, header = T))
+    fov_positions <- as.data.frame(data.table::fread(fovpos_file, header=TRUE))
 
     ## patch for let this work also with older versions of CosMx fov position
     ## output file

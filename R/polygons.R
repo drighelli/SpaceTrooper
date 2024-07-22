@@ -33,17 +33,17 @@ readPolygons <- function(polygonsFile, type=c("csv", "parquet", "h5"),
 
     if(type=="h5")
     {
-        polfiles <- list.files(polygonsFolder, pattern=hdf5pattern,
-                               full.names=TRUE)
-        dfsfl <- lapply(seq_along(polfiles), function(i)
-        {
-            poll <- readh5polygons(pol_file=polfiles[i])
-            df <- data.frame(cell_id=paste0("f", i-1, "_c", poll$ids),
-                             cell_ID=poll$ids,
-                             fov=i-1, geometry=sf::st_sfc(poll$g))
-            dfsf <- sf::st_sf(df)
-        })
-        polygons <- do.call(rbind, dfsfl)
+        # polfiles <- list.files(polygonsFolder, pattern=hdf5pattern,
+        #                        full.names=TRUE)
+        # dfsfl <- lapply(seq_along(polfiles), function(i)
+        # {
+        #     poll <- readh5polygons(pol_file=polfiles[i])
+        #     df <- data.frame(cell_id=paste0("f", i-1, "_c", poll$ids),
+        #                      cell_ID=poll$ids,
+        #                      fov=i-1, geometry=sf::st_sfc(poll$g))
+        #     dfsf <- sf::st_sf(df)
+        # })
+        # polygons <- do.call(rbind, dfsfl)
     } else {
         spat_obj <- switch(type, csv=fread(polygonsFile),
                                 parquet=read_parquet(polygonsFile))
@@ -56,7 +56,7 @@ readPolygons <- function(polygonsFile, type=c("csv", "parquet", "h5"),
 
         polygons <- .createPolygons(spat_obj, x=x, y=y,
                                         polygon_id="cell_id")
-        polygons <- .renameGeometry(polygons, "geometry", "global")
+        polygons <- .renameGeometry(polygons, "geometry", "global") ## only for cosmx
 
         if(all(c(xloc, yloc) %in% colnames(spat_obj)))
         {
@@ -65,7 +65,7 @@ readPolygons <- function(polygonsFile, type=c("csv", "parquet", "h5"),
             polygons_loc <- .createPolygons(spat_obj, x=xloc, y=yloc,
                                             polygon_id="cell_id")[,-c(4,5)]
             polygons <- cbind(polygons, polygons_loc$geometry)
-            polygons <- .renameGeometry(polygons, "geometry.1", "local")
+            polygons <- .renameGeometry(polygons, "geometry", "local")
         }
 
         if(verbose) message("Polygons detected: ", dim(polygons)[1])#### otherwise
@@ -87,17 +87,6 @@ readPolygons <- function(polygonsFile, type=c("csv", "parquet", "h5"),
         return(polygons)
     }
     ### write polygons as parquet file
-
-    ############### custom metrics computed on custom read polygons -> to implement in separate function(s)
-    # um_area <- st_area(polygons)*(micronConvFact^2) # working on the global geometry
-    # spe$um_area <- um_area
-    # polygons$um_area <- um_area
-    # aspect_ratio_list <- lapply(spe$polygons_whole_custom$geometry, function(x){
-    #     (max(x[[1]][,2]) - min(x[[1]][,2]))/(max(x[[1]][,1]) - min(x[[1]][,1]))
-    # })
-    # spe$polygons_whole_custom$log2_AspectRatio <- log2(unlist(aspect_ratio_list))
-    # spe$log2_AspectRatio <- log2(unlist(aspect_ratio_list))
-    ################
 }
 
 
@@ -122,7 +111,7 @@ readPolygons <- function(polygonsFile, type=c("csv", "parquet", "h5"),
 #'
 #' @return
 #' @keywords internal
-#' @importFrom sf st_is_valid st_buffer
+#' @importFrom sf st_is_valid st_buffer st_geometry_type
 #'
 #' @examples
 .checkPolygonsValidity <- function(sf, geometry=NULL, keepMultiPol=TRUE,
@@ -151,22 +140,28 @@ readPolygons <- function(polygonsFile, type=c("csv", "parquet", "h5"),
         #     return(geom$cell_id)
         # }
     # }))
-    ll <- lapply(polygons[[geometry]], lengths)
+    is_multi <- sf::st_geometry_type(sf$global) == "MULTIPOLYGON"
+    ## TRUE is merscope - FALSE is cosmx and xenium
+    merscopeFl <- (sum(is_multi) == dim(sf)[1])
+    funct <- ifelse(merscopeFl, "lengths", "length")
+    ll <- lapply(sf[[geometry]], funct)
     sums <- lapply(ll, sum)
-    idx <- which(sums==1)
-    polygons$is_multi <- FALSE
-    polygons$is_multi[!idx] <- TRUE
-    polygons$multi_n <- 1
-    polygons$multi_n[!idx] <- sums[!idx]
-    if(verbose) message("Detected ", length(idx), " multipolygons.")
+    idx <- which(sums!=1)
+    sf$is_multi <- FALSE
+    sf$multi_n <- 1
+    if(length(idx)!=0)
+    {
+        sf$is_multi[idx] <- TRUE
+        sf$multi_n[idx] <- unlist(sums[idx])
 
-    ## print an alert on the detection/removal of multipolygons
-    # if(length(cellids)!=0)
-    # {
-    #     if(verbose) message("Detected ", length(cellids), " multipolygons.")
-    #     sf$is_multi <- sf$cell_id %in% cellids
-    # }
-    #############
+    }
+    if( all(merscopeFl, length(idx)!=0) )
+    {
+        sf$global[-idx] <- st_cast(sf$global[-idx], "POLYGON")
+    }
+
+    if(verbose) message("Detected ", sum(sf$is_multi), " multipolygons.")
+
     if(!keepMultiPol)
     {
         if(verbose) message("Removing ", sum(sf$is_multi), " multipolygons.")
@@ -232,6 +227,7 @@ addPolygonsToSPE <- function(spe, polygons)
                                       polygon_id=polygon_id, keep=TRUE)
     } else {
         polygons <- sf::st_as_sf(as.data.frame(spat_obj))
+        ## check structure of polygons
         # ll <- lapply(polygons$Geometry, lengths)
         # sums <- lapply(ll, sum)
         # idx <- which(sums==1)
@@ -243,6 +239,37 @@ addPolygonsToSPE <- function(spe, polygons)
     }
     # polygons <- polygons[order(polygons$cell_id),]
     return(polygons)
+}
+
+#' readPolygonsCosmx
+#' @description
+#'
+#' @param polygonsFile
+#' @param type
+#' @param x
+#' @param y
+#' @param xloc
+#' @param yloc
+#' @param keepMultiPol
+#' @param verbose
+#'
+#' @return
+#' @export
+#'
+#' @examples
+readPolygonsCosmx <- function(polygonsFile, type=c("csv", "parquet"),
+                              x="x_global_px",
+                              y="y_global_px",
+                              xloc="x_local_px",
+                              yloc="y_local_px",
+                              keepMultiPol=TRUE,
+                              verbose=FALSE)
+{
+    type=match.arg(type)
+    polygons <- readPolygons(polygonsFile, type=type, x=x, y=y, xloc=xloc,
+                    yloc=yloc, keepMultiPol=keepMultiPol, verbose=verbose)
+    polygons <- st_cast(polygons, "GEOMETRY")
+
 }
 
 #' readPolygonsXenium
@@ -267,7 +294,7 @@ readPolygonsXenium <- function(polygonsFile, type=c("parquet", "csv"),
         keepMultiPol=keepMultiPol, verbose=verbose)
 }
 
-#' Title
+#' readPolygonsMerfish
 #'
 #' @param polygonsFolder
 #' @param type
@@ -312,12 +339,13 @@ readPolygonsMerfish <- function(polygonsFolder, type=c("HDF5", "parquet"),
         polygons <- .renameGeometry(polygons, geometry, "global")
         polygons <- .checkPolygonsValidity(polygons, keepMultiPol=keepMultiPol,
                                         verbose=verbose) ###### TO FIX
+
     }
 
     polygons
 }
 
-#' Title
+#' computeAreaFromPolygons
 #'
 #' @param polygons
 #' @param coldata
@@ -336,14 +364,31 @@ computeAreaFromPolygons <- function(polygons, coldata)
     return(cd)
 }
 
+#' computeAspectRatioFromPolygons
+#'
+#' @param polygons
+#' @param coldata
+#'
+#' @return
+#' @export
+#'
+#' @examples
 computeAspectRatioFromPolygons <- function(polygons, coldata)
 {
     cd <- coldata
-    aspRatL <- lapply(polygons$global[!polygons$is_multi], function(x) ## get active name of geometry instead of global
-    {
-        x <- sf::st_cast(x, "POLYGON")
-        (max(x[[1]][,2]) - min(x[[1]][,2]))/(max(x[[1]][,1]) - min(x[[1]][,1]))
-    }) ## to parallelize with bplapply
+    aspRatL <- list()
+    # aspRatL <- lapply(polygons$global[!polygons$is_multi], function(x) ## get active name of geometry instead of global
+    # {
+        # x <- sf::st_cast(x, "POLYGON")
+        xx <- polygons$global[!polygons$is_multi]
+        for(i in seq_along(xx))
+        {
+            print(i)
+            x <- xx[[i]]
+            aspRatL[[i]] <- (max(x[[1]][,2]) - min(x[[1]][,2]))/(max(x[[1]][,1]) - min(x[[1]][,1]))
+        }
+        # (max(x[[1]][,2]) - min(x[[1]][,2]))/(max(x[[1]][,1]) - min(x[[1]][,1]))
+    # }) ## to parallelize with bplapply
     names(aspRatL) <- polygons$cell_id[!polygons$is_multi]
 
     cd$AspectRatio <- NA
@@ -353,6 +398,14 @@ computeAspectRatioFromPolygons <- function(polygons, coldata)
 }
 
 
+#' readh5polygons
+#'
+#' @param pol_file
+#' @author Lambda Moses
+#' @return
+#' @export
+#'
+#' @examples
 readh5polygons <- function(pol_file)
 {
     l <- rhdf5::h5dump(pol_file)[[1]]
