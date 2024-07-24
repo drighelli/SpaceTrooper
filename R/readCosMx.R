@@ -40,8 +40,8 @@ readCosmxSPE <- function(dirname,
     #               file.exists(fovpos_file), file.exists(pol_file)))
 
     # Read in
-    countmat <- data.table::fread(countmat_file) # cell count matrix
-    metadata <- data.table::fread(metadata_file) # cell metadata
+    countmat <- data.table::fread(countmat_file, showProgress=FALSE) # cell count matrix
+    metadata <- data.table::fread(metadata_file, showProgress=FALSE) # cell metadata
 
     # Count matrix
     counts <- merge(countmat, metadata[, c("fov", "cell_ID")])

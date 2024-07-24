@@ -64,11 +64,11 @@ readMerfishSPE <- function(dirname,
 
     # colData
     colData <- left_join(metadata, countmat[, "cell_id"], by = "cell_id")
-    rownames(metadata) <- metadata$cell_id
+    rownames(colData) <- colData$cell_id
     colData <- subset(colData, select = c(2,1,3:dim(colData)[2]))
     if (compute_missing_metrics)
     {
-        message("Computing missing metrics, this could take some time...")
+        message("Computing missing metrics, this could take a while...")
         cd <- computeMissingMetricsMerfish(dirname, colData, boundaries_type)
     }
 

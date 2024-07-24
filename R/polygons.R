@@ -125,6 +125,7 @@ readPolygons <- function(polygonsFile, type=c("csv", "parquet", "h5"),
         act <- .getActiveGeometryName(sf)
         sf <- .setActiveGeometry(sf, geometry)
     }
+
     sf_tf <- st_is_valid(sf) # to parallelize? how? split sf in multiple sf and parallelize on it?
 
     if(sum(sf_tf)!=dim(sf)[1]) sf <- st_buffer(sf, dist=0)
@@ -269,6 +270,10 @@ readPolygonsCosmx <- function(polygonsFile, type=c("csv", "parquet"),
     polygons <- readPolygons(polygonsFile, type=type, x=x, y=y, xloc=xloc,
                     yloc=yloc, keepMultiPol=keepMultiPol, verbose=verbose)
     polygons <- st_cast(polygons, "GEOMETRY")
+    mandatory <- c("cell_id", "global", "is_multi", "multi_n")
+    cnames <- colnames(polygons)[!colnames(polygons) %in% mandatory]
+    polygons <- polygons[,c(mandatory, cnames)]
+    return(polygons)
 
 }
 
@@ -290,8 +295,12 @@ readPolygonsXenium <- function(polygonsFile, type=c("parquet", "csv"),
                    verbose=FALSE)
 {
     type <- match.arg(type)
-    readPolygons(polygonsFile=polygonsFile, type=type, x=x, y=y,
+    polygons <- readPolygons(polygonsFile=polygonsFile, type=type, x=x, y=y,
         keepMultiPol=keepMultiPol, verbose=verbose)
+    mandatory <- c("cell_id", "global", "is_multi", "multi_n")
+    cnames <- colnames(polygons)[!colnames(polygons) %in% mandatory]
+    polygons <- polygons[,c(mandatory, cnames)]
+    return(polygons)
 }
 
 #' readPolygonsMerfish
@@ -338,11 +347,13 @@ readPolygonsMerfish <- function(polygonsFolder, type=c("HDF5", "parquet"),
         polygons <- .createPolygons(polygons)
         polygons <- .renameGeometry(polygons, geometry, "global")
         polygons <- .checkPolygonsValidity(polygons, keepMultiPol=keepMultiPol,
-                                        verbose=verbose) ###### TO FIX
+                                        verbose=verbose)
 
     }
-
-    polygons
+    mandatory <- c("cell_id", "global", "is_multi", "multi_n")
+    cnames <- colnames(polygons)[!colnames(polygons) %in% mandatory]
+    polygons <- polygons[,c(mandatory, cnames)]
+    return(polygons)
 }
 
 #' computeAreaFromPolygons
@@ -376,23 +387,23 @@ computeAreaFromPolygons <- function(polygons, coldata)
 computeAspectRatioFromPolygons <- function(polygons, coldata)
 {
     cd <- coldata
-    aspRatL <- list()
-    # aspRatL <- lapply(polygons$global[!polygons$is_multi], function(x) ## get active name of geometry instead of global
-    # {
-        # x <- sf::st_cast(x, "POLYGON")
-        xx <- polygons$global[!polygons$is_multi]
-        for(i in seq_along(xx))
-        {
-            print(i)
-            x <- xx[[i]]
-            aspRatL[[i]] <- (max(x[[1]][,2]) - min(x[[1]][,2]))/(max(x[[1]][,1]) - min(x[[1]][,1]))
-        }
-        # (max(x[[1]][,2]) - min(x[[1]][,2]))/(max(x[[1]][,1]) - min(x[[1]][,1]))
-    # }) ## to parallelize with bplapply
+    stopifnot("cell_id" %in% colnames(cd))
+    # aspRatL <- list()
+    aspRatL <- lapply(polygons$global[!polygons$is_multi], function(x) ## get active name of geometry instead of global
+    {
+        # xx <- polygons$global[!polygons$is_multi]
+        # for(i in seq_along(xx))
+        # {
+            # print(i)
+            # x <- xx[[i]]
+            # aspRatL[[i]] <- (max(x[[1]][,2]) - min(x[[1]][,2]))/(max(x[[1]][,1]) - min(x[[1]][,1]))
+        # }
+        (max(x[[1]][,2]) - min(x[[1]][,2]))/(max(x[[1]][,1]) - min(x[[1]][,1]))
+    }) ## to parallelize with bplapply
     names(aspRatL) <- polygons$cell_id[!polygons$is_multi]
 
     cd$AspectRatio <- NA
-    posz <- match(names(aspRatL), rownames(cd))
+    posz <- match(names(aspRatL), cd$cell_id)
     cd$AspectRatio[posz] <- unlist(aspRatL)
     return(cd)
 }

@@ -70,7 +70,7 @@ spatialPerCellQC <- function(spe, micronConvFact=0.12,
 }
 
 
-#' computeScore
+#' computeQCScore
 #' @description
 #' Compute for each cell a flag score based on the target_counts, area in micron
 #' and log2 of the aspect ratio.
@@ -84,7 +84,7 @@ spatialPerCellQC <- function(spe, micronConvFact=0.12,
 #'
 #' @examples
 #' #TBD
-computeScore <- function(spe, a=0.3, b=0.8)
+computeQCScore <- function(spe, a=0.3, b=0.8)#, threshold=0.15)
 {
     stopifnot(is(spe, "SpatialExperiment"))
     cd <- colData(spe)
@@ -93,5 +93,20 @@ computeScore <- function(spe, a=0.3, b=0.8)
         stop("One of target_sum, Area_um, log2AspectRatio is missing, did you run spatialPerCellQC?")
     }
     spe$flag_score <- 1/(1 + exp(-a*spe$target_sum/spe$Area_um + b*abs(spe$log2AspectRatio)))
+
+    return(spe)
+}
+
+
+# computeSpatialOutlier <- function(spe)
+# {
+# TBD
+# }
+
+computeFilterFlags <- function(spe, fs_threshold=0.15)
+{
+    stopifnot(all(c("flag_score") %in% colnames(colData(spe))))
+    spe$is_fscore_outlier <- ifelse(spe$flag_score < quantile(spe$flag_score, probs=fs_threshold), TRUE, FALSE)
+    ## add additional flags
     return(spe)
 }
