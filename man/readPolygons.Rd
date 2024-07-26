@@ -6,7 +6,7 @@
 \usage{
 readPolygons(
   polygonsFile,
-  type = c("csv", "parquet"),
+  type = c("csv", "parquet", "h5"),
   x = c("x_global_px", "vertex_x"),
   y = c("y_global_px", "vertex_y"),
   xloc = "x_local_px",

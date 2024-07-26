@@ -35,16 +35,17 @@ readMerfishSPE <- function(dirname,
 {
     countmat_file <- list.files(dirname, countmatfpattern, full.names=TRUE)
     metadata_file <- list.files(dirname, metadatafpattern, full.names=TRUE)
-    pol_file <- list.files(dirname, polygonsfpattern, full.names=TRUE) #check if parquet
+    # pol_file <- list.files(dirname, polygonsfpattern, full.names=TRUE) #check if parquet
 
     # stopifnot(all(file.exists(countmat_file), file.exists(metadata_file),
     #               file.exists(fovpos_file), file.exists(pol_file)))
 
     # Read in
     countmat <- data.table::fread(countmat_file)
-    names(countmat)[names(countmat) == "V1"] <- "cell_id"
+    names(countmat)[names(countmat) %in% c("V1", "cell")] <- "cell_id"
+
     metadata <- data.table::fread(metadata_file) # cell metadata
-    names(metadata)[names(metadata) == "V1"] <- "cell_id"
+    names(metadata)[names(metadata) %in% c("EntityID", "V1")] <- "cell_id"
 
     # Count matrix
     countmat <- left_join(countmat, metadata[, "cell_id"], by = "cell_id")
@@ -63,12 +64,12 @@ readMerfishSPE <- function(dirname,
 
     # colData
     colData <- left_join(metadata, countmat[, "cell_id"], by = "cell_id")
-    rownames(metadata) <- metadata$cell_id
+    rownames(colData) <- colData$cell_id
     colData <- subset(colData, select = c(2,1,3:dim(colData)[2]))
     if (compute_missing_metrics)
     {
-        message("Computing missing metrics, this could take some time...")
-        cd <- computeMissingMetricsMerfish(pol_file, cd)
+        message("Computing missing metrics, this could take a while...")
+        cd <- computeMissingMetricsMerfish(dirname, colData, boundaries_type)
     }
 
     spe <- SpatialExperiment::SpatialExperiment(
@@ -84,9 +85,11 @@ readMerfishSPE <- function(dirname,
 
 }
 
-computeMissingMetricsMerfish <- function(pol_file, coldata)
+computeMissingMetricsMerfish <- function(polygonsFolder, coldata, boundaries_type)
 {
-    polygons <- readPolygonsMerfish(pol_file, keepMultiPol=TRUE)
+
+    polygons <- readPolygonsMerfish(polygonsFolder, keepMultiPol=TRUE,
+                                    type=boundaries_type)
     cd <- computeAreaFromPolygons(polygons, coldata)
     cd <- computeAspectRatioFromPolygons(polygons, cd)
     return(cd)

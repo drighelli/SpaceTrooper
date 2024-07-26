@@ -40,8 +40,8 @@ readCosmxSPE <- function(dirname,
     #               file.exists(fovpos_file), file.exists(pol_file)))
 
     # Read in
-    countmat <- data.table::fread(countmat_file) # cell count matrix
-    metadata <- data.table::fread(metadata_file) # cell metadata
+    countmat <- data.table::fread(countmat_file, showProgress=FALSE) # cell count matrix
+    metadata <- data.table::fread(metadata_file, showProgress=FALSE) # cell metadata
 
     # Count matrix
     counts <- merge(countmat, metadata[, c("fov", "cell_ID")])
@@ -72,7 +72,7 @@ readCosmxSPE <- function(dirname,
     ## multiply spatial coordinates in micron multiplying by 0.18 and store
     ## two additional columns depends by technology version
 
-    fov_positions <- as.data.frame(data.table::fread(fovpos_file, header = T))
+    fov_positions <- as.data.frame(data.table::fread(fovpos_file, header=TRUE))
 
     ## patch for let this work also with older versions of CosMx fov position
     ## output file

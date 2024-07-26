@@ -2,7 +2,7 @@
 % Please edit documentation in R/polygons.R
 \name{readPolygonsXenium}
 \alias{readPolygonsXenium}
-\title{Title}
+\title{readPolygonsXenium}
 \usage{
 readPolygonsXenium(
   polygonsFile,
@@ -17,5 +17,5 @@ readPolygonsXenium(
 \item{verbose}{}
 }
 \description{
-Title
+readPolygonsXenium
 }
