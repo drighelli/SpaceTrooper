@@ -144,7 +144,7 @@ computeSpatialOutlier <- function(spe, method=c("mc", "scuttle", "both"),
            both={ mcfl=scuttlefl=TRUE },
            mc={ mcfl=TRUE },
            scuttle={ scuttlefl=TRUE },
-           ""={stop("Method is not one of allowed methods")}
+           {stop("Method is not one of allowed methods")}
     )
 
     if (mcfl)
@@ -174,11 +174,13 @@ computeSpatialOutlier <- function(spe, method=c("mc", "scuttle", "both"),
         cd$umarea_outlier_mc <- outsmc
         cd$umarea_outlier_sc <- outssc
     } else {
-        cd$umarea_outlier <- ifelse(mc, outsmc, outssc)
+        cd$umarea_outlier <- ifelse(mcfl, outsmc, outssc)
     }
 
     colData(spe) <- cd
     return(spe)
+
+
     # area_fence <- out$fence
     # outlier_color <- colnames(spe)
     # for(i in 1:out$n){
