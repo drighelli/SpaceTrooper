@@ -83,8 +83,8 @@ spatialPerCellQC <- function(spe, micronConvFact=0.12,
 #' @export
 #'
 #' @examples
-#' #TBD
-computeQCScore <- function(spe, a=0.3, b=0.8)#, threshold=0.15)
+#' #changed default weights because I did tests and found that these works pretty good on DBKero
+computeQCScore <- function(spe, a=0.3, b=1)#, threshold=0.15)
 {
     stopifnot(is(spe, "SpatialExperiment"))
     cd <- colData(spe)
@@ -98,15 +98,109 @@ computeQCScore <- function(spe, a=0.3, b=0.8)#, threshold=0.15)
 }
 
 
-# computeSpatialOutlier <- function(spe)
-# {
-# TBD
-# }
-
-computeFilterFlags <- function(spe, fs_threshold=0.15)
+#' computeSpatialOutlier
+#' @description
+#' Identifies outliers for cell area and mean DAPI signal through a statistical
+#' test on the basis of the variable skewness
+#'
+#' @param spe a SpatialExperiment object with area in micron
+#' and mean DAPI signal in the `colData`, tipically computed with
+#' \link{spatialPerCellQC}
+#'
+#' @return
+#' @export
+#' @importFrom scuttle isOutlier
+#' @importFrom robustbase mc
+#' @examples
+#' #TBD
+computeSpatialOutlier <- function(spe)
 {
-    stopifnot(all(c("flag_score") %in% colnames(colData(spe))))
-    spe$is_fscore_outlier <- ifelse(spe$flag_score < quantile(spe$flag_score, probs=fs_threshold), TRUE, FALSE)
+    #control on the presence of cell area
+    message("Outlier detection on cell area")
+    stopifnot(all(c("Area_um") %in% colnames(colData(spe))))
+    if(!skewness(spe$Area_um)[1]>0)
+    {
+        #skewness value must be > 0 to use Medcouple, redirection to MAD
+        warning("Skewness value is not > 0. Outlier detection will be performed using MAD")
+        spe$is_area_outlier <- scuttle::isOutlier(spe$Area_um, type = "both")
+
+    }
+    #Medcouple must be between -0.6 and 0.6
+    if(!mc(spe$Area_um)>-0.6 & mc(spe$Area_um)<0.6)
+    {
+        warning("Medcouple value is not suitable for boxplot adjustment. Outlier detection will be performed using MAD")
+        spe$is_area_outlier <- scuttle::isOutlier(spe$Area_um, type = "both")
+    }
+    names(spe$Area_um) <- colnames(spe)
+    out <- adjbox(spe$Area_um, plot = FALSE)
+    message(paste0(length(out$out)," outliers have been found"))
+    #saving area thresholds in spe metadata for later
+    metadata(spe)$area_fence <- out$fence
+
+    # out contains outliers cellids, in order to get true and false for all values this is the only
+    # way I could think, not very optimized
+    area_outliers <- colnames(spe)
+    for(i in 1:out$n){
+        area_outliers[i] <- ifelse(area_outliers[i] %in% names(out$out), "TRUE", "FALSE")
+    }
+    spe$is_area_outlier <- area_outliers
+
+    # repeating the entire code for DAPI variable, again not very optimized
+    if(!all(c("Mean.DAPI") %in% colnames(colData(spe))))
+    {
+    # stop is inserted because we have DAPI only for CosMx, the function should not continue at this point
+        stop("Mean DAPI signal is not in colData. Outlier detection cannot be performed on this variable.")
+    }
+
+    if(all(c("Mean.DAPI") %in% colnames(colData(spe))))
+    message("Outlier detection on mean DAPI signal")
+    if(!skewness(spe$Mean.DAPI)[1]>0)
+    {
+        warning("Skewness value is not > 0. Outlier detection will be performed using MAD")
+        spe$is_area_outlier <- scuttle::isOutlier(spe$Mean.DAPI, type = "both")
+
+    }
+    if(!mc(spe$Mean.DAPI)>-0.6 & mc(spe$Mean.DAPI)<0.6)
+    {
+        warning("Medcouple value is not suitable for boxplot adjustment. Outlier detection will be performed using MAD")
+        spe$is_area_outlier <- scuttle::isOutlier(spe$Mean.DAPI, type = "both")
+    }
+    names(spe$Mean.DAPI) <- colnames(spe)
+    out <- adjbox(spe$Mean.DAPI, plot = FALSE)
+    message(paste0(length(out$out)," outliers have been found"))
+    metadata(spe)$dapi_fence <- out$fence
+
+    dapi_outliers <- colnames(spe)
+    for(i in 1:out$n){
+        dapi_outliers[i] <- ifelse(dapi_outliers[i] %in% names(out$out), "TRUE", "FALSE")
+    }
+    spe$is_dapi_outlier <- dapi_outliers
+
+    return(spe)
+}
+
+#' computeFilterFlags
+#' @description
+#' defines flagged cells for variables with fixed thresholds
+#'
+#' @param spe a SpatialExperiment object with total probe counts, control probe
+#' counts on total counts ratio and flag score in the `colData`,
+#' tipically computed with \link{spatialPerCellQC}
+#'
+#' @return
+#' @export
+#' @examples
+
+computeFilterFlags <- function(spe, fs_threshold=0.6)
+{
+    stopifnot(all(c("total", "ctrl_total_ratio","flag_score") %in% colnames(colData(spe))))
+    #flagging cells with zero total counts
+    spe$is_0counts <- ifelse(spe$total == 0, TRUE, FALSE)
+    #flagging cells with probe counts on total counts ratio > 0.1
+    spe$is_ctrl_tot_outlier <- ifelse(spe$ctrl_total_ratio > 0.1, TRUE, FALSE)
+
+    spe$is_fscore_outlier <- ifelse(spe$flag_score < fs_threshold, TRUE, FALSE)
     ## add additional flags
     return(spe)
 }
+
