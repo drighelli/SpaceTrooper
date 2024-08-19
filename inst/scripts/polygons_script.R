@@ -38,3 +38,4 @@ spe[,!spe$is_fscore_outlier]
 # spe[, spe$to_keep]
 # (spefiltered <- spe[,!spe$fscore_outlier])
 
+plotCellsFovs(spe)

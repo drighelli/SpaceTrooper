@@ -110,72 +110,72 @@ computeQCScore <- function(spe, a=0.3, b=1)#, threshold=0.15)
 #' @return
 #' @export
 #' @importFrom scuttle isOutlier
-#' @importFrom robustbase mc
+#' @importFrom robustbase mc adjbox
 #' @examples
 #' #TBD
 computeSpatialOutlier <- function(spe)
 {
-    #control on the presence of cell area
+    # control on the presence of cell area
     message("Outlier detection on cell area")
     stopifnot(all(c("Area_um") %in% colnames(colData(spe))))
     if(!skewness(spe$Area_um)[1]>0)
     {
-        #skewness value must be > 0 to use Medcouple, redirection to MAD
-        warning("Skewness value is not > 0. Outlier detection will be performed using MAD")
-        spe$is_area_outlier <- scuttle::isOutlier(spe$Area_um, type = "both")
-
+        # skewness value must be > 0 to use Medcouple, redirection to MAD
+        warning("Skewness value is not > 0. Outlier detection will be ",
+                "performed using MAD")
+        spe$is_area_outlier <- scuttle::isOutlier(spe$Area_um, type="both")
     }
-    #Medcouple must be between -0.6 and 0.6
+    # Medcouple must be between -0.6 and 0.6
     if(!mc(spe$Area_um)>-0.6 & mc(spe$Area_um)<0.6)
     {
-        warning("Medcouple value is not suitable for boxplot adjustment. Outlier detection will be performed using MAD")
-        spe$is_area_outlier <- scuttle::isOutlier(spe$Area_um, type = "both")
+        warning("Medcouple value is not suitable for boxplot adjustment. ",
+                "Outlier detection will be performed using MAD")
+        spe$is_area_outlier <- scuttle::isOutlier(spe$Area_um, type="both")
     }
     names(spe$Area_um) <- colnames(spe)
-    out <- adjbox(spe$Area_um, plot = FALSE)
+    out <- robustbase::adjbox(spe$Area_um, plot = FALSE)
     message(paste0(length(out$out)," outliers have been found"))
     #saving area thresholds in spe metadata for later
     metadata(spe)$area_fence <- out$fence
 
-    # out contains outliers cellids, in order to get true and false for all values this is the only
-    # way I could think, not very optimized
-    area_outliers <- colnames(spe)
-    for(i in 1:out$n){
-        area_outliers[i] <- ifelse(area_outliers[i] %in% names(out$out), "TRUE", "FALSE")
-    }
+    area_outliers <- vector(length=dim(spe)[2])
+    names(area_outliers) <- colnames(spe)
+    area_outliers[which(names(area_outliers) %in% names(out$out))] <- TRUE
     spe$is_area_outlier <- area_outliers
 
     # repeating the entire code for DAPI variable, again not very optimized
-    if(!all(c("Mean.DAPI") %in% colnames(colData(spe))))
-    {
-    # stop is inserted because we have DAPI only for CosMx, the function should not continue at this point
-        stop("Mean DAPI signal is not in colData. Outlier detection cannot be performed on this variable.")
-    }
+    if("Mean.DAPI" %in% colnames(colData(spe)))
+    { #### NON MI è CHIARO! si può fare questa detection solo sul dapi?
+    # stop is inserted because we have DAPI only for CosMx,
+    # the function should not continue at this point
+        warning("Mean DAPI signal is not in colData. Outlier detection cannot be ",
+            "performed on this variable.")
+    } else {
+        if("Mean.DAPI" %in% colnames(colData(spe)))
+            message("Outlier detection on mean DAPI signal")
+        if(!skewness(spe$Mean.DAPI)[1]>0)
+        {
+            warning("Skewness value is not > 0. Outlier detection will be ",
+                    "performed using MAD")
+            spe$is_area_outlier <- scuttle::isOutlier(spe$Mean.DAPI, type = "both")
 
-    if(all(c("Mean.DAPI") %in% colnames(colData(spe))))
-    message("Outlier detection on mean DAPI signal")
-    if(!skewness(spe$Mean.DAPI)[1]>0)
-    {
-        warning("Skewness value is not > 0. Outlier detection will be performed using MAD")
-        spe$is_area_outlier <- scuttle::isOutlier(spe$Mean.DAPI, type = "both")
+        }
+        if(!mc(spe$Mean.DAPI)>-0.6 & mc(spe$Mean.DAPI)<0.6)
+        {
+            warning("Medcouple value is not suitable for boxplot adjustment. ",
+                    "Outlier detection will be performed using MAD")
+            spe$is_area_outlier <- scuttle::isOutlier(spe$Mean.DAPI, type = "both")
+        }
+        names(spe$Mean.DAPI) <- colnames(spe)
+        out <- adjbox(spe$Mean.DAPI, plot = FALSE)
+        message(paste0(length(out$out)," outliers have been found"))
+        metadata(spe)$dapi_fence <- out$fence
 
+        dapi_outliers <- vector(length=dim(spe)[2])
+        names(dapi_outliers) <- colnames(spe)
+        dapi_outliers[which(names(dapi_outliers) %in% names(out$out))] <- TRUE
+        spe$is_dapi_outlier <- dapi_outliers
     }
-    if(!mc(spe$Mean.DAPI)>-0.6 & mc(spe$Mean.DAPI)<0.6)
-    {
-        warning("Medcouple value is not suitable for boxplot adjustment. Outlier detection will be performed using MAD")
-        spe$is_area_outlier <- scuttle::isOutlier(spe$Mean.DAPI, type = "both")
-    }
-    names(spe$Mean.DAPI) <- colnames(spe)
-    out <- adjbox(spe$Mean.DAPI, plot = FALSE)
-    message(paste0(length(out$out)," outliers have been found"))
-    metadata(spe)$dapi_fence <- out$fence
-
-    dapi_outliers <- colnames(spe)
-    for(i in 1:out$n){
-        dapi_outliers[i] <- ifelse(dapi_outliers[i] %in% names(out$out), "TRUE", "FALSE")
-    }
-    spe$is_dapi_outlier <- dapi_outliers
-
     return(spe)
 }
 
@@ -193,7 +193,8 @@ computeSpatialOutlier <- function(spe)
 #' #TBD
 computeFilterFlags <- function(spe, fs_threshold=0.6)
 {
-    stopifnot(all(c("total", "ctrl_total_ratio","flag_score") %in% colnames(colData(spe))))
+    stopifnot(all(c("total", "ctrl_total_ratio", "flag_score") %in%
+                colnames(colData(spe))))
     #flagging cells with zero total counts
     spe$is_0counts <- ifelse(spe$total == 0, TRUE, FALSE)
     #flagging cells with probe counts on total counts ratio > 0.1

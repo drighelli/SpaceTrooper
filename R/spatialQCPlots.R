@@ -46,7 +46,7 @@
 #'
 #' @examples
 #' TBD
-plotCellsFovs <- function(spe, point_col="darkmagenta", sample_id=NULL)
+plotCellsFovs <- function(spe, point_col="darkmagenta", text_col="black", sample_id=NULL)
 {
     stopifnot(is(spe, "SpatialExperiment"))
     # fov_positions <- data.table::fread(fovpos_file, header = T)
@@ -72,7 +72,7 @@ plotCellsFovs <- function(spe, point_col="darkmagenta", sample_id=NULL)
                       y=metadata(spe)$fov_positions[3][ , , drop=TRUE] +
                           metadata(spe)$fov_dim[["ydim"]]/2,
                       label=metadata(spe)$fov_positions[1][ , , drop=TRUE]),
-                            color="black", fontface="bold", alpha=.7) +
+                            color=text_col, fontface="bold", alpha=.7) +
         ggtitle(unique(spe$sample_id)) +
         .fov_image_theme(back.color="white", back.border="white", title.col="black")
     return(ggp)
