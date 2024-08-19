@@ -191,6 +191,8 @@ computeSpatialOutlier <- function(spe)
 #' @export
 #' @examples
 
+
+
 computeFilterFlags <- function(spe, fs_threshold=0.6)
 {
     stopifnot(all(c("total", "ctrl_total_ratio","flag_score") %in% colnames(colData(spe))))
