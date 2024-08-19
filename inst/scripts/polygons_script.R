@@ -21,18 +21,20 @@ spe <- readXeniumSPE(xeniumFolder)
 merscopeFolder <- "~/Downloads/Merfish_data/human_uterine_cancer_patient2/"
 spe <- readMerfishSPE(merscopeFolder, boundaries_type="parquet")
 
-library(devtools)
-load_all()
 cosmxFolder <- "~/Downloads/CosMx_data/DBKero/CosMx_Breast/CosMx_data_Case2/"
 spe <- readCosmxSPE(cosmxFolder)
 
 
 #############################
-
+library(devtools)
+load_all()
+cosmxFolder <- "~/Downloads/CosMx_data/DBKero/CosMx_Breast/CosMx_data_Case2/"
 spe <- readCosmxSPE(cosmxFolder)
 spe <- spatialPerCellQC(spe)
 spe <- computeQCScore(spe)#, threshold=0.01)
-
+spe <- computeSpatialOutlier(spe, method="both")
+spe <- computeSpatialOutlier(spe, method="mc")
+colData(spe)
 # spe[, spe$flag_score>quantile(spe$flag_score, probs=0.15)]
 # spe <- computeSpatialOutlier(spe)
 colData(spe)
