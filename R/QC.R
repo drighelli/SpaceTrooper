@@ -145,15 +145,14 @@ computeSpatialOutlier <- function(spe)
     spe$is_area_outlier <- area_outliers
 
     # repeating the entire code for DAPI variable, again not very optimized
-    if("Mean.DAPI" %in% colnames(colData(spe)))
+    if(!("Mean.DAPI" %in% colnames(colData(spe))))
     { #### NON MI è CHIARO! si può fare questa detection solo sul dapi?
     # stop is inserted because we have DAPI only for CosMx,
     # the function should not continue at this point
         warning("Mean DAPI signal is not in colData. Outlier detection cannot be ",
             "performed on this variable.")
     } else {
-        if("Mean.DAPI" %in% colnames(colData(spe)))
-            message("Outlier detection on mean DAPI signal")
+        message("Outlier detection on mean DAPI signal")
         if(!skewness(spe$Mean.DAPI)[1]>0)
         {
             warning("Skewness value is not > 0. Outlier detection will be ",
