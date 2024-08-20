@@ -22,7 +22,7 @@ merscopeFolder <- "~/Downloads/Merfish_data/human_uterine_cancer_patient2/"
 spe <- readMerfishSPE(merscopeFolder, boundaries_type="parquet")
 
 cosmxFolder <- "~/Downloads/CosMx_data/DBKero/CosMx_Breast/CosMx_data_Case2/"
-spe <- readCosmxSPE(cosmxFolder)
+spe <- readCosmxSPE(cosmxFolder, loadPolygons=TRUE)
 
 
 #############################
