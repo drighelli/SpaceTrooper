@@ -274,7 +274,6 @@ readPolygonsCosmx <- function(polygonsFile, type=c("csv", "parquet"),
     cnames <- colnames(polygons)[!colnames(polygons) %in% mandatory]
     polygons <- polygons[,c(mandatory, cnames)]
     return(polygons)
-
 }
 
 #' readPolygonsXenium
