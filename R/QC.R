@@ -111,6 +111,7 @@ computeQCScore <- function(spe, a=0.3, b=1)#, threshold=0.15)
 #' @export
 #' @importFrom scuttle isOutlier
 #' @importFrom robustbase mc adjbox
+#' @importFrom e1071 skewness
 #' @examples
 #' #TBD
 computeSpatialOutlier <- function(spe)
