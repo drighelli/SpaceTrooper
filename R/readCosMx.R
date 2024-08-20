@@ -26,6 +26,7 @@ readCosmxSPE <- function(dirname,
                         countmatfpattern="exprMat_file.csv",
                         metadatafpattern="metadata_file.csv",
                         polygonsfpattern="polygons.csv",
+                        loadPolygons=FALSE,
                         ## polygons=FALSE/in memory/parquet
                         fovposfpattern="fov_positions_file.csv",
                         fov_dims=c(xdim=4256, ydim=4256))
@@ -103,6 +104,11 @@ readCosmxSPE <- function(dirname,
     # Polygons file has cellID instead of cell_ID and it distinguish better
     # when compared to our cell_id
     names(colData(spe))[names(colData(spe))=="cell_ID"] <- "cellID"
+    if(loadPolygons)
+    {
+        polygons <- readPolygonsCosmx(metadata(spe)$polygons)
+        spe <- addPolygonsToSPE(spe, polygons)
+    }
     return(spe)
 }
 
