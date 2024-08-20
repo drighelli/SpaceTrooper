@@ -77,3 +77,27 @@ plotCellsFovs <- function(spe, point_col="darkmagenta", sample_id=NULL)
         .fov_image_theme(back.color="white", back.border="white", title.col="black")
     return(ggp)
 }
+
+
+#' Title
+#'
+#' @param spe
+#'
+#' @return
+#' @export
+#' @importFrom tmap tm_shape tm_borders tm_layout
+#'
+#' @examples
+plotPolygonsSPE <- function(spe, title=NULL)
+{
+    stopifnot(all(is("SpatialExperiment", spe),
+                  ("polygons" %in% colnames(colData(spe)))))
+    tm_shape(spe$polygons) +
+        tm_borders(lwd = 0.1, col = "grey50") +
+        tm_layout(legend.outside = TRUE,
+                  main.title.position = c("center", "top"),
+                  main.title = title,
+                  main.title.size = 0.5,
+                  inner.margins = c(0, 0, 0, 0),
+                  outer.margins = c(0, 0, 0, 0))
+}
