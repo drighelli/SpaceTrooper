@@ -35,6 +35,13 @@ spe <- computeQCScore(spe)#, threshold=0.01)
 spe <- computeSpatialOutlier(spe, method="both")
 spe <- computeSpatialOutlier(spe, method="mc")
 colData(spe)
+
+pols <- readPolygonsCosmx(metadata(spe)$polygons)
+spe <- addPolygonsToSPE(spe, pols)
+colData(spe)
+plotPolygonsSPE(spe)
+
+
 # spe[, spe$flag_score>quantile(spe$flag_score, probs=0.15)]
 # spe <- computeSpatialOutlier(spe)
 colData(spe)

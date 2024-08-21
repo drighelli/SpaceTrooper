@@ -78,10 +78,36 @@ plotCellsFovs <- function(spe, point_col="darkmagenta", sample_id=NULL)
     return(ggp)
 }
 
+plotCentroidsSpe <- function(spe, colour_by=NULL, sample_id=NULL,
+                        point_col="darkmagenta", size=0.05, alpha=0.2)
+{
 
-#' Title
+    ggp <- ggplot()
+
+
+         # + theme_bw()
+    if(is.null(color_by))
+    {
+        # ggp <- ggp + scale_color_manual(point_col)
+    } else {
+        cv <- spe[["colour_by"]]
+        ggp <- ggp + geom_point(data=as.data.frame(spatialCoords(spe)),
+                        mapping=aes_string(x=spatialCoordsNames(spe)[1],
+                                           y=spatialCoordsNames(spe)[2],
+                                           colour=cv),
+                        size=size, alpha=alpha)
+        # colour=point_col,
+        # fill=point_col,
+    }
+
+ggp
+
+}
+
+#' plotPolygonsSPE
 #'
 #' @param spe
+#' @param title
 #'
 #' @return
 #' @export
