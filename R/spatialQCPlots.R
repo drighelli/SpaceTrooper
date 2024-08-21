@@ -78,30 +78,45 @@ plotCellsFovs <- function(spe, point_col="darkmagenta", sample_id=NULL)
     return(ggp)
 }
 
-plotCentroidsSpe <- function(spe, colour_by=NULL, sample_id=NULL,
+#' plotCentroidsSpe
+#'
+#' @param spe
+#' @param colour_by
+#' @param sample_id
+#' @param point_col
+#' @param size
+#' @param alpha
+#'
+#' @return
+#' @export
+#'
+#' @examples
+plotCentroidsSpe <- function(spe, colour_by=NULL,
+                        sample_id=unique(spe$sample_id),
                         point_col="darkmagenta", size=0.05, alpha=0.2)
 {
 
-    ggp <- ggplot()
-
-
-         # + theme_bw()
-    if(is.null(color_by))
+    stopifnot( all( is(spe, "SpatialExperiment"),
+                    (colour_by %in% names(colData(spe)))))
+    if(is.null(colour_by))
     {
-        # ggp <- ggp + scale_color_manual(point_col)
+        ggp <- ggplot() +
+            geom_point(data=as.data.frame(spatialCoords(spe)),
+                       mapping=aes_string(x=spatialCoordsNames(spe)[1],
+                                          y=spatialCoordsNames(spe)[2]),
+                       colour=point_col,
+                       fill=point_col,
+                       size=size, alpha=alpha)
     } else {
-        cv <- spe[["colour_by"]]
-        ggp <- ggp + geom_point(data=as.data.frame(spatialCoords(spe)),
-                        mapping=aes_string(x=spatialCoordsNames(spe)[1],
-                                           y=spatialCoordsNames(spe)[2],
-                                           colour=cv),
-                        size=size, alpha=alpha)
-        # colour=point_col,
-        # fill=point_col,
+        ## check if column variable is logical to impose our colors
+        ggp <- scater::plotColData(spe, x=spatialCoordsNames(spe)[1],
+                    y=spatialCoordsNames(spe)[2],
+                    colour_by=colour_by,
+                    point_size=size, point_alpha=alpha)
     }
-
-ggp
-
+    ggp <- ggp + ggtitle(sample_id) + theme(plot.title=element_text(hjust=0.5))+
+            theme_bw()
+    return(ggp)
 }
 
 #' plotPolygonsSPE
