@@ -124,8 +124,8 @@ computeQCScore <- function(spe, a=0.3, b=0.8, threshold=0.15)
 #'
 #' @return a SpatialExperiment object with "column name" with the outlier detection...
 #' @export
-#' @importFrom robustbase mc
-#' @importFrom e1071 skewness adjbox
+#' @importFrom robustbase mc adjbox
+#' @importFrom e1071 skewness
 #' @importFrom scuttle isOutlier
 #'
 #' @examples

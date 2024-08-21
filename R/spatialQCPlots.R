@@ -88,9 +88,9 @@ plotCellsFovs <- function(spe, point_col="darkmagenta", sample_id=NULL)
 #' @importFrom tmap tm_shape tm_borders tm_layout
 #'
 #' @examples
-plotPolygonsSPE <- function(spe, title=NULL)
+plotPolygonsSPE <- function(spe, title=unique(spe$sample_id))
 {
-    stopifnot(all(is("SpatialExperiment", spe),
+    stopifnot(all(is(spe, "SpatialExperiment"),
                   ("polygons" %in% colnames(colData(spe)))))
     tm_shape(spe$polygons) +
         tm_borders(lwd = 0.1, col = "grey50") +

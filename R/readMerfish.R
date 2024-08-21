@@ -18,7 +18,7 @@
 #' @return A SpatialExperiment object
 #' @export
 #'
-#' @importFrom data.table fread merge
+#' @importFrom data.table fread
 #' @importFrom S4Vectors DataFrame
 #' @importFrom dplyr left_join
 #' @importFrom SpatialExperiment SpatialExperiment

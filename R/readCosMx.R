@@ -15,7 +15,7 @@
 #' @return A SpatialExperiment object
 #' @export
 #'
-#' @importFrom data.table fread merge
+#' @importFrom data.table fread merge.data.table
 #' @importFrom S4Vectors DataFrame
 #' @importFrom SpatialExperiment SpatialExperiment
 #' @examples
@@ -45,7 +45,7 @@ readCosmxSPE <- function(dirname,
     metadata <- data.table::fread(metadata_file, showProgress=FALSE) # cell metadata
 
     # Count matrix
-    counts <- merge(countmat, metadata[, c("fov", "cell_ID")])
+    counts <- merge.data.table(countmat, metadata[, c("fov", "cell_ID")])
     cn <- paste0("f", counts$fov, "_c", counts$cell_ID)
     counts <- subset(counts, select = -c(fov, cell_ID))
 
@@ -61,7 +61,8 @@ readCosmxSPE <- function(dirname,
     # use readSparseCSV sparseArray from harve pege
 
     # colData
-    colData <- DataFrame(merge(metadata, countmat[, c("fov", "cell_ID")]))
+    colData <- DataFrame(merge.data.table(metadata,
+                                        countmat[, c("fov", "cell_ID")]))
     rn <- paste0("f", colData$fov, "_c", colData$cell_ID)
     rownames(colData) <- rn
 

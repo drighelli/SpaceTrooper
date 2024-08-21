@@ -11,6 +11,7 @@ readCosmxSPE(
   countmatfpattern = "exprMat_file.csv",
   metadatafpattern = "metadata_file.csv",
   polygonsfpattern = "polygons.csv",
+  loadPolygons = FALSE,
   fovposfpattern = "fov_positions_file.csv",
   fov_dims = c(xdim = 4256, ydim = 4256)
 )

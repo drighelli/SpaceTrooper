@@ -29,7 +29,7 @@
 #' @return a terra polygon object or an sf object in case of reading the object
 #' @export
 #' @importFrom tools file_ext
-#' @importFrom terra rast fillHoles is.valid flip shift subset write.vector
+#' @importFrom terra rast fillHoles is.valid flip shift subset writeVector
 #' @importFrom sf read_sf
 #' @examples
 spatVectGenerate <- function(main.path, image.type="CellLabels", fov.number,
