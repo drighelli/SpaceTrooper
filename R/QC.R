@@ -93,7 +93,7 @@ computeQCScore <- function(spe, a=0.3, b=0.8, threshold=0.15)
         stop("One of target_sum, Area_um, log2AspectRatio is missing, did you run spatialPerCellQC?")
     }
     spe$flag_score <- 1/(1 + exp(-a*spe$target_sum/spe$Area_um + b*abs(spe$log2AspectRatio)))
-    spe$is_fscore_outlier <- ifelse(spe$flag_score < quantile(spe$flag_score, probs=threshold), TRUE, FALSE)
+    # spe$is_fscore_outlier <- ifeÁlse(spe$flag_score < quantile(spe$flag_score, probs=threshold), TRUE, FALSE)
 
     return(spe)
 }
@@ -126,19 +126,23 @@ computeQCScore <- function(spe, a=0.3, b=0.8, threshold=0.15)
 #' @export
 #' @importFrom robustbase mc adjbox
 #' @importFrom e1071 skewness
-#' @importFrom scuttle isOutlier
+#' @importFrom scuttle isOutlier outlier.filter
 #'
 #' @examples
 #' TBD
-computeSpatialOutlier <- function(spe, method=c("mc", "scuttle", "both"),
+computeSpatialOutlier <- function(spe, compute_by=NULL,
+                                method=c("mc", "scuttle", "both"),
                                 mcDoScale=FALSE,
                                 scuttleType=c("both", "lower", "higher"))
 {
     stopifnot(is(spe, "SpatialExperiment"))
+    stopifnot(!is.null(compute_by))
+    stopifnot(compute_by %in% names(colData(spe)))
+
     method <- match.arg(method)
     scuttleType <- match.arg(scuttleType)
     cd <- colData(spe)
-
+    cdcol <- cd[[compute_by]]
     mcfl=scuttlefl=FALSE
     switch(method,
            both={ mcfl=scuttlefl=TRUE },
@@ -149,48 +153,42 @@ computeSpatialOutlier <- function(spe, method=c("mc", "scuttle", "both"),
 
     if (mcfl)
     {
-        skw <- e1071::skewness(cd$Area_um)
+        skw <- e1071::skewness(cdcol)
         if (skw<=0) warning("The distribution is symmetric. ",
                     "The medcouple is not suited for symmetric distributions. ",
                     "In your case we suggest to use the scater method instead.")
 
-        mcval <- robustbase::mc(cd$Area_um, doScale=mcDoScale)
+        mcval <- robustbase::mc(cdcol, doScale=mcDoScale)
         if ( any( (mcval <= -0.6), (mcval >= 0.6) ) )
             stop("Obtained medcouple value is: ", round(mcval, digits=4),
                  "\nIt doesn't meet the needed requirements for outlier",
                  " identification with this method.")
-        names(cd$Area_um) <- colnames(spe)
-        outl <- robustbase::adjbox(cd$Area_um, plot=FALSE)$out
+        names(cdcol) <- colnames(spe)
+        outl <- robustbase::adjbox(cdcol, plot=FALSE)
         outsmc <- rep(FALSE, dim(cd)[1])
-        outsmc[rownames(cd) %in% names(outl)] <- TRUE
-        ## compute distributions in the adjusted boxplots to store them in the
-        ## coldata
+        outsmc[rownames(cd) %in% names(outl$out)] <- TRUE
+        ## using scuttle outlier.filter class to store fences for each filtering
+        ## in the attributes of the class
+        cd$outlier_mc <- scuttle::outlier.filter(outsmc)
+        names(cd)[names(cd)=="outlier_mc"] <- paste0(compute_by, "_outlier_mc")
+        thrs <- as.numeric(outl$fence)
+        names(thrs) <- c("lower", "higher")
+        attr(cd$outlier_mc, "thresholds") <- thrs
+        # metadata(spe)$outlier_fences[[compute_by]] <- outl$fence ## DEPRECATED
+
+        ## TODO: compute distributions in the adjusted boxplots to store them
+        ## in the coldata
     }
 
-    if (scuttlefl) { outssc <- scuttle::isOutlier(cd$Area_um, type=scuttleType) }
-
-    if (method=="both")
+    if (scuttlefl)
     {
-        cd$umarea_outlier_mc <- outsmc
-        cd$umarea_outlier_sc <- outssc
-    } else {
-        cd$umarea_outlier <- ifelse(mcfl, outsmc, outssc)
+        outssc <- scuttle::isOutlier(cdcol, type=scuttleType)
+        cd$outlier_sc <- scuttle::outlier.filter(outssc)
+        names(cd)[names(cd)=="outlier_sc"] <- paste0(compute_by, "_outlier_sc")
     }
 
     colData(spe) <- cd
     return(spe)
-
-
-    # area_fence <- out$fence
-    # outlier_color <- colnames(spe)
-    # for(i in 1:out$n){
-    #     outlier_color[i] <- ifelse(outlier_color[i] %in% names(out$out), "red", "grey80")
-    # }
-    # spe$umarea_outlier <- ifelse(outlier_color == "red", TRUE, FALSE)
-    # spe$polygons$umarea_outlier <- outlier_color
-
-    ## scater
-
 }
 
 #
