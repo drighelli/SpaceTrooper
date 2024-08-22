@@ -6,6 +6,7 @@
 \usage{
 computeSpatialOutlier(
   spe,
+  compute_by = NULL,
   method = c("mc", "scuttle", "both"),
   mcDoScale = FALSE,
   scuttleType = c("both", "lower", "higher")

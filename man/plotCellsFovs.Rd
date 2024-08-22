@@ -9,7 +9,8 @@ plotCellsFovs(spe, point_col = "darkmagenta", sample_id = NULL)
 \arguments{
 \item{spe}{A SpatialExperiment object}
 
-\item{point_col}{the color to use for the dots in the plot (default is "darkmagenta")}
+\item{point_col}{the color to use for the dots in the plot
+(default is "darkmagenta")}
 
 \item{sample_id}{string indicating the sample to plot (default is NULL,
 implying a single sample in the spe)}

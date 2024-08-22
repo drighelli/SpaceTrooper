@@ -35,12 +35,14 @@
 #' their own FoVs as an overlapping grid.
 #'
 #' @param spe A SpatialExperiment object
-#' @param point_col the color to use for the dots in the plot (default is "darkmagenta")
+#' @param point_col the color to use for the dots in the plot
+#' (default is "darkmagenta")
 #' @param sample_id string indicating the sample to plot (default is NULL,
 #' implying a single sample in the spe)
 #'
 #' @return a ggplot2 object
-#' @importFrom ggplot2 ggplot aes aes_string annotate geom_point geom_text ggtitle
+#' @importFrom ggplot2 ggplot aes aes_string annotate geom_point geom_text
+#' ggtitle
 #' @import SpatialExperiment
 #' @export
 #'
@@ -74,7 +76,8 @@ plotCellsFovs <- function(spe, point_col="darkmagenta", sample_id=NULL)
                       label=metadata(spe)$fov_positions[1][ , , drop=TRUE]),
                             color="black", fontface="bold", alpha=.7) +
         ggtitle(unique(spe$sample_id)) +
-        .fov_image_theme(back.color="white", back.border="white", title.col="black")
+        .fov_image_theme(back.color="white", back.border="white",
+                         title.col="black")
     return(ggp)
 }
 
@@ -89,6 +92,8 @@ plotCellsFovs <- function(spe, point_col="darkmagenta", sample_id=NULL)
 #'
 #' @return
 #' @export
+#' @importFrom ggplot2 geom_point aes_string
+#' @importFrom scater plotColData
 #'
 #' @examples
 plotCentroidsSpe <- function(spe, colour_by=NULL,
@@ -133,6 +138,7 @@ plotPolygonsSPE <- function(spe, title=unique(spe$sample_id))
 {
     stopifnot(all(is(spe, "SpatialExperiment"),
                   ("polygons" %in% colnames(colData(spe)))))
+
     tm_shape(spe$polygons) +
         tm_borders(lwd = 0.1, col = "grey50") +
         tm_layout(legend.outside = TRUE,

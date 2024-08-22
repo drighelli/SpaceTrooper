@@ -32,7 +32,7 @@ cosmxFolder <- "~/Downloads/CosMx_data/DBKero/CosMx_Breast/CosMx_data_Case2/"
 spe <- readCosmxSPE(cosmxFolder, sample_name="DBKero_CosMx")
 spe <- spatialPerCellQC(spe)
 spe <- computeQCScore(spe)#, threshold=0.01)
-spe <- computeSpatialOutlier(spe, method="both")
+spe <- computeSpatialOutlier(spe, compute_by="Area_um", method="both")
 # spe <- computeSpatialOutlier(spe, method="mc")
 colData(spe)
 plotCentroidsSpe(spe)

@@ -2,13 +2,13 @@
 % Please edit documentation in R/spatialQCPlots.R
 \name{plotPolygonsSPE}
 \alias{plotPolygonsSPE}
-\title{Title}
+\title{plotPolygonsSPE}
 \usage{
 plotPolygonsSPE(spe, title = unique(spe$sample_id))
 }
 \arguments{
-\item{spe}{}
+\item{title}{}
 }
 \description{
-Title
+plotPolygonsSPE
 }
