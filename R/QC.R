@@ -84,16 +84,16 @@ spatialPerCellQC <- function(spe, micronConvFact=0.12,
 #'
 #' @examples
 #' #TBD
-computeQCScore <- function(spe, a=0.3, b=0.8, threshold=0.15)
+computeQCScore <- function(spe, a=0.3, b=0.8)
 {
     stopifnot(is(spe, "SpatialExperiment"))
     cd <- colData(spe)
     if(!all(c("target_sum", "Area_um", "log2AspectRatio") %in% colnames(cd)))
     {
-        stop("One of target_sum, Area_um, log2AspectRatio is missing, did you run spatialPerCellQC?")
+        stop("One of target_sum, Area_um, log2AspectRatio is missing, ",
+        "did you run spatialPerCellQC?")
     }
     spe$flag_score <- 1/(1 + exp(-a*spe$target_sum/spe$Area_um + b*abs(spe$log2AspectRatio)))
-    # spe$is_fscore_outlier <- ifeÁlse(spe$flag_score < quantile(spe$flag_score, probs=threshold), TRUE, FALSE)
 
     return(spe)
 }
@@ -116,13 +116,20 @@ computeQCScore <- function(spe, a=0.3, b=0.8, threshold=0.15)
 #'
 #' @param spe a SpatialExperiment object with target_counts, area in micron
 #' and log2 of the aspect ratio in the `colData`
-#' @param method
+#' @param compute_by
+#' @param method one of `mc`, `scuttle`, `both`.
+#' Use `mc` for medcouple, `scuttle` for median absolute deviations as computed
+#' in `scuttle`, `both` for computing both of them.
 #' @param mcDoScale logical indicating if the values to compute the medcouple
 #' for the outlier detection should be scaled (default is FALSE, as suggested
 #' by the original Medcouple authors.). See \link[robustbase]{mc} for further
 #' readings.
 #'
-#' @return a SpatialExperiment object with "column name" with the outlier detection...
+#' @return a SpatialExperiment object with additional column(s) (named as
+#' the column name indicated in `column_by` followed by the outlier_sc/mc
+#' nomenclature) with the outlier detection as `outlier.filter` logical class
+#' object. This allows to store the thresholds as attributes of the column.
+#' use attr(,"thresholds") to retrieve them.
 #' @export
 #' @importFrom robustbase mc adjbox
 #' @importFrom e1071 skewness
@@ -191,12 +198,46 @@ computeSpatialOutlier <- function(spe, compute_by=NULL,
     return(spe)
 }
 
-#
-# computeFilterFlags <- function(spe, fs_threshold=0.15)
-# {
-#     stopifnot(is(spe, "SpatialExperiment"))
-#     stopifnot(all(c("flag_score") %in% colnames(colData(spe))))
-#     spe$is_fscore_outlier <- ifelse(spe$flag_score < quantile(spe$flag_score, probs=fs_threshold), TRUE, FALSE)
-#     ## add additional flags
-#     return(spe)
-# }
+#' computeFilterFlags
+#' @description
+#' defines flagged cells for variables based on the thresholds passed as input
+#'
+#' @param spe a SpatialExperiment object with total probe counts, control probe
+#' counts on total counts ratio and flag score in the `colData`,
+#' tipically computed with \link{spatialPerCellQC}
+#' @param fs_threshold
+#' @param use_fs_quantiles
+#' @param total_threshold
+#' @param ctrl_tot_ratio_threshold
+#'
+#' @return
+#' @export
+#' @examples
+computeFilterFlags <- function(spe, fs_threshold=0.5,
+                        use_fs_quantiles=FALSE,
+                        total_threshold=0, ctrl_tot_ratio_threshold=0.1)
+{
+    stopifnot(is(spe, "SpatialExperiment"))
+    stopifnot("flag_score" %in% names(colData(spe)))
+    stopifnot("total" %in% names(colData(spe)))
+    stopifnot("ctrl_total_ratio" %in% names(colData(spe)))
+
+    spe$is_0counts <- ifelse(spe$total == total_threshold, TRUE, FALSE)
+    #flagging cells with probe counts on total counts ratio > 0.1
+    spe$is_ctrl_tot_outlier <- ifelse(spe$ctrl_total_ratio >
+                                ctrl_tot_ratio_threshold, TRUE, FALSE)
+    if(!use_fs_quantiles)
+    {
+        spe$is_fscore_outlier <- ifelse(spe$flag_score <
+                                quantile(spe$flag_score, probs=fs_threshold),
+                                TRUE, FALSE)
+    } else {
+        spe$is_fscore_outlier <- ifelse(spe$flag_score < fs_threshold,
+                                TRUE, FALSE)
+    }
+
+    spe$filter_out <- (spe$is_fscore_outlier & spe$is_ctrl_tot_outlier &
+                           spe$is_0counts)
+
+    return(spe)
+}

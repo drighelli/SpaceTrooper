@@ -16,13 +16,21 @@ computeSpatialOutlier(
 \item{spe}{a SpatialExperiment object with target_counts, area in micron
 and log2 of the aspect ratio in the `colData`}
 
+\item{method}{one of `mc`, `scuttle`, `both`.
+Use `mc` for medcouple, `scuttle` for median absolute deviations as computed
+in `scuttle`, `both` for computing both of them.}
+
 \item{mcDoScale}{logical indicating if the values to compute the medcouple
 for the outlier detection should be scaled (default is FALSE, as suggested
 by the original Medcouple authors.). See \link[robustbase]{mc} for further
 readings.}
 }
 \value{
-a SpatialExperiment object with "column name" with the outlier detection...
+a SpatialExperiment object with additional column(s) (named as
+the column name indicated in `column_by` followed by the outlier_sc/mc
+nomenclature) with the outlier detection as `outlier.filter` logical class
+object. This allows to store the thresholds as attributes of the column.
+use attr(,"thresholds") to retrieve them.
 }
 \description{
 Computes outliers based on the Area (in micron) of the experiment.
