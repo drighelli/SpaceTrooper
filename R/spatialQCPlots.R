@@ -1,33 +1,3 @@
-#' .fov_image_theme
-#' @description
-#' internal function to setup the theme for the fov background on the whole
-#' image
-#'
-#' @param back.color not used
-#' @param back.border color for the borders of the background (default=NA)
-#' @param title.col character indicating the color of the title
-#'
-#' @return a ggplot2 theme object
-#' @importFrom ggplot2 theme element_blank element_rect element_text
-#' @keywords internal
-.fov_image_theme <- function(back.color="black", back.border=NA,
-                            title.col="white")
-{
-    theme(panel.border=element_blank(),
-          legend.key=element_blank(),
-          axis.title.x=element_blank(),
-          axis.title.y=element_blank(),
-          axis.ticks=element_blank(),
-          axis.text.y=element_blank(),
-          axis.text.x=element_blank(),
-          panel.grid=element_blank(),
-          panel.grid.minor=element_blank(),
-          panel.grid.major=element_blank(),
-          panel.background=element_rect(fill = "transparent", colour = NA),
-          plot.title=element_text(color=title.col, hjust=0.5, face="bold"),
-          plot.background=element_rect(fill="transparent", colour=back.border))
-}
-
 
 #' plotCellsFovs
 #' @description
@@ -92,13 +62,15 @@ plotCellsFovs <- function(spe, point_col="darkmagenta", sample_id=NULL)
 #'
 #' @return
 #' @export
-#' @importFrom ggplot2 geom_point aes_string
+#' @importFrom ggplot2 geom_point aes_string theme_bw theme ggtitle
 #' @importFrom scater plotColData
 #'
 #' @examples
-plotCentroidsSpe <- function(spe, colour_by=NULL,
+plotCentroidsSpe <- function(spe, colour_by=NULL, order_by=NULL,
                         sample_id=unique(spe$sample_id),
-                        point_col="darkmagenta", size=0.05, alpha=0.2)
+                        isNegativeProbe=FALSE,
+                        point_col="darkmagenta", size=0.05, alpha=0.2,
+                        aspect_ratio=1)
 {
 
     stopifnot( all( is(spe, "SpatialExperiment"),
@@ -116,14 +88,35 @@ plotCentroidsSpe <- function(spe, colour_by=NULL,
         ## check if column variable is logical to impose our colors
         ggp <- scater::plotColData(spe, x=spatialCoordsNames(spe)[1],
                     y=spatialCoordsNames(spe)[2],
-                    colour_by=colour_by,
+                    colour_by=colour_by, order_by=order_by,
                     point_size=size, point_alpha=alpha)
+        if(isNegativeProbe)
+            ggp <- ggp + scale_color_gradient(low="white", high="red",
+                                              name=colour_by) +
+                .negative_image_theme()
     }
-    ggp <- ggp + ggtitle(sample_id) + theme(plot.title=element_text(hjust=0.5))+
-            theme_bw()
+    ggp <- ggp + ggtitle(sample_id) + theme(aspect.ratio=aspect_ratio,
+                                            plot.title=element_text(hjust=0.5))
+
+    if(!isNegativeProbe) ggp <- ggp + theme_bw()
+
     return(ggp)
 }
 
+
+plotMetricHist <- function(spe, metric, fill_color="#69b3a2",
+                            bins=30, bin_width=NULL)
+{
+    stopifnot(is(spe, "SpatialExperiment"))
+    stopifnot(metric %in% names(colData(spe)))
+
+    ggp <- ggplot(data=as.data.frame(colData(spe))) +
+            geom_histogram(aes(x=.data[[metric]]), fill=fill_color,
+                    bins=bins, binwidth=bin_width) +
+            ggtitle(metric) + theme_bw()
+
+    return(ggp)
+}
 #' plotPolygonsSPE
 #'
 #' @param spe
