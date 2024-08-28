@@ -4,7 +4,13 @@
 \alias{plotCellsFovs}
 \title{plotCellsFovs}
 \usage{
-plotCellsFovs(spe, point_col = "darkmagenta", sample_id = NULL)
+plotCellsFovs(
+  spe,
+  point_col = "darkmagenta",
+  numbers_col = "black",
+  alpha_numbers = 0.8,
+  sample_id = NULL
+)
 }
 \arguments{
 \item{spe}{A SpatialExperiment object}

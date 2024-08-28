@@ -11,21 +11,22 @@
 #' @importFrom ggplot2 theme element_blank element_rect element_text
 #' @keywords internal
 .fov_image_theme <- function(back.color="black", back.border=NA,
-                             title.col="white")
+                             title.col="white", aspect_ratio=NULL)
 {
-    theme(panel.border=element_blank(),
-          legend.key=element_blank(),
-          axis.title.x=element_blank(),
-          axis.title.y=element_blank(),
-          axis.ticks=element_blank(),
-          axis.text.y=element_blank(),
-          axis.text.x=element_blank(),
-          panel.grid=element_blank(),
-          panel.grid.minor=element_blank(),
-          panel.grid.major=element_blank(),
-          panel.background=element_rect(fill = "transparent", colour = NA),
-          plot.title=element_text(color=title.col, hjust=0.5, face="bold"),
-          plot.background=element_rect(fill="transparent", colour=back.border))
+    theme(aspect.ratio=NULL,
+        panel.border=element_blank(),
+        legend.key=element_blank(),
+        axis.title.x=element_blank(),
+        axis.title.y=element_blank(),
+        axis.ticks=element_blank(),
+        axis.text.y=element_blank(),
+        axis.text.x=element_blank(),
+        panel.grid=element_blank(),
+        panel.grid.minor=element_blank(),
+        panel.grid.major=element_blank(),
+        panel.background=element_rect(fill="transparent", colour = NA),
+        plot.title=element_text(color=title.col, hjust=0.5, face="bold"),
+        plot.background=element_rect(fill="transparent", colour=back.border))
 }
 
 

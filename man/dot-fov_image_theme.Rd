@@ -4,7 +4,12 @@
 \alias{.fov_image_theme}
 \title{.fov_image_theme}
 \usage{
-.fov_image_theme(back.color = "black", back.border = NA, title.col = "white")
+.fov_image_theme(
+  back.color = "black",
+  back.border = NA,
+  title.col = "white",
+  aspect_ratio = NULL
+)
 }
 \arguments{
 \item{back.color}{not used}

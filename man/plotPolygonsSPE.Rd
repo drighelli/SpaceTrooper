@@ -4,11 +4,27 @@
 \alias{plotPolygonsSPE}
 \title{plotPolygonsSPE}
 \usage{
-plotPolygonsSPE(spe, title = unique(spe$sample_id))
+plotPolygonsSPE(spe, colour_by = NULL, title = unique(spe$sample_id))
 }
 \arguments{
-\item{title}{}
+\item{spe}{A `SpatialExperiment` object containing spatial transcriptomics
+data, including polygon data as sf object.}
+
+\item{colour_by}{An optional character string specifying the column in
+`colData(spe)` to use for coloring the points. If `NULL`, all points will be
+colored the same. (Defatult is `NULL`)}
+
+\item{title}{A character string specifying the title of the plot.
+(Default is the unique sample ID from `spe`)}
+}
+\value{
+A `tmap` plot object displaying the polygons.
 }
 \description{
-plotPolygonsSPE
+Plot Polygons from a SpatialExperiment Object
+This function generates a plot of polygons stored in a `SpatialExperiment`
+object.
+}
+\examples{
+#TBD
 }

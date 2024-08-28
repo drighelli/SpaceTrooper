@@ -146,6 +146,8 @@ computeSpatialOutlier <- function(spe, compute_by=NULL,
     stopifnot(!is.null(compute_by))
     stopifnot(compute_by %in% names(colData(spe)))
 
+    options(mc_doScale_quiet=TRUE)
+
     method <- match.arg(method)
     scuttleType <- match.arg(scuttleType)
     cd <- colData(spe)
@@ -176,11 +178,12 @@ computeSpatialOutlier <- function(spe, compute_by=NULL,
         outsmc[rownames(cd) %in% names(outl$out)] <- TRUE
         ## using scuttle outlier.filter class to store fences for each filtering
         ## in the attributes of the class
-        cd$outlier_mc <- scuttle::outlier.filter(outsmc)
-        names(cd)[names(cd)=="outlier_mc"] <- paste0(compute_by, "_outlier_mc")
+        outlier_mc <- scuttle::outlier.filter(outsmc)
         thrs <- as.numeric(outl$fence)
         names(thrs) <- c("lower", "higher")
-        attr(cd$outlier_mc, "thresholds") <- thrs
+        attr(outlier_mc, "thresholds") <- thrs
+        cd$outlier_mc <- outlier_mc
+        names(cd)[names(cd)=="outlier_mc"] <- paste0(compute_by, "_outlier_mc")
         # metadata(spe)$outlier_fences[[compute_by]] <- outl$fence ## DEPRECATED
 
         ## TODO: compute distributions in the adjusted boxplots to store them
@@ -222,7 +225,7 @@ computeFilterFlags <- function(spe, fs_threshold=0.5,
     stopifnot("total" %in% names(colData(spe)))
     stopifnot("ctrl_total_ratio" %in% names(colData(spe)))
 
-    spe$is_0counts <- ifelse(spe$total == total_threshold, TRUE, FALSE)
+    spe$is_zero_counts <- ifelse(spe$total == total_threshold, TRUE, FALSE)
     #flagging cells with probe counts on total counts ratio > 0.1
     spe$is_ctrl_tot_outlier <- ifelse(spe$ctrl_total_ratio >
                                 ctrl_tot_ratio_threshold, TRUE, FALSE)
@@ -237,7 +240,7 @@ computeFilterFlags <- function(spe, fs_threshold=0.5,
     }
 
     spe$filter_out <- (spe$is_fscore_outlier & spe$is_ctrl_tot_outlier &
-                           spe$is_0counts)
+                           spe$is_zero_counts)
 
     return(spe)
 }
