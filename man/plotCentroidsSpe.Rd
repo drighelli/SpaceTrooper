@@ -13,7 +13,9 @@ plotCentroidsSPE(
   point_col = "darkmagenta",
   size = 0.05,
   alpha = 0.2,
-  aspect_ratio = 1
+  aspect_ratio = 1,
+  legend_point_size = 2,
+  legend_point_alpha = 0.8
 )
 }
 \arguments{
@@ -44,6 +46,12 @@ color gradient for negative probe data. (Default is `FALSE`)}
 
 \item{aspect_ratio}{A numeric value specifying the aspect ratio of the plot.
 (Default is `1`)}
+
+\item{legend_point_size}{A numeric value specifying the size of the points
+in the legend. (Default is `2`)}
+
+\item{legend_point_alpha}{A numeric value specifying the transparency level
+of the points in the legend. (Default is `0.8`)}
 }
 \value{
 A `ggplot` object representing the spatial coordinates plot of

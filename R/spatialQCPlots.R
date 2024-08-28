@@ -83,11 +83,16 @@ plotCellsFovs <- function(spe, point_col="darkmagenta",
 #' (Default is `0.2`)
 #' @param aspect_ratio A numeric value specifying the aspect ratio of the plot.
 #' (Default is `1`)
+#' @param legend_point_size A numeric value specifying the size of the points
+#' in the legend. (Default is `2`)
+#' @param legend_point_alpha A numeric value specifying the transparency level
+#' of the points in the legend. (Default is `0.8`)
 #'
 #' @return A `ggplot` object representing the spatial coordinates plot of
 #' polygon centroids.
 #'
-#' @importFrom ggplot2 geom_point aes_string theme_bw theme ggtitle
+#' @importFrom ggplot2 geom_point aes_string theme_bw theme ggtitle guides
+#' guide_legend
 #' @importFrom scater plotColData
 #' @importFrom SummarizedExperiment colData
 #' @export
@@ -98,7 +103,8 @@ plotCentroidsSPE <- function(spe, colour_by=NULL, order_by=NULL,
                         sample_id=unique(spe$sample_id),
                         isNegativeProbe=FALSE,
                         point_col="darkmagenta", size=0.05, alpha=0.2,
-                        aspect_ratio=1)
+                        aspect_ratio=1,
+                        legend_point_size=2, legend_point_alpha=0.8)
 {
 
     stopifnot( all( is(spe, "SpatialExperiment"),
@@ -123,8 +129,10 @@ plotCentroidsSPE <- function(spe, colour_by=NULL, order_by=NULL,
                                               name=colour_by) +
                 .negative_image_theme()
     }
-    ggp <- ggp + ggtitle(sample_id) + theme(aspect.ratio=aspect_ratio,
-                                            plot.title=element_text(hjust=0.5))
+    ggp <- ggp + ggtitle(sample_id) +
+        theme(aspect.ratio=aspect_ratio, plot.title=element_text(hjust=0.5))+
+        guides(colour=guide_legend(override.aes=list(size=legend_point_size,
+                                                    alpha=legend_point_alpha)))
 
     if(!isNegativeProbe) ggp <- ggp + theme_bw()
 

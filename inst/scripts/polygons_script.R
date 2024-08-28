@@ -65,19 +65,40 @@ id <- strsplit(labels$orig.ident, "_")
 labels$fov <- lapply(id, function(i) return(i[1]))
 labels$cellID <- lapply(id, function(i) return(i[2]))
 labels$cell_id <- paste0("f",labels$fov, "_c", labels$cellID)
-spe$labels <- NA
-spe$labels[match(labels$cell_id, spe$cell_id)] <- labels$InSituType_simple
-
+spe$labels_simple <- spe$labels_complete <- NA
+spe$labels_simple[match(labels$cell_id, spe$cell_id)] <- labels$InSituType_simple
+spe$labels_complete[match(labels$cell_id, spe$cell_id)] <- labels$InSituType_complete
 colData(spe)
+table(spe$labels_simple, useNA="always")
+table(spe$labels_complete, useNA="always")
+spe2 <- spe[,!is.na(spe$labels_complete)]
+plotPolygonsSPE(spe2, colour_by="labels_complete")
+plotCentroidsSPE(spe2, colour_by="labels_complete")
 
+
+################
 spe$polygons$outlier_fence_color <- dplyr::case_when(spe$is_zero_counts == TRUE ~ "darkturquoise",
-                                              spe$is_ctrl_tot_outlier == TRUE ~ "magenta",
-                                              spe$Mean.DAPI > round(metadata(spe)$dapi_fence[2,1], 2) ~ "greenyellow",
-                                              spe$Mean.DAPI < round(metadata(spe)$dapi_fence[1,1], 2) ~ "purple",
-                                              spe$Area_um > round(metadata(spe)$area_fence[2,1], 2) ~ "red",
-                                              spe$Area_um < round(metadata(spe)$area_fence[1,1], 2) ~ "white",
-                                              TRUE ~ "black")
+              spe$is_ctrl_tot_outlier == TRUE ~ "magenta",
+              spe$Mean.DAPI > getFencesOutlier(spe, "Mean.DAPI_outlier_mc", "higher", 2) ~ "greenyellow",
+              spe$Mean.DAPI < getFencesOutlier(spe, "Mean.DAPI_outlier_mc", "lower", 2) ~ "purple",
+              spe$Area_um > getFencesOutlier(spe, "Area_um_outlier_mc", "higher", 2) ~ "red",
+              spe$Area_um < getFencesOutlier(spe, "Area_um_outlier_mc", "lower", 2) ~ "white",
+              TRUE ~ "black")
 
+polygons_sub <- spe$polygons[spe$polygons$fov%in%1:8,]
+tm_shape(polygons_sub) +
+    tm_fill(col= "outlier_fence_color") +
+    tm_borders(lwd = 0.2, col = "cyan") +
+    tm_layout(legend.outside = TRUE,
+              main.title.position = c("center", "top"),
+              main.title = "",
+              main.title.fontface = 2,
+              main.title.size = 1,
+              inner.margins = c(0, 0, 0, 0),
+              outer.margins = c(0, 0, 0, 0),
+              bg.color = "black") +
+    tm_add_legend(col = c("black", "darkturquoise", "magenta", "purple", "greenyellow","white", "red"),
+                  labels = c("unflagged cells", "cells with 0 total counts", "cells with ctrl/total ratio > 0.1", "outlier for DAPI lower thr.", "outlier for DAPI higher thr.", "outlier for um area lower thr.","outlier for um area higher thr."))
 
 
 
