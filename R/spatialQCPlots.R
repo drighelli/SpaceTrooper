@@ -186,9 +186,7 @@ plotMetricHist <- function(spe, metric, fill_color="#69b3a2",
     if(!is.null(use_fences))
     {
         stopifnot(use_fences %in% names(colData(spe)))
-        stopifnot(is(colData(spe)[[use_fences]], "outlier.filter"))
-        fences <- attr(colData(spe)[[use_fences]], "thresholds")
-        fences <- round(fences, 2)
+        fences <- getFencesOutlier(spe, use_fences, "both", 2)
         fences_labs <- paste0(names(fences), ": ", fences)
         names(fences_colors) <- fences_labs
         ggp <- ggp +
@@ -225,7 +223,8 @@ plotMetricHist <- function(spe, metric, fill_color="#69b3a2",
 #' @export
 #' @examples
 #' #TBD
-plotPolygonsSPE <- function(spe,  colour_by=NULL, title=unique(spe$sample_id))
+plotPolygonsSPE <- function(spe,  colour_by=NULL, title=unique(spe$sample_id),
+                    palette=NULL)
 {
     stopifnot(is(spe, "SpatialExperiment"))
     stopifnot("polygons" %in% names(colData(spe)))
@@ -248,9 +247,9 @@ plotPolygonsSPE <- function(spe,  colour_by=NULL, title=unique(spe$sample_id))
 
     if(!is.null(colour_by))
     {
-        tmm <- tmm + tm_polygons(col=colour_by, palette="viridis")
+        tmm <- tmm + tm_polygons(col=colour_by, palette=palette)
     } else {
-        tmm <- tmm + tm_polygons(lwd=0.1, col="grey50")
+        tmm <- tmm + tm_polygons(col="grey50",lwd=0.1)
     }
 
     tmm <- tmm + tm_layout(legend.outside=TRUE,
@@ -263,7 +262,8 @@ plotPolygonsSPE <- function(spe,  colour_by=NULL, title=unique(spe$sample_id))
     return(tmm)
 }
 
-plotPolygonsSPEold <- function(spe,  color_by=NULL, title=unique(spe$sample_id))
+plotPolygonsSPEold <- function(spe,  color_by=NULL, title=unique(spe$sample_id),
+                        palette=NULL)
 {
     stopifnot(is(spe, "SpatialExperiment"))
     stopifnot("polygons" %in% names(colData(spe)))
@@ -287,7 +287,7 @@ plotPolygonsSPEold <- function(spe,  color_by=NULL, title=unique(spe$sample_id))
 
     if(!is.null(color_by))
     {
-        tmm <- tmm + tm_fill(col=color_by, palette="viridis")
+        tmm <- tmm + tm_fill(col=color_by, palette=palette)
     } else {
         tmm <- tmm + tm_borders(lwd=0.1, col="grey50")
     }

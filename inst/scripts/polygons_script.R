@@ -54,12 +54,13 @@ spe1 <- spe[,spe$fov %in% c(16:19)]
 colData(spe1)
 plotPolygonsSPE(spe1)
 plotPolygonsSPEold(spe1)
-plotPolygonsSPE(spe1, colour_by="Area_um")
-plotPolygonsSPEold(spe1, color_by="Area_um")
-plotPolygonsSPE(spe1, colour_by="Area_um_outlier_mc")
-plotPolygonsSPEold(spe1, color_by="Area_um_outlier_mc")
-plotPolygonsSPE(spe1, colour_by="is_fscore_outlier")
-plotPolygonsSPEold(spe1, color_by="is_fscore_outlier")
+plotPolygonsSPE(spe1, colour_by="Area_um", palette="viridis")
+plotPolygonsSPEold(spe1, color_by="Area_um", palette="viridis")
+plotPolygonsSPE(spe1, colour_by="Area_um_outlier_mc", palette="viridis")
+plotPolygonsSPEold(spe1, color_by="Area_um_outlier_mc", palette="viridis")
+plotPolygonsSPE(spe1, colour_by="is_fscore_outlier", palette="viridis")
+plotPolygonsSPEold(spe1, color_by="is_fscore_outlier", palette="viridis")
+###
 labels <- data.table::fread("/Users/inzirio/Downloads/CosMx_data/DBKero/CosMx_Breast/CosMx_data_Case2/cosmx_dbkero_IST_labels_complete_simple.txt")
 id <- strsplit(labels$orig.ident, "_")
 labels$fov <- lapply(id, function(i) return(i[1]))
@@ -71,21 +72,27 @@ spe$labels_complete[match(labels$cell_id, spe$cell_id)] <- labels$InSituType_com
 colData(spe)
 table(spe$labels_simple, useNA="always")
 table(spe$labels_complete, useNA="always")
+###
 spe2 <- spe[,!is.na(spe$labels_complete)]
-plotPolygonsSPE(spe2, colour_by="labels_complete")
+spe3 <- spe2[,spe2$fov %in% c(16:19)]
+plotPolygonsSPE(spe, colour_by="labels_complete")
+plotPolygonsSPE(spe3, colour_by="labels_complete")
+# plotPolygonsSPEold(spe3, color_by="labels_complete")
 plotCentroidsSPE(spe2, colour_by="labels_complete")
 
 
 ################
-spe$polygons$outlier_fence_color <- dplyr::case_when(spe$is_zero_counts == TRUE ~ "darkturquoise",
-              spe$is_ctrl_tot_outlier == TRUE ~ "magenta",
-              spe$Mean.DAPI > getFencesOutlier(spe, "Mean.DAPI_outlier_mc", "higher", 2) ~ "greenyellow",
-              spe$Mean.DAPI < getFencesOutlier(spe, "Mean.DAPI_outlier_mc", "lower", 2) ~ "purple",
-              spe$Area_um > getFencesOutlier(spe, "Area_um_outlier_mc", "higher", 2) ~ "red",
-              spe$Area_um < getFencesOutlier(spe, "Area_um_outlier_mc", "lower", 2) ~ "white",
-              TRUE ~ "black")
+spe$polygons$outlier_fence_color <- dplyr::case_when(
+    spe$is_zero_counts == TRUE ~ "darkturquoise",
+    spe$is_ctrl_tot_outlier == TRUE ~ "magenta",
+    spe$Mean.DAPI > getFencesOutlier(spe, "Mean.DAPI_outlier_mc", "higher", 2) ~ "greenyellow",
+    spe$Mean.DAPI < getFencesOutlier(spe, "Mean.DAPI_outlier_mc", "lower", 2) ~ "purple",
+    spe$Area_um > getFencesOutlier(spe, "Area_um_outlier_mc", "higher", 2) ~ "red",
+    spe$Area_um < getFencesOutlier(spe, "Area_um_outlier_mc", "lower", 2) ~ "white",
+    TRUE ~ "black")
 
 polygons_sub <- spe$polygons[spe$polygons$fov%in%1:8,]
+library(tmap)
 tm_shape(polygons_sub) +
     tm_fill(col= "outlier_fence_color") +
     tm_borders(lwd = 0.2, col = "cyan") +

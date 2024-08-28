@@ -4,7 +4,12 @@
 \alias{plotPolygonsSPE}
 \title{plotPolygonsSPE}
 \usage{
-plotPolygonsSPE(spe, colour_by = NULL, title = unique(spe$sample_id))
+plotPolygonsSPE(
+  spe,
+  colour_by = NULL,
+  title = unique(spe$sample_id),
+  palette = NULL
+)
 }
 \arguments{
 \item{spe}{A `SpatialExperiment` object containing spatial transcriptomics
