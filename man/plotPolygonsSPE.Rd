@@ -7,8 +7,12 @@
 plotPolygonsSPE(
   spe,
   colour_by = NULL,
-  title = unique(spe$sample_id),
-  palette = NULL
+  sample_id = unique(spe$sample_id),
+  fill_alpha = NA,
+  palette = NULL,
+  border_col = NA,
+  border_alpha = NA,
+  border_line_width = 0.1
 )
 }
 \arguments{

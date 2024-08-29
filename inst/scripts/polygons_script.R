@@ -91,8 +91,12 @@ spe2 <- spe[,!is.na(spe$labels_complete)]
 plotCentroidsSPE(spe2, colour_by="labels_complete")
 spe3 <- spe2[,spe2$fov %in% c(16:19)]
 # plotPolygonsSPE(spe, colour_by="labels_complete")
-plotPolygonsSPE(spe3, colour_by="labels_simple", palette=spe3$IST_simple_colors)
-# plotPolygonsSPEold(spe3, color_by="labels_complete")
+pal <- spe3$IST_simple_colors
+names(pal) <- spe3$cell_id
+plotPolygonsSPE(spe3, colour_by="labels_simple", palette="IST_simple_colors")
+plotZoomFovsMap(spe, fovs=c(16:19))
+plotZoomFovsMap(spe, fovs=c(16:19), colour_by="labels_simple", title="coloured")
+
 
 
 

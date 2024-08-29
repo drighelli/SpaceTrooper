@@ -13,12 +13,34 @@ computeFilterFlags(
 )
 }
 \arguments{
-\item{spe}{a SpatialExperiment object with total probe counts, control probe
-counts on total counts ratio and flag score in the `colData`,
-tipically computed with \link{spatialPerCellQC}}
+\item{spe}{A `SpatialExperiment` object with spatial transcriptomics data.}
 
-\item{ctrl_tot_ratio_threshold}{}
+\item{fs_threshold}{A numeric value for the threshold of `flag_score` to
+identify outliers. Default is `0.5`.}
+
+\item{use_fs_quantiles}{A logical value indicating whether to use quantiles
+for the `flag_score` threshold. Default is `FALSE`.}
+
+\item{total_threshold}{A numeric value for the threshold of total counts to
+identify cells with zero counts. Default is `0`.}
+
+\item{ctrl_tot_ratio_threshold}{A numeric value for the threshold of
+control-to-total ratio to flag outliers. Default is `0.1`.}
+}
+\value{
+The `SpatialExperiment` object with added filter flags in `colData`.
 }
 \description{
-defines flagged cells for variables based on the thresholds passed as input
+Compute Filter Flags for SpatialExperiment
+
+This function calculates various flags to identify outliers in a
+`SpatialExperiment` object based on quality control metrics.
+}
+\details{
+The function flags cells based on zero counts, control-to-total
+ratio, and `flag_score` to identify potential outliers. It also combines
+these flags into a single filter flag.
+}
+\examples{
+#TBD
 }

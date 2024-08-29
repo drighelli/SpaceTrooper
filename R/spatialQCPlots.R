@@ -19,9 +19,8 @@
 #'
 #' @examples
 #' TBD
-plotCellsFovs <- function(spe, point_col="darkmagenta",
-                numbers_col="black", alpha_numbers=0.8,
-                sample_id=NULL)
+plotCellsFovs <- function(spe, sample_id=unique(spe$sample_id),
+                point_col="darkmagenta", numbers_col="black", alpha_numbers=0.8)
 {
     stopifnot(is(spe, "SpatialExperiment"))
     stopifnot("fov" %in% names(colData(spe)))
@@ -51,7 +50,7 @@ plotCellsFovs <- function(spe, point_col="darkmagenta",
                       label=metadata(spe)$fov_positions[1][ , , drop=TRUE]),
                             color=numbers_col, fontface="bold",
                             alpha=alpha_numbers) +
-        ggtitle(unique(spe$sample_id)) +
+        ggtitle(sample_id) +
         .fov_image_theme(back.color="white", back.border="white",
                          title.col="black")
     return(ggp)
@@ -203,7 +202,6 @@ plotMetricHist <- function(spe, metric, fill_color="#69b3a2",
 
 
 #' plotPolygonsSPE
-
 #' @description
 #' Plot Polygons from a SpatialExperiment Object
 #' This function generates a plot of polygons stored in a `SpatialExperiment`
@@ -224,7 +222,7 @@ plotMetricHist <- function(spe, metric, fill_color="#69b3a2",
 #' @export
 #' @examples
 #' #TBD
-plotPolygonsSPE <- function(spe,  colour_by=NULL, title=unique(spe$sample_id),
+plotPolygonsSPE <- function(spe, colour_by=NULL,sample_id=unique(spe$sample_id),
                     fill_alpha=NA, palette=NULL, border_col=NA, border_alpha=NA,
                     border_line_width=0.1)
 {
@@ -252,13 +250,19 @@ plotPolygonsSPE <- function(spe,  colour_by=NULL, title=unique(spe$sample_id),
         colour_by="grey50"
         border_line_width=0.1
     }
+    if(!is.null(palette)) if (palette %in% names(colData(spe)))
+    {
+        palette <- createPaletteFromColData(spe, palette_names=colour_by,
+                                            palette_colors=palette)
+        palette <- setNames(palette, NULL)
+    }
     tmm <- tmm + tm_polygons(col=colour_by, alpha=fill_alpha, palette=palette,
                              border.col=border_col, border.alpha=border_alpha,
                              lwd=border_line_width)
 
     tmm <- tmm + tm_layout(legend.outside=TRUE,
-                            main.title.position=c("center", "top"),
-                            main.title = title,
+                            main.title.position=c("left", "top"),
+                            main.title = sample_id,
                             main.title.fontface = 2,
                             main.title.size = 1,
                             inner.margins = c(0, 0, 0, 0),
@@ -266,58 +270,76 @@ plotPolygonsSPE <- function(spe,  colour_by=NULL, title=unique(spe$sample_id),
     return(tmm)
 }
 
-
-
+#' plotZoomFovsMap
+#' @description
+#'
+#' Plot Zoomed-in FOVs with Map and Polygons
+#'
+#' This function generates a plot that shows a map of all fields of view (FOVs)
+#' within a `SpatialExperiment` object, alongside a zoomed-in view of the
+#' specified FOVs with an overlay of polygons and optional coloring.
+#'
+#' @param spe A `SpatialExperiment` object containing spatial transcriptomics
+#' data.
+#' @param fovs A character vector specifying the FOVs to be zoomed in and
+#' plotted. Must match values in the `fov` column of `colData(spe)`.
+#' @param colour_by An optional character string specifying the column in
+#' `colData(spe)` to use for coloring the polygons. Default is `NULL`.
+#' @param map_point_col A character string specifying the color of the points
+#' in the map. Default is `"darkmagenta"`.
+#' @param map_numbers_col A character string specifying the color of the
+#' numbers on the map. Default is `"black"`.
+#' @param map_alpha_numbers A numeric value specifying the transparency of the
+#' numbers on the map. Default is `0.8`.
+#' @param title An optional character string specifying the title of the final
+#' plot. If `NULL`, no title is added. Default is `NULL`.
+#' @param ... Additional arguments passed to `plotPolygonsSPE`.
+#'
+#' @return A combined plot showing a map of all FOVs with zoomed-in views of
+#' the specified FOVs and their associated polygons.
+#'
+#' @details The function first filters the `SpatialExperiment` object to the
+#' specified FOVs, generates a plot of the cells for the entire map, then
+#' creates a detailed polygon plot of the selected FOVs, and finally combines
+#' these into a single side-by-side visualization. If `title` is not `NULL`, it
+#' adds a title to the combined plot.
+#'
+#' @importFrom ggpubr ggarrange annotate_figure
+#' @importFrom tmap tmap_grob
+#' @export
+#'
+#' @examples
+#' # Assuming 'spe' is a SpatialExperiment object with FOVs and polygon data:
+#' # plotZoomFovsMap(spe, fovs = c("FOV1", "FOV2"), colour_by = "cell_type",
+#' #                title = "Zoomed FOVs with Polygons")
 plotZoomFovsMap <- function(spe, fovs=NULL, colour_by=NULL,
                             map_point_col="darkmagenta",
                             map_numbers_col="black", map_alpha_numbers=0.8,
-                            map_sample_id=NULL, ...)
+                            title=NULL, ...)
 {
     stopifnot(is(spe, "SpatialExperiment"))
     stopifnot("fov" %in% names(colData(spe)))
     stopifnot(all(fovs %in% spe$fov))
 
-    map <- plotCellsFovs(spe, map_point_col="darkmagenta",
-                         map_numbers_col="black", map_alpha_numbers=0.8,
-                         map_sample_id=NULL)
     spefovs <- spe[,spe$fov %in% fovs]
 
-    tmm <- plotPolygonsSPE(spefovs, colour_by=colour_by, ...)
+    map <- plotCellsFovs(spefovs, point_col=map_point_col,
+                         numbers_col=map_numbers_col,
+                         alpha_numbers=map_alpha_numbers,
+                         sample_id=NULL)
 
+    tmm <- plotPolygonsSPE(spefovs, colour_by=colour_by, sample_id=NULL, ...)
+    tmm_gr <- tmap::tmap_grob(tmm)
+    final_plot <- ggpubr::ggarrange(map, tmm_gr, ncol = 2)
+
+    if (!is.null(title)) {
+        final_plot <- ggpubr::annotate_figure(final_plot,
+                        top = ggpubr::text_grob(title, face="bold", size=14))
+    }
+
+    return(final_plot)
 }
 
-#
-# plotViolinWithThresholds <- function(spe, fill_by=NULL, colour_by=NULL,
-#         use_fences=NULL, fences_colors=c("lower"="purple4", "higher"="tomato"),
-#                                      colors, celltype_palette,
-#                                      lower_thr_label = "Lower thr.",
-#                                      upper_thr_label = "Upper thr.",
-#                                      title = NULL,
-#                                      text_x = 1.5, text_offset = 25,
-#                                      angle_x_text = 90) {
-#
-#     stopifnot(is(spe, "SpatialExperiment"))
-#     df <- as.data.frame(colData(spe))
-#
-#     ggplot(df, aes(x=spatialCoordsNames(spe)[1], y=spatialCoordsNames(spe)[2],
-#                     fill=fill_by)) +
-#         geom_violin() +
-#         # scale_color_manual(values=colors) +
-#         # geom_hline(aes(yintercept = round(area_fence[1], 2),
-#         #                color = lower_thr_label)) +
-#         # geom_hline(aes(yintercept = round(area_fence[2], 2),
-#         #                color = upper_thr_label)) +
-#         # geom_text(aes(x = text_x,
-#         #               y = round(area_fence[1], 2) - text_offset,
-#         #               label = as.character(round(area_fence[1], 2))),
-#         #           color = "purple4") +
-#         # geom_text(aes(x = text_x,
-#         #               y = round(area_fence[2], 2) + text_offset,
-#         #               label = as.character(round(area_fence[2], 2))),
-#         #           color = "tomato") +
-#         # scale_fill_manual(values = celltype_palette) +
-#         # theme(axis.text.x = element_text(angle = angle_x_text,
-#         #                                  vjust = 0.5, hjust = 1)) +
-#         # labs(title = title)
-# }
+
+
 

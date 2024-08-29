@@ -4,7 +4,7 @@
 \alias{computeQCScore}
 \title{computeQCScore}
 \usage{
-computeQCScore(spe, a = 0.3, b = 0.8)
+computeQCScore(spe, a = 1, b = 1)
 }
 \arguments{
 \item{spe}{a SpatialExperiment object with target_counts, area in micron
