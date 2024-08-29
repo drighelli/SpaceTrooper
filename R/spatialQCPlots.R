@@ -24,6 +24,7 @@ plotCellsFovs <- function(spe, point_col="darkmagenta",
                 sample_id=NULL)
 {
     stopifnot(is(spe, "SpatialExperiment"))
+    stopifnot("fov" %in% names(colData(spe)))
     # fov_positions <- data.table::fread(fovpos_file, header = T)
     # fov_positions <- fov_positions[fov_positions$fov%in%unique(metadata$fov),]
     if( !is.null(sample_id) ) spe <- spe[,spe$sample_id]
@@ -183,7 +184,7 @@ plotMetricHist <- function(spe, metric, fill_color="#69b3a2",
     ggp <- ggplot(data=as.data.frame(colData(spe))) +
             geom_histogram(aes(x=.data[[metric]]), fill=fill_color,
                     bins=bins, binwidth=bin_width)
-    if(!is.null(use_fences))
+    if (!is.null(use_fences))
     {
         stopifnot(use_fences %in% names(colData(spe)))
         fences <- getFencesOutlier(spe, use_fences, "both", 2)
@@ -224,16 +225,17 @@ plotMetricHist <- function(spe, metric, fill_color="#69b3a2",
 #' @examples
 #' #TBD
 plotPolygonsSPE <- function(spe,  colour_by=NULL, title=unique(spe$sample_id),
-                    palette=NULL)
+                    fill_alpha=NA, palette=NULL, border_col=NA, border_alpha=NA,
+                    border_line_width=0.1)
 {
     stopifnot(is(spe, "SpatialExperiment"))
     stopifnot("polygons" %in% names(colData(spe)))
 
     pols <- spe$polygons
-    if(!is.null(colour_by))
+    if (!is.null(colour_by))
     {
         stopifnot(colour_by %in% names(colData(spe)))
-        if(is(spe[[colour_by]], "logical"))
+        if (is(spe[[colour_by]], "logical"))
         {
             sums <- sum(colData(spe)[[colour_by]])
             pols[[colour_by]] <- ifelse(colData(spe)[[colour_by]]==TRUE,
@@ -245,12 +247,14 @@ plotPolygonsSPE <- function(spe,  colour_by=NULL, title=unique(spe$sample_id),
     }
     tmm <- tm_shape(pols)
 
-    if(!is.null(colour_by))
+    if (is.null(colour_by))
     {
-        tmm <- tmm + tm_polygons(col=colour_by, palette=palette)
-    } else {
-        tmm <- tmm + tm_polygons(col="grey50",lwd=0.1)
+        colour_by="grey50"
+        border_line_width=0.1
     }
+    tmm <- tmm + tm_polygons(col=colour_by, alpha=fill_alpha, palette=palette,
+                             border.col=border_col, border.alpha=border_alpha,
+                             lwd=border_line_width)
 
     tmm <- tmm + tm_layout(legend.outside=TRUE,
                             main.title.position=c("center", "top"),
@@ -262,44 +266,24 @@ plotPolygonsSPE <- function(spe,  colour_by=NULL, title=unique(spe$sample_id),
     return(tmm)
 }
 
-plotPolygonsSPEold <- function(spe,  color_by=NULL, title=unique(spe$sample_id),
-                        palette=NULL)
+
+
+plotZoomFovsMap <- function(spe, fovs=NULL, colour_by=NULL,
+                            map_point_col="darkmagenta",
+                            map_numbers_col="black", map_alpha_numbers=0.8,
+                            map_sample_id=NULL, ...)
 {
     stopifnot(is(spe, "SpatialExperiment"))
-    stopifnot("polygons" %in% names(colData(spe)))
-    # stopifnot(color_by %in% names(colData(spe)))
+    stopifnot("fov" %in% names(colData(spe)))
+    stopifnot(all(fovs %in% spe$fov))
 
-    pols <- spe$polygons
-    if(!is.null(color_by))
-    {
-        stopifnot(color_by %in% names(colData(spe)))
-        if(is(spe[[color_by]], "logical"))
-        {
-            sums <- sum(colData(spe)[[color_by]])
-            pols[[color_by]] <- ifelse(colData(spe)[[color_by]]==TRUE,
-                                       paste0("TRUE (", sums,")"),
-                                       paste0("FALSE (", dim(pols)[1]-sums,")"))
-        } else {
-            pols[[color_by]] <- colData(spe)[[color_by]]
-        }
-    }
-    tmm <- tm_shape(pols)
+    map <- plotCellsFovs(spe, map_point_col="darkmagenta",
+                         map_numbers_col="black", map_alpha_numbers=0.8,
+                         map_sample_id=NULL)
+    spefovs <- spe[,spe$fov %in% fovs]
 
-    if(!is.null(color_by))
-    {
-        tmm <- tmm + tm_fill(col=color_by, palette=palette)
-    } else {
-        tmm <- tmm + tm_borders(lwd=0.1, col="grey50")
-    }
+    tmm <- plotPolygonsSPE(spefovs, colour_by=colour_by, ...)
 
-    tmm <- tmm + tm_layout(legend.outside = TRUE,
-                           main.title.position = c("center", "top"),
-                           main.title = title,
-                           main.title.fontface = 2,
-                           main.title.size = 1,
-                           inner.margins = c(0, 0, 0, 0),
-                           outer.margins = c(0, 0, 0, 0))
-    return(tmm)
 }
 
 #

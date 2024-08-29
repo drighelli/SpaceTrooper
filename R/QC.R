@@ -1,17 +1,33 @@
 #' spatialPerCellQC
+#' @description
+#' Perform Per-Cell Quality Control on a SpatialExperiment Object
 #'
-#' @param spe
-#' @param negProbList
-#' @param micronConvFact
+#' This function calculates quality control metrics for each cell in a
+#' `SpatialExperiment` object and adds them to `colData`.
 #'
-#' @return
-#' @export
-#' @importFrom scater addPerCellQC
+#' @param spe A `SpatialExperiment` object containing spatial transcriptomics
+#' data.
+#' @param micronConvFact A numeric value for converting pixel dimensions to
+#' microns. Default is `0.12`.
+#' @param negProbList A character vector of patterns used to identify negative
+#' probes.
+#' Default values are:
+#' - For Nanostring CosMx: `"NegPrb"`, `"Negative"`, `"SystemControl"`
+#' - For Xenium: `"NegControlProbe"`, `"NegControlCodeWord"`,
+#' `"UnassignedCodeWord"`
+#' - For MERFISH: `"Blank"`
+#'
+#'
+#' @return The `SpatialExperiment` object with added quality control metrics in
+#' `colData`.
+#'
+#' @details The function computes several QC metrics, including control probe
+#' sums, target probe sums, and the ratio of control probes to the total.
+#'
+#' @importFrom SummarizedExperiment colData
+#' @importFrom SingleCellExperiment addPerCellQC
 #' @importFrom S4Vectors cbind.DataFrame
-#'
-#' @examples
-#' spe <- readCosmxSPE("~/Downloads/CosMx_data/DBKero/CosMx_Breast/CosMx_data_Case2/", sample_name="DBKero_BC")
-#' spe <- spatialPerCellQC(spe)
+#' @export
 spatialPerCellQC <- function(spe, micronConvFact=0.12,
     negProbList=c("NegPrb", "Negative", "SystemControl", # CosMx
         "NegControlProbe", "NegControlCodeWord", "UnassignedCodeWord", # Xenium
@@ -28,13 +44,15 @@ spatialPerCellQC <- function(spe, micronConvFact=0.12,
 
     spe <- addPerCellQC(spe, subsets=idxlist)
     idx <- grep("^subsets_.*_sum$", colnames(colData(spe)))
-
+    npc = npd = 0
     if ( length(idx) !=0 )
     {
         ## TO TEST -> BENEDETTA
-        npc <- rowSums(as.matrix(colData(spe)[ , idx, drop=FALSE])) # meglio dataframe, perché rowsums non funziona
+        # meglio dataframe, perché rowsums non funziona -> ?
+        npc <- rowSums(as.matrix(colData(spe)[ , idx, drop=FALSE])) #sum
         ## getting detected probes as the column suddenly after the sum column
-        npd <- rowSums(as.matrix(colData(spe)[ , idx+1, drop=FALSE])) # not robust at all!
+        ## # not robust at all! the +1 is not a really good choice
+        npd <- rowSums(as.matrix(colData(spe)[ , idx+1, drop=FALSE])) #detected
     }
 
     spe$control_sum <- npc
@@ -65,10 +83,50 @@ spatialPerCellQC <- function(spe, micronConvFact=0.12,
 
     spe$ctrl_total_ratio <- spe$control_sum/spe$total
     spe$ctrl_total_ratio[which(is.na(spe$ctrl_total_ratio))] <- 0
-
+    spe$log2CountArea <- log2(spe$target_sum/spe$Area_um)
     return(spe)
 }
 
+#' computeBorderDistanceCosMx
+#' @description
+#' Compute Distance to FoV Border in SpatialExperiment for CosMx technology.
+#'
+#' Calculates the minimum distance of each coordinate in a `SpatialExperiment`
+#' object to the nearest border of the field of view (FOV) and adds it to
+#' `colData`.
+#'
+#' @param spe A `SpatialExperiment` object with spatial transcriptomics data.
+#' @param xwindim Width of the FOV in the x-dimension. Defaults to
+#' `metadata(spe)$fov_dim[["xdim"]]`.
+#' @param ywindim Height of the FOV in the y-dimension. Defaults to
+#' `metadata(spe)$fov_dim[["ydim"]]`.
+#'
+#' @return The `SpatialExperiment` object with added border distance data in
+#' `colData`.
+#'
+#' @importFrom dplyr left_join
+#' @importFrom SummarizedExperiment colData
+#' @export
+#' @example
+#' #TBD
+computeBorderDistanceCosMx <- function(spe,
+                                    xwindim=metadata(spe)$fov_dim[["xdim"]],
+                                    ywindim=metadata(spe)$fov_dim[["ydim"]])
+{
+    stopifnot(is(spe, "SpatialExperiment"))
+
+    cd <- colData(spe)
+    cdf <- left_join(as.data.frame(cd), metadata(spe)$fov_positions, by="fov")
+    spcn <- spatialCoordsNames(spe)
+    fovpn <- colnames(metadata(spe)$fov_positions)[c(2:3)]
+    cd$dist_border_x <- pmin(cdf[,spcn[1]] - cdf[[fovpn[1]]],
+                            (cdf[[fovpn[1]]] + xwindim) - cdf[[spcn[1]]])
+    cd$dist_border_y <- pmin(cdf[,spcn[2]] - cdf[[fovpn[2]]],
+                             (cdf[[fovpn[2]]] + ywindim) - cdf[[spcn[2]]])
+    cd$dist_border <- pmin(cd$dist_border_x, cd$dist_border_y)
+    colData(spe) <- cd
+    return(spe)
+}
 
 #' computeQCScore
 #' @description
@@ -84,17 +142,31 @@ spatialPerCellQC <- function(spe, micronConvFact=0.12,
 #'
 #' @examples
 #' #TBD
-computeQCScore <- function(spe, a=0.3, b=0.8)
+computeQCScore <- function(spe, a=1, b=1)#0.3, b=0.8)
 {
     stopifnot(is(spe, "SpatialExperiment"))
     cd <- colData(spe)
-    if(!all(c("target_sum", "Area_um", "log2AspectRatio") %in% colnames(cd)))
+    if(!all(c("target_sum", "log2CountArea", "log2AspectRatio") %in% colnames(cd)))
     {
         stop("One of target_sum, Area_um, log2AspectRatio is missing, ",
         "did you run spatialPerCellQC?")
     }
-    spe$flag_score <- 1/(1 + exp(-a*spe$target_sum/spe$Area_um + b*abs(spe$log2AspectRatio)))
-
+    # spe$log2CountArea <- log2(spe$target_sum/spe$Area_um)
+    if (metadata(spe)$technology=="Nanostring_CosMx")
+    {
+        if(!("dist_border" %in% names(colData(spe))))
+        {
+            spe <- computeBorderDistanceCosMx(spe)
+        }
+        fs <- 1 / (1 + exp(-a * spe$log2CountArea +
+                                           b * abs(spe$log2AspectRatio) *
+                                           as.numeric(spe$dist_border<50)))
+    } else {
+        fs <- 1 / (1 + exp(-a * spe$log2CountArea +
+                                           b * abs(spe$log2AspectRatio)))
+    }
+    spe$flag_score <- fs
+    # spe$flag_score <- 1/(1 + exp(-a*spe$target_sum/spe$Area_um + b*abs(spe$log2AspectRatio)))
     return(spe)
 }
 
@@ -203,19 +275,31 @@ computeSpatialOutlier <- function(spe, compute_by=NULL,
 
 #' computeFilterFlags
 #' @description
-#' defines flagged cells for variables based on the thresholds passed as input
+#' Compute Filter Flags for SpatialExperiment
 #'
-#' @param spe a SpatialExperiment object with total probe counts, control probe
-#' counts on total counts ratio and flag score in the `colData`,
-#' tipically computed with \link{spatialPerCellQC}
-#' @param fs_threshold
-#' @param use_fs_quantiles
-#' @param total_threshold
-#' @param ctrl_tot_ratio_threshold
+#' This function calculates various flags to identify outliers in a
+#' `SpatialExperiment` object based on quality control metrics.
 #'
-#' @return
+#' @param spe A `SpatialExperiment` object with spatial transcriptomics data.
+#' @param fs_threshold A numeric value for the threshold of `flag_score` to
+#' identify outliers. Default is `0.5`.
+#' @param use_fs_quantiles A logical value indicating whether to use quantiles
+#' for the `flag_score` threshold. Default is `FALSE`.
+#' @param total_threshold A numeric value for the threshold of total counts to
+#' identify cells with zero counts. Default is `0`.
+#' @param ctrl_tot_ratio_threshold A numeric value for the threshold of
+#' control-to-total ratio to flag outliers. Default is `0.1`.
+#'
+#' @return The `SpatialExperiment` object with added filter flags in `colData`.
+#'
+#' @details The function flags cells based on zero counts, control-to-total
+#' ratio, and `flag_score` to identify potential outliers. It also combines
+#' these flags into a single filter flag.
+#'
+#' @importFrom SummarizedExperiment colData
 #' @export
 #' @examples
+#' #TBD
 computeFilterFlags <- function(spe, fs_threshold=0.5,
                         use_fs_quantiles=FALSE,
                         total_threshold=0, ctrl_tot_ratio_threshold=0.1)

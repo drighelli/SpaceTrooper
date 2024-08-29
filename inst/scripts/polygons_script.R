@@ -34,22 +34,27 @@ spe <- spatialPerCellQC(spe)
 colData(spe)
 spe <- computeQCScore(spe)
 colData(spe)
+spe <- computeFilterFlags(spe)
+colData(spe)
 spe <- computeSpatialOutlier(spe, compute_by="Area_um", method="both")
 colData(spe)
 spe <- computeSpatialOutlier(spe, compute_by="Mean.DAPI", method="both")
 colData(spe)
-spe <- computeFilterFlags(spe)
+# spe <- computeSpatialOutlier(spe, compute_by="flag_score", method="both")
 colData(spe)
-plotCentroidsSpe(spe)
-plotCentroidsSpe(spe, colour_by="total")
-plotCentroidsSpe(spe, colour_by="is_fscore_outlier")
+
+plotCellsFovs(spe)
+
+plotCentroidsSPE(spe)
+plotCentroidsSPE(spe, colour_by="total")
+plotCentroidsSPE(spe, colour_by="is_fscore_outlier")
 
 plotMetricHist(spe, metric="Area_um")
 plotMetricHist(spe, metric="Area_um", use_fences="Area_um_outlier_sc")
 
 pols <- readPolygonsCosmx(metadata(spe)$polygons)
 spe <- addPolygonsToSPE(spe, pols)
-plotCellsFovs(spe)
+
 spe1 <- spe[,spe$fov %in% c(16:19)]
 colData(spe1)
 plotPolygonsSPE(spe1)
@@ -60,25 +65,36 @@ plotPolygonsSPE(spe1, colour_by="Area_um_outlier_mc", palette="viridis")
 plotPolygonsSPEold(spe1, color_by="Area_um_outlier_mc", palette="viridis")
 plotPolygonsSPE(spe1, colour_by="is_fscore_outlier", palette="viridis")
 plotPolygonsSPEold(spe1, color_by="is_fscore_outlier", palette="viridis")
+
 ###
 labels <- data.table::fread("/Users/inzirio/Downloads/CosMx_data/DBKero/CosMx_Breast/CosMx_data_Case2/cosmx_dbkero_IST_labels_complete_simple.txt")
 id <- strsplit(labels$orig.ident, "_")
 labels$fov <- lapply(id, function(i) return(i[1]))
 labels$cellID <- lapply(id, function(i) return(i[2]))
 labels$cell_id <- paste0("f",labels$fov, "_c", labels$cellID)
+speben <- readRDS("~/Downloads/cosmx_dbkero_complete_simple.rds")
+
+labels <- left_join(labels, as.data.frame(colData(speben)), by="cell_id")
 spe$labels_simple <- spe$labels_complete <- NA
 spe$labels_simple[match(labels$cell_id, spe$cell_id)] <- labels$InSituType_simple
 spe$labels_complete[match(labels$cell_id, spe$cell_id)] <- labels$InSituType_complete
 colData(spe)
 table(spe$labels_simple, useNA="always")
 table(spe$labels_complete, useNA="always")
+spe$IST_complete_colors <- spe$IST_simple_colors <- NA
+spe$IST_complete_colors[match(labels$cell_id, spe$cell_id)] <- labels$polygons.IST_complete_colors
+spe$IST_simple_colors[match(labels$cell_id, spe$cell_id)] <- labels$polygons.IST_simple_colors
+
 ###
+
 spe2 <- spe[,!is.na(spe$labels_complete)]
-spe3 <- spe2[,spe2$fov %in% c(16:19)]
-plotPolygonsSPE(spe, colour_by="labels_complete")
-plotPolygonsSPE(spe3, colour_by="labels_complete")
-# plotPolygonsSPEold(spe3, color_by="labels_complete")
 plotCentroidsSPE(spe2, colour_by="labels_complete")
+spe3 <- spe2[,spe2$fov %in% c(16:19)]
+# plotPolygonsSPE(spe, colour_by="labels_complete")
+plotPolygonsSPE(spe3, colour_by="labels_simple", palette=spe3$IST_simple_colors)
+# plotPolygonsSPEold(spe3, color_by="labels_complete")
+
+
 
 
 ################
