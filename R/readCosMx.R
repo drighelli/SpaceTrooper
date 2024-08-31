@@ -1,24 +1,45 @@
 #' readCosmxSPE
-#'
 #' @description
+#' Read and Construct a SpatialExperiment Object from CosMx Data
 #'
+#' This function reads in data from Nanostring CosMx files and constructs a
+#' `SpatialExperiment` object, optionally including polygon data.
 #'
-#' @param dirname
-#' @param sample_name
-#' @param countmatfpattern
-#' @param metadatafpattern
-#' @param coord_names
-#' @param polygonsfpattern
-#' @param fovposfpattern
-#' @param fov_dims
+#' @param dirname A character string specifying the directory containing the
+#' CosMx data files.
+#' @param sample_name A character string specifying the sample name. Default is
+#' `"sample01"`.
+#' @param coord_names A character vector specifying the names of the spatial
+#' coordinate columns in the data. Default is `c("CenterX_global_px",
+#' "CenterY_global_px")`.
+#' @param countmatfpattern A character string specifying the pattern to match
+#' the count matrix file. Default is `"exprMat_file.csv"`.
+#' @param metadatafpattern A character string specifying the pattern to match
+#' the metadata file. Default is `"metadata_file.csv"`.
+#' @param polygonsfpattern A character string specifying the pattern to match
+#' the polygons file. Default is `"polygons.csv"`.
+#' @param keep_polygons A logical value indicating whether to include polygon
+#' data in the resulting `SpatialExperiment` object. Default is `FALSE`.
+#' @param fovposfpattern A character string specifying the pattern to match the
+#' FOV positions file. Default is `"fov_positions_file.csv"`.
+#' @param fov_dims A named numeric vector specifying the dimensions of the FOV
+#' in pixels. Default is `c(xdim=4256, ydim=4256)`.
 #'
-#' @return A SpatialExperiment object
-#' @export
+#' @return A `SpatialExperiment` object containing the read CosMx data,
+#' including count matrices, metadata, and optionally polygons.
+#'
+#' @details The function reads in the specified files for count matrices,
+#' metadata, and FOV positions, and constructs a `SpatialExperiment` object.
+#' Optionally, polygon data can be read and added to the object.
 #'
 #' @importFrom data.table fread merge.data.table
-#' @importFrom S4Vectors DataFrame
 #' @importFrom SpatialExperiment SpatialExperiment
+#' @importFrom S4Vectors DataFrame
+#' @export
+#'
 #' @examples
+#' # Assuming the data files are located in "path/to/cosmx_data":
+#' #spe <- readCosmxSPE(dirname = "path/to/cosmx_data")
 ## for old fovs consider dimensions 5472 x 3648 pixels.
 readCosmxSPE <- function(dirname,
                         sample_name="sample01",
@@ -26,8 +47,7 @@ readCosmxSPE <- function(dirname,
                         countmatfpattern="exprMat_file.csv",
                         metadatafpattern="metadata_file.csv",
                         polygonsfpattern="polygons.csv",
-                        loadPolygons=FALSE,
-                        ## polygons=FALSE/in memory/parquet
+                        keep_polygons=FALSE,
                         fovposfpattern="fov_positions_file.csv",
                         fov_dims=c(xdim=4256, ydim=4256))
 {
@@ -105,7 +125,7 @@ readCosmxSPE <- function(dirname,
     # Polygons file has cellID instead of cell_ID and it distinguish better
     # when compared to our cell_id
     names(colData(spe))[names(colData(spe))=="cell_ID"] <- "cellID"
-    if(loadPolygons)
+    if(keep_polygons)
     {
         polygons <- readPolygonsCosmx(metadata(spe)$polygons)
         spe <- addPolygonsToSPE(spe, polygons)

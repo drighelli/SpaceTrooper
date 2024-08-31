@@ -26,7 +26,7 @@
 ## for old fovs consider dimensions 5472 x 3648 pixels.
 readMerfishSPE <- function(dirname,
                            sample_name="sample01",
-                           compute_missing_metrics=TRUE,
+                           compute_missing_metrics=TRUE, keep_polygons=FALSE,
                            boundaries_type=c("HDF5", "parquet"),
                            countmatfpattern = "cell_by_gene.csv",
                            metadatafpattern = "cell_metadata.csv",
@@ -69,7 +69,8 @@ readMerfishSPE <- function(dirname,
     if (compute_missing_metrics)
     {
         message("Computing missing metrics, this could take a while...")
-        cd <- computeMissingMetricsMerfish(dirname, colData, boundaries_type)
+        cd <- computeMissingMetricsMerfish(dirname, colData, boundaries_type,
+                                            keep_polygons)
     }
 
     spe <- SpatialExperiment::SpatialExperiment(
@@ -85,13 +86,15 @@ readMerfishSPE <- function(dirname,
 
 }
 
-computeMissingMetricsMerfish <- function(polygonsFolder, coldata, boundaries_type)
+computeMissingMetricsMerfish <- function(polygonsFolder, coldata,
+                                    boundaries_type, keep_polygons=FALSE)
 {
-
+    stopifnot(dir.exists(polygonsFolder))
     polygons <- readPolygonsMerfish(polygonsFolder, keepMultiPol=TRUE,
                                     type=boundaries_type)
     cd <- computeAreaFromPolygons(polygons, coldata)
     cd <- computeAspectRatioFromPolygons(polygons, cd)
+    if (keep_polygons) cd <- cbind.DataFrame(cd, polygons)
     return(cd)
 }
 

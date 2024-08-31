@@ -324,17 +324,18 @@ plotZoomFovsMap <- function(spe, fovs=NULL, colour_by=NULL,
     spefovs <- spe[,spe$fov %in% fovs]
 
     map <- plotCellsFovs(spefovs, point_col=map_point_col,
-                         numbers_col=map_numbers_col,
-                         alpha_numbers=map_alpha_numbers,
-                         sample_id=NULL)
+                        numbers_col=map_numbers_col,
+                        alpha_numbers=map_alpha_numbers,
+                        sample_id=NULL)
 
     tmm <- plotPolygonsSPE(spefovs, colour_by=colour_by, sample_id=NULL, ...)
     tmm_gr <- tmap::tmap_grob(tmm)
-    final_plot <- ggpubr::ggarrange(map, tmm_gr, ncol = 2)
+    final_plot <- ggpubr::ggarrange(map, tmm_gr, ncol=2)
 
-    if (!is.null(title)) {
+    if (!is.null(title))
+    {
         final_plot <- ggpubr::annotate_figure(final_plot,
-                        top = ggpubr::text_grob(title, face="bold", size=14))
+                        top=ggpubr::text_grob(title, face="bold", size=14))
     }
 
     return(final_plot)

@@ -11,6 +11,7 @@ readXeniumSPE(
   coord_names = c("x_centroid", "y_centroid"),
   boundaries_type = c("parquet", "csv"),
   compute_missing_metrics = TRUE,
+  keep_polygons = FALSE,
   countsfilepattern = "cell_feature_matrix",
   metadatafpattern = "cells",
   polygonsfpattern = "cell_boundaries"
@@ -19,6 +20,9 @@ readXeniumSPE(
 \arguments{
 \item{dirname}{a directory path to Xenium Output Bundle download that contains
 files of interest.}
+
+\item{keep_polygons}{logical indicating if to save the optionally loaded
+(to compute the missing metrics) polygons into the `colData`}
 
 \item{metadatafpattern}{a filename pattern of the zipped .csv file that
 contains cell metadata and spatial coords. Default value is \code{"cells.csv.gz"}, and there is no

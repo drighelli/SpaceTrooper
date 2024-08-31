@@ -25,7 +25,7 @@
 #' sums, target probe sums, and the ratio of control probes to the total.
 #'
 #' @importFrom SummarizedExperiment colData
-#' @importFrom SingleCellExperiment addPerCellQC
+#' @importFrom scater addPerCellQC
 #' @importFrom S4Vectors cbind.DataFrame
 #' @export
 spatialPerCellQC <- function(spe, micronConvFact=0.12,
@@ -302,7 +302,8 @@ computeSpatialOutlier <- function(spe, compute_by=NULL,
 #' #TBD
 computeFilterFlags <- function(spe, fs_threshold=0.5,
                         use_fs_quantiles=FALSE,
-                        total_threshold=0, ctrl_tot_ratio_threshold=0.1)
+                        total_threshold=0,
+                        ctrl_tot_ratio_threshold=0.1)
 {
     stopifnot(is(spe, "SpatialExperiment"))
     stopifnot("flag_score" %in% names(colData(spe)))
