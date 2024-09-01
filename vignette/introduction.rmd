@@ -91,8 +91,8 @@ need to compute any missing metrics from it, so we can load them in a second
 moment.
 
 ```{r cosmx-analysis}
-# Reload CosMx data with additional options: specify sample name and disable
-# polygon loading
+# Reload CosMx data with additional options: specify sample name and 
+# disable polygon loading
 cosmxFolder <- "~/Downloads/CosMx_data/DBKero/CosMx_Breast/CosMx_data_Case2/"
 spe <- readCosmxSPE(cosmxFolder, sample_name="DBKero_CosMx", keep_polygons=FALSE)
 ```
@@ -204,7 +204,7 @@ p <- plotZoomFovsMap(spe, fovs=c(16:19), colour_by="Area_um")
 print(p)
 ```
 
-```{r plot-polygons}
+```{r plot-polygons-fov}
 # Subset the SPE to include only specified FOVs
 spe1 <- spe[,spe$fov %in% c(16:19)]
 
