@@ -71,6 +71,7 @@ spatialPerCellQC <- function(spe, micronConvFact=0.12,
         colnames(spnc) <- gsub("px", "um", spatialCoordsNames(spe))
         colData(spe) <- cbind.DataFrame(colData(spe), spnc)
         spe$Area_um <- spe$Area * (micronConvFact^2)
+        spe <- computeBorderDistanceCosMx(spe)
     }
 
     #### compute AspectRatio for other technologies ####
@@ -85,7 +86,7 @@ spatialPerCellQC <- function(spe, micronConvFact=0.12,
 
     spe$ctrl_total_ratio <- spe$control_sum/spe$total
     spe$ctrl_total_ratio[which(is.na(spe$ctrl_total_ratio))] <- 0
-    spe$log2CountArea <- log2(spe$target_sum/spe$Area_um)
+    spe$log2CountArea <- log2(spe$sum/spe$Area_um)
     return(spe)
 }
 
@@ -117,14 +118,17 @@ computeBorderDistanceCosMx <- function(spe,
 {
     stopifnot(is(spe, "SpatialExperiment"))
 
-    cd <- colData(spe)
+        cd <- colData(spe)
     cdf <- left_join(as.data.frame(cd), metadata(spe)$fov_positions, by="fov")
     spcn <- spatialCoordsNames(spe)
     fovpn <- colnames(metadata(spe)$fov_positions)[c(2:3)]
+
     cd$dist_border_x <- pmin(cdf[,spcn[1]] - cdf[[fovpn[1]]],
                             (cdf[[fovpn[1]]] + xwindim) - cdf[[spcn[1]]])
+
     cd$dist_border_y <- pmin(cdf[,spcn[2]] - cdf[[fovpn[2]]],
                              (cdf[[fovpn[2]]] + ywindim) - cdf[[spcn[2]]])
+
     cd$dist_border <- pmin(cd$dist_border_x, cd$dist_border_y)
     colData(spe) <- cd
     return(spe)
@@ -324,8 +328,7 @@ computeFilterFlags <- function(spe, fs_threshold=0.5,
                                 quantile(spe$flag_score, probs=fs_threshold),
                                 TRUE, FALSE)
     } else {
-        spe$is_fscore_outlier <- ifelse(spe$flag_score < fs_threshold,
-                                TRUE, FALSE)
+        spe$is_fscore_outlier <- spe$flag_score < fs_threshold
     }
 
     spe$filter_out <- (spe$is_fscore_outlier & spe$is_ctrl_tot_outlier &

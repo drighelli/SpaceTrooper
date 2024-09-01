@@ -27,11 +27,13 @@ plotCellsFovs <- function(spe, sample_id=unique(spe$sample_id),
     # fov_positions <- data.table::fread(fovpos_file, header = T)
     # fov_positions <- fov_positions[fov_positions$fov%in%unique(metadata$fov),]
     # if( !is.null(sample_id) ) spe <- spe[,spe$sample_id]
+    spd <- as.data.frame(spatialCoords(spe))
+    x_coord <- spatialCoordsNames(spe)[1]
+    y_coord <- spatialCoordsNames(spe)[2]
     ggp <- ggplot() +
-        geom_point(data=as.data.frame(spatialCoords(spe)),
-                mapping=aes_string(
-                            x=spatialCoordsNames(spe)[1],
-                            y=spatialCoordsNames(spe)[2]),
+        geom_point(data=spd,
+                mapping=aes(x=.data[[x_coord]],
+                            y=.data[[y_coord]]),
                             colour=point_col,
                             fill=point_col,
                             size=0.05, alpha=0.2) +
@@ -270,6 +272,83 @@ plotPolygonsSPE <- function(spe, colour_by=NULL,sample_id=unique(spe$sample_id),
     return(tmm)
 }
 
+
+#' plotPolygonsSPE_ggplot
+#'
+#' @description Plot polygons from a `SpatialExperiment` object using ggplot2.
+#'
+#' @param spe A `SpatialExperiment` object with polygon data as an `sf` object.
+#' @param colour_by A column in `colData(spe)` for coloring the polygons.
+#' @param sample_id Sample ID for plot title. Default is the unique sample ID.
+#' @param fill_alpha Transparency level for polygon fill. Default is `1`.
+#' @param palette Colors to use if `colour_by` is a factor. Default is `NULL`.
+#' @param border_col Color of polygon borders. Default is `"black"`.
+#' @param border_alpha Transparency level for borders. Default is `1`.
+#' @param border_line_width Width of polygon borders. Default is `0.1`.
+#' @param draw_borders Logical; whether to draw borders. Default is `TRUE`.
+#'
+#' @return A `ggplot` object representing the polygon plot of the spatial data.
+#' @export
+#'
+#' @importFrom ggplot2 ggplot geom_sf aes scale_fill_manual scale_fill_viridis_c
+#' scale_fill_identity theme_minimal theme element_text margin labs
+#' @importFrom sf st_as_sf
+#' @importFrom SummarizedExperiment colData
+#'
+#' @examples
+#' # Assuming `spe` is a SpatialExperiment object with polygon data:
+#' # plotPolygonsSPE_ggplot(spe, colour_by="gene_expression")
+plotPolygonsSPE_ggplot <- function(spe, colour_by=NULL,
+                                   sample_id=unique(spe$sample_id),
+                                   fill_alpha=1, palette=NULL,
+                                   border_col=NA,
+                                   border_alpha=1,
+                                   border_line_width=0.1,
+                                   draw_borders=TRUE) {
+    stopifnot(is(spe, "SpatialExperiment"))
+    stopifnot("polygons" %in% names(colData(spe)))
+    stopifnot(!is.null(colour_by))
+    pols <- spe$polygons
+
+    if(!is.null(colour_by)) {
+        stopifnot(colour_by %in% names(colData(spe)))
+        pols[[colour_by]] <- colData(spe)[[colour_by]]
+    }
+
+    border_params <- if(draw_borders) {
+        list(color=border_col, size=border_line_width)
+    } else {
+        list(color=NA, size=0)
+    }
+
+    p <- ggplot(pols) + geom_sf(aes(fill=.data[[colour_by]]),
+                     alpha=fill_alpha,
+                     color=border_params$color,
+                     size=border_params$size)
+
+    if(!is.null(colour_by) && is.factor(pols[[colour_by]])) {
+        if(!is.null(palette)) {
+            p <- p + scale_fill_manual(values=palette)
+        }
+    } else if(!is.null(colour_by) && is.numeric(pols[[colour_by]])) {
+        p <- p + scale_fill_viridis_c(option="D")
+    } else {
+        p <- p + scale_fill_identity()
+    }
+
+    p <- p + theme_minimal() +
+        theme(
+            legend.position="right",
+            plot.title.position="plot",
+            plot.title=element_text(face="bold", size=14),
+            plot.margin=margin(0, 0, 0, 0)
+        ) +
+        labs(title=sample_id, fill=colour_by)
+
+    return(p)
+}
+
+
 #' plotZoomFovsMap
 #' @description
 #'
@@ -312,35 +391,44 @@ plotPolygonsSPE <- function(spe, colour_by=NULL,sample_id=unique(spe$sample_id),
 #' # Assuming 'spe' is a SpatialExperiment object with FOVs and polygon data:
 #' # plotZoomFovsMap(spe, fovs = c("FOV1", "FOV2"), colour_by = "cell_type",
 #' #                title = "Zoomed FOVs with Polygons")
-plotZoomFovsMap <- function(spe, fovs=NULL, colour_by=NULL,
-                            map_point_col="darkmagenta",
-                            map_numbers_col="black", map_alpha_numbers=0.8,
-                            title=NULL, ...)
+plotZoomFovsMap <- function(spe, fovs = NULL, colour_by = NULL,
+                            map_point_col = "darkmagenta",
+                            map_numbers_col = "black",
+                            map_alpha_numbers = 0.8,
+                            title = NULL, ..., useggplot=TRUE)
 {
     stopifnot(is(spe, "SpatialExperiment"))
     stopifnot("fov" %in% names(colData(spe)))
     stopifnot(all(fovs %in% spe$fov))
+    stopifnot(!is.null(colour_by))
 
-    spefovs <- spe[,spe$fov %in% fovs]
+    spefovs <- spe[, spe$fov %in% fovs]
 
     map <- plotCellsFovs(spefovs, point_col=map_point_col,
-                        numbers_col=map_numbers_col,
-                        alpha_numbers=map_alpha_numbers,
-                        sample_id=NULL)
+                         numbers_col=map_numbers_col,
+                         alpha_numbers=map_alpha_numbers,
+                         sample_id=NULL)
 
-    tmm <- plotPolygonsSPE(spefovs, colour_by=colour_by, sample_id=NULL, ...)
-    tmm_gr <- tmap::tmap_grob(tmm)
-    final_plot <- ggpubr::ggarrange(map, tmm_gr, ncol=2)
+    if(useggplot)
+    {
+        g2 <- plotPolygonsSPE_ggplot(spefovs, colour_by=colour_by,
+                                     sample_id=NULL, ...)
+    } else {
+        g2 <- plotPolygonsSPE(spefovs, colour_by=colour_by,
+                                     sample_id=NULL, ...)
+        g2 <- tmap_grob(g2)
+    }
+
+    final_plot <- ggpubr::ggarrange(map, g2, ncol=2)
 
     if (!is.null(title))
     {
         final_plot <- ggpubr::annotate_figure(final_plot,
-                        top=ggpubr::text_grob(title, face="bold", size=14))
+                            top=ggpubr::text_grob(title, face="bold", size=14))
     }
 
     return(final_plot)
 }
-
 
 
 
