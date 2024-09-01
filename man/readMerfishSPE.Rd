@@ -25,3 +25,6 @@ A SpatialExperiment object
 \description{
 readMerfishSPE
 }
+\examples{
+# TBD
+}

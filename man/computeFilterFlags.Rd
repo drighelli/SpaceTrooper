@@ -42,5 +42,5 @@ ratio, and `flag_score` to identify potential outliers. It also combines
 these flags into a single filter flag.
 }
 \examples{
-#TBD
+# TBD
 }

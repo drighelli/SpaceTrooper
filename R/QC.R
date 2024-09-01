@@ -28,6 +28,8 @@
 #' @importFrom scater addPerCellQC
 #' @importFrom S4Vectors cbind.DataFrame
 #' @export
+#' @example
+#' # TBD
 spatialPerCellQC <- function(spe, micronConvFact=0.12,
     negProbList=c("NegPrb", "Negative", "SystemControl", # CosMx
         "NegControlProbe", "NegControlCodeWord", "UnassignedCodeWord", # Xenium
@@ -108,7 +110,7 @@ spatialPerCellQC <- function(spe, micronConvFact=0.12,
 #' @importFrom SummarizedExperiment colData
 #' @export
 #' @example
-#' #TBD
+#' # TBD
 computeBorderDistanceCosMx <- function(spe,
                                     xwindim=metadata(spe)$fov_dim[["xdim"]],
                                     ywindim=metadata(spe)$fov_dim[["ydim"]])
@@ -137,11 +139,12 @@ computeBorderDistanceCosMx <- function(spe,
 #' and log2 of the aspect ratio in the `colData`, tipically computed with
 #' \link{spatialPerCellQC}
 #'
-#' @return
+#' @return a `SpatialExperiment` object with a `flag_score` stored in
+#' the `colData`.
 #' @export
 #'
 #' @examples
-#' #TBD
+#' # TBD
 computeQCScore <- function(spe, a=1, b=1)#0.3, b=0.8)
 {
     stopifnot(is(spe, "SpatialExperiment"))
@@ -187,8 +190,9 @@ computeQCScore <- function(spe, a=1, b=1)#0.3, b=0.8)
 #' for further details.
 #'
 #' @param spe a SpatialExperiment object with target_counts, area in micron
-#' and log2 of the aspect ratio in the `colData`
-#' @param compute_by
+#' and log2 of the aspect ratio in the `colData`.
+#' @param compute_by character indicating a `colData` column name on which compute
+#' the outlier.
 #' @param method one of `mc`, `scuttle`, `both`.
 #' Use `mc` for medcouple, `scuttle` for median absolute deviations as computed
 #' in `scuttle`, `both` for computing both of them.
@@ -208,7 +212,7 @@ computeQCScore <- function(spe, a=1, b=1)#0.3, b=0.8)
 #' @importFrom scuttle isOutlier outlier.filter
 #'
 #' @examples
-#' TBD
+#' # TBD
 computeSpatialOutlier <- function(spe, compute_by=NULL,
                                 method=c("mc", "scuttle", "both"),
                                 mcDoScale=FALSE,
@@ -299,7 +303,7 @@ computeSpatialOutlier <- function(spe, compute_by=NULL,
 #' @importFrom SummarizedExperiment colData
 #' @export
 #' @examples
-#' #TBD
+#' # TBD
 computeFilterFlags <- function(spe, fs_threshold=0.5,
                         use_fs_quantiles=FALSE,
                         total_threshold=0,

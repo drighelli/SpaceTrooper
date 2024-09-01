@@ -6,6 +6,7 @@
 #' @export
 #'
 #' @examples
+#' #TBD
 .getActiveGeometryName <- function(sf)
 {
     stopifnot(is(sf, "sf"))
@@ -22,6 +23,7 @@
 #' @export
 #'
 #' @examples
+#' #TBD
 .setActiveGeometry <- function(sf, name)
 {
     stopifnot(is(sf, "sf"), name %in% names(sf))
@@ -45,6 +47,7 @@
 #' @export
 #'
 #' @examples
+#' #TBD
 .renameGeometry <- function(sf, from, to, activate=FALSE)
 {
     stopifnot(all(is(sf, "sf"), from %in% names(sf)))

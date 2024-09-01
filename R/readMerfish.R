@@ -23,6 +23,7 @@
 #' @importFrom dplyr left_join
 #' @importFrom SpatialExperiment SpatialExperiment
 #' @examples
+#' # TBD
 ## for old fovs consider dimensions 5472 x 3648 pixels.
 readMerfishSPE <- function(dirname,
                            sample_name="sample01",

@@ -126,18 +126,20 @@ readPolygons <- function(polygonsFile, type=c("csv", "parquet", "h5"),
 #' If keeMultiPol is FALSE, possible detected multipolygons are removed.
 #'
 #'
-#' @param sf an sf class object
+#' @param sf An `sf` class object containing the spatial data.
 #' @param geometry character for the geometry to check validity, if `NULL`
 #' it checks the active geometry (default is `NULL`)
 #' @param keepMultiPol logical for keeping/removing moltipolygons, if any
 #' (default is `TRUE`, so keeping the multipolygons)
 #' @param verbose logical to print verbose output (default is `FALSE`)
 #'
-#' @return
+#' @return An `sf` object with valid geometries, possibly with multipolygons
+#' removed.
 #' @keywords internal
 #' @importFrom sf st_is_valid st_buffer st_geometry_type
 #'
 #' @examples
+#' # TBD
 .checkPolygonsValidity <- function(sf, geometry=NULL, keepMultiPol=TRUE,
                                     verbose=FALSE)
 {
@@ -212,7 +214,7 @@ readPolygons <- function(polygonsFile, type=c("csv", "parquet", "h5"),
 #'
 #' @examples
 #' # Assuming `spe` is a SpatialExperiment object and `polygons` is an sf object:
-#' #spe <- addPolygonsToSPE(spe, polygons)
+#' # spe <- addPolygonsToSPE(spe, polygons)
 addPolygonsToSPE <- function(spe, polygons)
 {
     stopifnot(all(is(spe, "SpatialExperiment"), is(polygons, "sf")))
@@ -248,6 +250,7 @@ addPolygonsToSPE <- function(spe, polygons)
 #' @importFrom sf st_as_sf
 #'
 #' @examples
+#' #TBD
 .createPolygons <- function(spat_obj, x=NULL, y=NULL, polygon_id=NULL, geometry="Geometry")
 {
     if(all(!is.null(x), !is.null(y)))

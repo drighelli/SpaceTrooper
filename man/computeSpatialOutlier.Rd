@@ -14,7 +14,10 @@ computeSpatialOutlier(
 }
 \arguments{
 \item{spe}{a SpatialExperiment object with target_counts, area in micron
-and log2 of the aspect ratio in the `colData`}
+and log2 of the aspect ratio in the `colData`.}
+
+\item{compute_by}{character indicating a `colData` column name on which compute
+the outlier.}
 
 \item{method}{one of `mc`, `scuttle`, `both`.
 Use `mc` for medcouple, `scuttle` for median absolute deviations as computed
@@ -47,5 +50,5 @@ function in the scuttle package. Please see McCarthy DJ et al (2017)
 for further details.
 }
 \examples{
-TBD
+# TBD
 }

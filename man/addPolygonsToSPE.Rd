@@ -19,5 +19,5 @@ This function adds polygon data to a `SpatialExperiment` object.
 }
 \examples{
 # Assuming `spe` is a SpatialExperiment object and `polygons` is an sf object:
-#spe <- addPolygonsToSPE(spe, polygons)
+# spe <- addPolygonsToSPE(spe, polygons)
 }

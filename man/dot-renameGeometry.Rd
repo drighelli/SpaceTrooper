@@ -24,3 +24,6 @@ If `activate` is `TRUE` it set as the active geometry the new geometry name.
 Default behaviour is to check if the renamed geometry is already active and
 leave it as active with the new name.
 }
+\examples{
+#TBD
+}

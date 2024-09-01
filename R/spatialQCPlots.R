@@ -18,7 +18,7 @@
 #' @export
 #'
 #' @examples
-#' TBD
+#' # TBD
 plotCellsFovs <- function(spe, sample_id=unique(spe$sample_id),
                 point_col="darkmagenta", numbers_col="black", alpha_numbers=0.8)
 {

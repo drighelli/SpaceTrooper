@@ -12,7 +12,7 @@
 )
 }
 \arguments{
-\item{sf}{an sf class object}
+\item{sf}{An `sf` class object containing the spatial data.}
 
 \item{geometry}{character for the geometry to check validity, if `NULL`
 it checks the active geometry (default is `NULL`)}
@@ -21,6 +21,10 @@ it checks the active geometry (default is `NULL`)}
 (default is `TRUE`, so keeping the multipolygons)}
 
 \item{verbose}{logical to print verbose output (default is `FALSE`)}
+}
+\value{
+An `sf` object with valid geometries, possibly with multipolygons
+removed.
 }
 \description{
 checks validity on a geometry of `sf` object.
@@ -32,5 +36,8 @@ otherwise it is checked on the passed geometry without changing the active
 geometry of the sf object.
 In case of not valid polygons, these are removed.
 If keeMultiPol is FALSE, possible detected multipolygons are removed.
+}
+\examples{
+# TBD
 }
 \keyword{internal}

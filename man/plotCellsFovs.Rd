@@ -29,5 +29,5 @@ Creates a scatter plot with all the centroids of the cells distributed inside
 their own FoVs as an overlapping grid.
 }
 \examples{
-TBD
+# TBD
 }

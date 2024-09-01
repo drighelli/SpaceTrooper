@@ -17,3 +17,6 @@ an sf object
 \description{
 .setActiveGeometry
 }
+\examples{
+#TBD
+}
