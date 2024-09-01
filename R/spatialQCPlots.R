@@ -26,7 +26,7 @@ plotCellsFovs <- function(spe, sample_id=unique(spe$sample_id),
     stopifnot("fov" %in% names(colData(spe)))
     # fov_positions <- data.table::fread(fovpos_file, header = T)
     # fov_positions <- fov_positions[fov_positions$fov%in%unique(metadata$fov),]
-    if( !is.null(sample_id) ) spe <- spe[,spe$sample_id]
+    # if( !is.null(sample_id) ) spe <- spe[,spe$sample_id]
     ggp <- ggplot() +
         geom_point(data=as.data.frame(spatialCoords(spe)),
                 mapping=aes_string(

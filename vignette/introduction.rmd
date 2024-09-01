@@ -91,7 +91,7 @@ need to compute any missing metrics from it, so we can load them in a second
 moment.
 
 ```{r cosmx-analysis}
-
+library(SpaceTrooper)
 # Reload CosMx data with additional options: specify sample name and 
 # disable polygon loading
 cosmxFolder <- "~/Downloads/CosMx_data/DBKero/CosMx_Breast/CosMx_data_Case2/"
@@ -141,6 +141,9 @@ spe <- computeFilterFlags(spe)
 # Display the updated column data
 head(colData(spe))
 ```
+
+
+
 
 
 ```{r cosmx-analysis-outlier}

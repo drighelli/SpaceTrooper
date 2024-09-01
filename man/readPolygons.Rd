@@ -16,11 +16,51 @@ readPolygons(
 )
 }
 \arguments{
-\item{verbose}{}
+\item{polygonsFile}{A character string specifying the path to the polygon
+file.}
+
+\item{type}{A character string specifying the file type. Supported types are
+`"csv"`, `"parquet"`, and `"h5"`. Default is `"csv"`.}
+
+\item{x}{A character vector specifying the column names for the x-coordinates
+in the polygon data. Default is `c("x_global_px", "vertex_x")`.}
+
+\item{y}{A character vector specifying the column names for the y-coordinates
+in the polygon data. Default is `c("y_global_px", "vertex_y")`.}
+
+\item{xloc}{A character string specifying the column name for the local
+x-coordinates. Default is `"x_local_px"`.}
+
+\item{yloc}{A character string specifying the column name for the local
+y-coordinates. Default is `"y_local_px"`.}
+
+\item{keepMultiPol}{A logical value indicating whether to keep multipolygons
+during validation. Default is `TRUE`.}
+
+\item{verbose}{A logical value indicating whether to print additional
+information during processing. Default is `FALSE`.}
 }
 \value{
-an sf object with the loaded and validated polygons
+An `sf` object with the loaded and validated polygons.
 }
 \description{
-readPolygons
+Read and Validate Polygons from a File
+
+This function reads polygon data from a specified file, validates the polygons,
+and returns them as an `sf` object. It supports multiple file formats and can
+handle both global and local coordinates.
+}
+\details{
+The function reads polygon data from the specified file and formats.
+It validates the polygons and handles both global and local coordinates if
+provided. If the file type is `"h5"`, the function currently does not handle
+the data, as this part of the code is not implemented.
+}
+\examples{
+# Reading polygon data from a CSV file:
+# polygons <- readPolygons("~/Downloads/CosMx_data/polygons.csv")
+
+# Reading polygon data from a Parquet file with verbose output:
+# polygons <- readPolygons("~/Downloads/CosMx_data/polygons.parquet",
+#                         type = "parquet", verbose = TRUE)
 }
