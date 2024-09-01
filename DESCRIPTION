@@ -4,16 +4,16 @@ Title: SpaceTrooper performs Quality Control analysis of Image-Based spatial dat
 Version: 0.1.0
 Authors@R:
     c(person(given="Dario", family="Righelli", email="dario.righelli@gmail.com",
-      role=c("aut", "cre")),
-      person(given="Benedetta", family="Banzi", role="aut"),
-      person(given="Oriana", family="Romano", role="aut"),
-      person(given="Mattia", family="Forcato", role="aut"),
-      person(given="Davide", family="Risso", role="aut"),
-      person(given="Silvio", family="Bicciato", role="aut"))
+        role=c("aut", "cre")),
+        person(given="Benedetta", family="Banzi", role="aut"),
+          person(given="Oriana", family="Romano", role="aut"),
+          person(given="Mattia", family="Forcato", role="aut"),
+          person(given="Silvio", family="Bicciato", role="aut"),
+          person(given="Davide", family="Risso", role="aut"))
 Maintainer: Dario Righelli <dario.righelli@gmail.com>
 Description: SpaceTrooper performs Quality Control analysis of Image-Based 
-spatial data, providing exploration plots, QC metrics computation,
-outlier detection.
+    spatial data, providing exploration plots, QC metrics computation,
+    outlier detection.
 License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true

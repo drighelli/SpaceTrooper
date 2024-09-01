@@ -1,6 +1,0 @@
-notes on seurat readnanostring:
-- is there a specific motivation to remove AATK transcript from the dataset?
--- row 118 of the function removes the first column of the tx matrix before transposing it
-- function automatically removes all columns with colSums!=0
--- row 126 of the function
-
