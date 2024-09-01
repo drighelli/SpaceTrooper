@@ -1,0 +1,823 @@
+---
+title: "08_20_cosmx_dbkero_human_bc_plots_for_workshop_Dario"
+author: "Benedetta Banzi"
+date: "2024-08-20"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: hide
+---
+
+<STYLE TYPE="text/css">
+<!--
+  td{
+    font-family: Arial; 
+    font-size: 10 pt;
+    padding:0px;
+    cellpadding="0";
+    cellspacing="0"
+  }
+  th {
+    font-family: Arial; 
+    font-size: 10 pt;
+    height: 20px;
+    font-weight: bold;
+    text-align: "center";
+    background-color: #ccccff;
+    padding-left: 15px;
+    padding-right: 15px;
+  }
+  table { 
+    border-spacing: 4px;
+    border-collapse: collapse;
+  }
+--->
+</STYLE>
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Library import
+
+```{r}
+library(SpatialExperiment)
+library(data.table)
+library(scater) # it imports scuttle
+library(cowplot)
+library(ggplot2)
+theme_set(theme_bw())
+library(matrixStats)
+library(dplyr)
+library(tidyr)
+library(tibble)
+library(arrow)
+library(scales)
+library(sf)
+library(tmap)
+library(knitr)
+library(grid)
+library(ggpointdensity)
+library(ggpubr)
+library(spdep)
+library(ggExtra)
+library(terra)
+library(DT)
+library(e1071)
+library(robustbase)
+library(InSituType)
+library(UpSetR)
+library(sfheaders)
+```
+
+```{r}
+spe <- readRDS("/data01/Shared/Benedetta/spatial_transcriptomics/CosMx/Datasets/CosMx_Breast_DBKERO/no_removal_of_outliers/no_removal_spe.rds")
+sample_name <- "CosMx_DBKero_BC"
+
+celltype_palette <- c(
+"0_counts" ="black",
+"APC TAMs" = "royalblue1",
+"M2 TAMs" =	"blue",
+"cDCs" =	"dodgerblue4",
+"mDCs" =	"deepskyblue",
+"Low-quality TAMs" =	"cyan",
+"Mast cells" =	"lightblue1",
+"CTLs" =	"darkseagreen1",
+"NK cells" = "darkolivegreen1",
+"Tregs" =	"limegreen",
+"Mural cells" =	"goldenrod4",
+"Myoepithelial cells" =	"goldenrod1",
+"Blood ECs" =	"lightgoldenrod1",
+"CAFs" =	"lightgoldenrod4",
+"MG Luminal cells" =	"darkorange",
+"Plasma cells" =	"deeppink1",
+"Mix BC cells TAMs" = "purple",
+"ER+HER2+BC cells" =	"orangered1",
+"Cycling ER+HER2+BC cells" =	"red4",
+"Basal-like BC cells" = "darkorange3"
+)
+
+spe$polygons$control_sum <- spe$control_sum
+spe$polygons$ctrl_total_ratio <- spe$ctrl_total_ratio
+spe$polygons$Area_um <- spe$Area_um
+spe$polygons$log2AspectRatio <- spe$log2AspectRatio
+spe$polygons$Mean.DAPI <- spe$Mean.DAPI
+spe$target_area_ratio <- spe$target_sum/spe$Area_um
+spe$polygons$target_area_ratio<- spe$target_area_ratio
+```
+
+# Global sample map
+
+To view the spatial organization of both the sample as it is and FOVs
+
+```{r, out.width="600%", out.height="150%"}
+metadata <- data.frame(colData(spe))
+
+# image theme
+global_map_theme <- function(back.color="black",back.border=NA,title.col="white") {
+  theme(aspect.ratio = 1,
+        panel.border = element_blank(),
+        legend.key = element_blank(),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.ticks = element_blank(),
+        axis.text.y = element_blank(),
+        axis.text.x = element_blank(),
+        panel.grid = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.background = element_rect(fill = "transparent",colour = NA),
+        plot.title = element_text(color = title.col,hjust = 0.5,face = "bold"),
+        plot.background = element_rect(fill = "transparent",colour = back.border))
+}
+
+ggplot() + 
+  geom_point(data = metadata, mapping = aes(x = CenterX_global_px, y = CenterY_global_px), colour = "darkmagenta", fill="darkmagenta", size = 0.05, alpha = 0.2) +
+  annotate("rect", xmin = metadata(spe)$fov_positions$x_global_px, 
+           xmax = metadata(spe)$fov_positions$x_global_px + metadata(spe)$fov_dim["xdim"], 
+           ymin = metadata(spe)$fov_positions$y_global_px, 
+           ymax = metadata(spe)$fov_positions$y_global_px + metadata(spe)$fov_dim["ydim"],
+           alpha = .2, color = "black",linewidth = 0.2) +
+  geom_text(aes(x = metadata(spe)$fov_positions$x_global_px+metadata(spe)$fov_dim["xdim"]/2,
+                y = metadata(spe)$fov_positions$y_global_px+metadata(spe)$fov_dim["ydim"]/2,
+                label = metadata(spe)$fov_positions$fov), color="black") +
+  ggtitle(sample_name) + 
+  global_map_theme(back.color = "white", back.border = "white", title.col = "black")
+```
+
+# Global polygon map
+
+```{r, out.width="600%", out.height="900%"}
+tm_shape(spe$polygons) +
+  tm_borders(lwd = 0.1, col = "grey50") +
+  tm_layout(legend.outside = TRUE,
+            main.title.position = c("center", "top"),
+            main.title = sample_name,
+            main.title.size = 0.5,
+            inner.margins = c(0, 0, 0, 0),
+            outer.margins = c(0, 0, 0, 0))
+```
+
+# Global feature maps
+
+To spot areas with anomalous feature values and spatial patterns on a global scale
+
+```{r, out.width="150%", out.height="150%"}
+plotColData(spe, "CenterY_global_um", "CenterX_global_um", colour_by = "total", point_size = 0.1) + ggtitle("Total counts per cell") + theme(aspect.ratio = 1)
+```
+
+```{r, out.width="150%", out.height="150%"}
+plotColData(spe, "CenterY_global_um", "CenterX_global_um", colour_by = "detected", point_size = 0.1) + ggtitle("Detected features per cell") + theme(aspect.ratio = 1)
+```
+
+```{r, out.width="150%", out.height="150%"}
+plotColData(spe, "CenterY_global_um", "CenterX_global_um", colour_by = "Area_um", point_size = 0.1) + ggtitle("Area in μm per cell") + theme(aspect.ratio = 1)
+```
+
+```{r, out.width="150%", out.height="150%"}
+plotColData(spe, "CenterY_global_um", "CenterX_global_um", colour_by = "log2AspectRatio", point_size = 0.1) + ggtitle("Logged width/height ratio per cell") + theme(aspect.ratio = 1)
+```
+
+```{r, out.width="150%", out.height="150%"}
+plotColData(spe, "CenterY_global_um", "CenterX_global_um", order_by = "control_sum", colour_by = "control_sum", point_size = 0.1) +
+  scale_color_gradient(low = "white", high = "red", name = "control_sum") + ggtitle("Negative control probe counts per cell") +
+  theme(aspect.ratio = 1,
+        panel.background = element_rect(fill = "black",color = NA),
+        plot.background = element_rect(fill = "black",color = NA),
+        axis.title.x = element_text(color = "white"),
+        axis.title.y = element_text(color = "white"),
+        axis.ticks = element_line(color = "white"),
+        axis.text.y = element_text(color = "white"),
+        axis.text.x = element_text(color = "white"),
+        axis.line = element_line(color = "white"),
+        legend.title = element_text(color = "white"),
+        legend.text = element_text(color = "white"),
+        plot.title = element_text(color = "white"))
+```
+
+```{r, out.width="150%", out.height="150%"}
+plotColData(spe, "CenterY_global_um", "CenterX_global_um", colour_by = "ctrl_total_ratio", point_size = 0.1) + ggtitle("Control counts/total counts ratio per cell") + theme(aspect.ratio = 1)
+```
+
+# Feature histograms 
+
+To check feature distribution before highlighting where extreme values are located in the global sample map
+
+```{r}
+variables <- c("total", "detected", "Area_um", "log2AspectRatio", "ctrl_total_ratio", "control_sum", "Mean.DAPI")
+for (var in 1:length(variables)){
+  n <- grep(paste0("^", variables[var], "$"), colnames(spe@colData))
+  histo_var <- names(colData(spe))[n]
+  p <- ggplot(data = data.frame(colData(spe))) +
+    geom_histogram(aes(x = .data[[histo_var]]), fill = "#69b3a2") +
+    ggtitle(paste0(histo_var))
+  print(p)
+}  
+```
+
+# First flagging: total counts, control probe on total counts ratio, cell area and mean DAPI signal
+
+```{r, out.width="150%", out.height="150%"}
+tm_shape(spe$polygons) + 
+  tm_fill(col = "flagged_0total") +
+  tm_layout(legend.outside = TRUE,
+            main.title.position = c("center", "top"),
+            main.title = paste0("Cells having 0 total counts", "\nFlagged cells = ",
+                                table(colData(spe)$flagged_0total)["TRUE"], " out of ", dim(spe)[2], ", ",
+                                round(table(colData(spe)$flagged_0total)["TRUE"]/dim(spe)[2]*100, 2), "% of total cells"),
+            main.title.fontface = 2,
+            main.title.size = 1, 
+            inner.margins = c(0, 0, 0, 0),
+            outer.margins = c(0, 0, 0, 0))
+```
+
+```{r, out.width="150%", out.height="150%"}
+tm_shape(spe$polygons) + 
+  tm_fill(col= "outlier_ctrl_tot") +
+  tm_layout(legend.outside = TRUE,
+            main.title.position = c("center", "top"),
+            main.title = paste0("Outlier cells for control / total counts ratio > 0.1, \nflagged cells = ",
+                                table(colData(spe)$outlier_ctrl_tot)["TRUE"], " out of ", dim(spe)[2], ", ",
+                                round(table(colData(spe)$outlier_ctrl_tot)["TRUE"]/dim(spe)[2]*100, 2), "% of total cells"),
+            main.title.fontface = 2,
+            main.title.size = 1, 
+            inner.margins = c(0, 0, 0, 0),
+            outer.margins = c(0, 0, 0, 0))
+
+```
+
+```{r, out.width="150%", out.height="150%"}
+out <- adjbox(spe$Area_um, plot = FALSE)
+metadata(spe)$area_fence <- out$fence
+
+tm_shape(spe$polygons) + 
+  tm_fill(col= "umarea_outlier") +
+  tm_layout(legend.outside = TRUE,
+            main.title.position = c("center", "top"),
+            main.title = paste0("Outlier cells for um area", 
+                                "\n fence = " , round(metadata(spe)$area_fence[1,1], 2), ", ", round(metadata(spe)$area_fence[2,1], 2),
+                                "\nFlagged cells = ",
+                                table(spe$polygons$umarea_outlier)["red"], " out of ", dim(spe)[2], ", ",
+                                round(table(spe$polygons$umarea_outlier)["red"]/dim(spe)[2]*100, 2), "% of total cells"),
+            main.title.fontface = 2,
+            main.title.size = 1, 
+            inner.margins = c(0, 0, 0, 0),
+            outer.margins = c(0, 0, 0, 0))
+```
+
+```{r, out.width="150%", out.height="150%"}
+out <- adjbox(spe$Mean.DAPI, plot = FALSE)
+metadata(spe)$dapi_fence <- out$fence
+
+tm_shape(spe$polygons) + 
+  tm_fill(col= "dapi_outlier") +
+  tm_layout(legend.outside = TRUE,
+            main.title.position = c("center", "top"),
+            main.title = paste0("Outlier cells for dapi", 
+                                "\n fence = " , round(metadata(spe)$dapi_fence[1,1], 2), ", ", round(metadata(spe)$dapi_fence[2,1], 2),
+                                "\nFlagged cells = ",
+                                table(spe$polygons$dapi_outlier)["red"], " out of ", dim(spe)[2], ", ",
+                                round(table(spe$polygons$dapi_outlier)["red"]/dim(spe)[2]*100, 2), "% of total cells"),
+            main.title.fontface = 2,
+            main.title.size = 1, 
+            inner.margins = c(0, 0, 0, 0),
+            outer.margins = c(0, 0, 0, 0))
+```
+
+```{r, out.width="150%", out.height="150%"}
+tm_shape(spe$polygons) + 
+  tm_fill(col= "fscore_outlier") +
+  tm_layout(legend.outside = TRUE,
+            main.title.position = c("center", "top"),
+            main.title = paste0("Outlier cells for flag score", 
+                                "\n threshold = " , 0.6,
+                                "\nFlagged cells = ",
+                                table(spe$polygons$fscore_outlier)["red"], " out of ", dim(spe)[2], ", ",
+                                round(table(spe$polygons$fscore_outlier)["red"]/dim(spe)[2]*100, 2), "% of total cells"),
+            main.title.fontface = 2,
+            main.title.size = 1, 
+            inner.margins = c(0, 0, 0, 0),
+            outer.margins = c(0, 0, 0, 0))
+```
+
+# Histograms with outlier fence vertical lines for cell area and mean DAPI
+
+```{r}
+df <- data.frame(colData(spe))
+colors <- c("Lower thr." = "purple4", "Upper thr." = "tomato")
+
+ggplot(data = df) +
+    geom_histogram(aes(x = Area_um), fill = "#81ccbb") +
+    geom_vline(aes(xintercept = round(metadata(spe)$area_fence, 2)[1], color = "Lower thr.")) +
+    geom_vline(aes(xintercept = round(metadata(spe)$area_fence, 2)[2], color = "Upper thr.")) +
+    geom_text(aes(x = round(metadata(spe)$area_fence, 2)[1], y = -2083, label = as.character(round(metadata(spe)$area_fence, 2)[1])), color = "purple4") +
+    geom_text(aes(x = round(metadata(spe)$area_fence, 2)[2], y = -2083, label = as.character(round(metadata(spe)$area_fence, 2)[2])), color = "tomato") +
+    ggtitle("Cell area distribution with lower and upper threshold for outliers") +
+    labs(color = "Legend") +
+    scale_color_manual(values = colors)
+```
+
+
+```{r}
+ggplot(data = df) +
+    geom_histogram(aes(x = Mean.DAPI), fill = "#81ccbb") +
+    geom_vline(aes(xintercept = round(metadata(spe)$dapi_fence, 2)[1], color = "Lower thr.")) +
+    geom_vline(aes(xintercept = round(metadata(spe)$dapi_fence, 2)[2], color = "Upper thr.")) +
+    geom_text(aes(x = round(metadata(spe)$dapi_fence, 2)[1], y = -2083, label = as.character(round(metadata(spe)$dapi_fence, 2)[1])), color = "purple4") +
+    geom_text(aes(x = round(metadata(spe)$dapi_fence, 2)[2], y = -2083, label = as.character(round(metadata(spe)$dapi_fence, 2)[2])), color = "tomato") +
+    ggtitle("Mean DAPI signal with lower and upper threshold for outliers") +
+    labs(color = "Legend") +
+    scale_color_manual(values = colors)
+```
+
+# Violin plot by cell type with outlier fence vertical lines for cell area and mean DAPI
+
+```{r}
+#df <- data.frame(colData(spe))
+ggplot(df, aes(x=InSituType_Refined, y = Area_um, fill = InSituType_Refined))+
+  geom_violin() +
+  scale_color_manual(values = colors)+
+  geom_hline(aes(yintercept = round(metadata(spe)$area_fence, 2)[1], color = "Lower thr.")) +
+    geom_hline(aes(yintercept = round(metadata(spe)$area_fence, 2)[2], color = "Upper thr.")) +
+    geom_text(aes(x = 1.5, y = round(metadata(spe)$area_fence, 2)[1] - 25,label = as.character(round(metadata(spe)$area_fence, 2)[1])), color = "purple4")+
+    geom_text(aes(x = 1.5, y = round(metadata(spe)$area_fence, 2)[2] + 25,label = as.character(round(metadata(spe)$area_fence, 2)[2])), color = "tomato") +
+  #geom_jitter(shape=16, position=position_jitter(0.2), alpha = 0.02) + 
+  scale_fill_manual(values = celltype_palette)+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+    labs(title = "Distribution of area in um values by IST cell types")
+```
+
+```{r}
+#df <- data.frame(colData(spe))
+ggplot(df, aes(x=InSituType_Refined, y = Mean.DAPI, fill = InSituType_Refined))+
+  geom_violin() +
+  scale_color_manual(values = colors)+
+  geom_hline(aes(yintercept = round(metadata(spe)$dapi_fence, 2)[1], color = "Lower thr.")) +
+    geom_hline(aes(yintercept = round(metadata(spe)$dapi_fence, 2)[2], color = "Upper thr.")) +
+    geom_text(aes(x = 1.5, y = round(metadata(spe)$dapi_fence, 2)[1] - 250,label = as.character(round(metadata(spe)$dapi_fence, 2)[1])), color = "purple4")+
+    geom_text(aes(x = 2, y = round(metadata(spe)$dapi_fence, 2)[2] + 250,label = as.character(round(metadata(spe)$dapi_fence, 2)[2])), color = "tomato") +
+  #geom_jitter(shape=16, position=position_jitter(0.2), alpha = 0.02) + 
+  scale_fill_manual(values = celltype_palette)+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+    labs(title = "Distribution of DAPI signal values by IST cell types")
+```
+
+# Scatterplots for investigating relationship among possible variables  
+
+```{r, out.width="150%", out.height="150%"}
+cell_df <- data.frame(colData(spe))
+
+p1 <- ggplot(data = cell_df) +
+  geom_pointdensity(aes(x = log2AspectRatio, y = total)) +
+  scale_color_viridis_c() +
+  theme(legend.position = "none",
+        plot.margin = margin())
+
+p2 <- ggdensity(data = cell_df, x = "total", color = "#ccccff", 
+                fill = "#ccccff", alpha = 0.5) + theme_classic() + 
+  theme(legend.position = "none", axis.title.y = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    axis.line.y = element_blank(),
+    axis.line.x = element_blank(),
+    plot.margin = margin()) + coord_flip()
+
+p3 <- ggdensity(data = cell_df, x = "log2AspectRatio", color = "#ccccff", 
+                fill = "#ccccff", alpha = 0.5) + theme_classic() + 
+  theme(legend.position = "none", axis.title.x = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.line.x = element_blank(),
+    axis.line.y = element_blank(),
+    plot.margin = margin()) 
+
+plot_grid(p3, NULL, p1, p2, ncol = 2, align = "hv",
+          rel_widths = c(2, 1), rel_heights = c(1, 2))
+```
+
+Detected features ~ logged width/height ratio
+
+```{r, out.width="150%", out.height="150%"}
+p1 <- ggplot(data = cell_df) +
+  geom_pointdensity(aes(x = log2AspectRatio, y = detected)) +
+  scale_color_viridis_c() +
+  theme(legend.position = "none",
+        plot.margin = margin())
+
+p2 <- ggdensity(data = cell_df, x = "detected", color = "#ccccff", 
+                fill = "#ccccff", alpha = 0.5) + theme_classic() + 
+  theme(legend.position = "none", axis.title.y = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    axis.line.y = element_blank(),
+    axis.line.x = element_blank(),
+    plot.margin = margin()) + coord_flip()
+
+p3 <- ggdensity(data = cell_df, x = "log2AspectRatio", color = "#ccccff", 
+                fill = "#ccccff", alpha = 0.5) + theme_classic() + 
+  theme(legend.position = "none", axis.title.x = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.line.x = element_blank(),
+    axis.line.y = element_blank(),
+    plot.margin = margin()) 
+
+plot_grid(p3, NULL, p1, p2, ncol = 2, align = "hv",
+          rel_widths = c(2, 1), rel_heights = c(1, 2))
+```
+
+Total counts ~ area in um
+
+```{r, out.width="150%", out.height="150%"}
+p1 <- ggplot(data = cell_df) +
+  geom_pointdensity(aes(x = Area_um, y = total)) +
+  scale_color_viridis_c() +
+  theme(legend.position = "none",
+        plot.margin = margin())
+
+p2 <- ggdensity(data = cell_df, x = "total", color = "#ccccff", 
+                fill = "#ccccff", alpha = 0.5) + theme_classic() + 
+  theme(legend.position = "none", axis.title.y = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    axis.line.y = element_blank(),
+    axis.line.x = element_blank(),
+    plot.margin = margin()) + coord_flip()
+
+p3 <- ggdensity(data = cell_df, x = "Area_um", color = "#ccccff", 
+                fill = "#ccccff", alpha = 0.5) + theme_classic() + 
+  theme(legend.position = "none", axis.title.x = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.line.x = element_blank(),
+    axis.line.y = element_blank(),
+    plot.margin = margin()) 
+
+plot_grid(p3, NULL, p1, p2, ncol = 2, align = "hv",
+          rel_widths = c(2,1), rel_heights = c(1, 2))
+```
+
+Logged width/height ratio ~ negative control probe counts
+
+```{r, out.width="150%", out.height="150%"}
+p1 <- ggplot(data = cell_df) +
+  geom_pointdensity(aes(x = subsets_NegPrb_sum, y = log2AspectRatio)) +
+  scale_color_viridis_c() +
+  theme(legend.position = "none",
+        plot.margin = margin())
+
+p2 <- ggdensity(data = cell_df, x = "log2AspectRatio", color = "#ccccff", 
+                fill = "#ccccff", alpha = 0.5) + theme_classic() + 
+  theme(legend.position = "none", axis.title.y = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    axis.line.y = element_blank(),
+    axis.line.x = element_blank(),
+    plot.margin = margin()) + coord_flip()
+
+p3 <- ggdensity(data = cell_df, x = "subsets_NegPrb_sum", color = "#ccccff", 
+                fill = "#ccccff", alpha = 0.5) + theme_classic() + 
+  theme(legend.position = "none", axis.title.x = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.line.x = element_blank(),
+    axis.line.y = element_blank(),
+    plot.margin = margin()) 
+
+plot_grid(p3, NULL, p1, p2, ncol = 2, align = "hv",
+          rel_widths = c(2,1), rel_heights = c(1, 2))
+```
+
+Logged width/height ratio ~ local coordinates on X axis in px
+
+```{r, out.width="150%", out.height="150%"}
+p1 <- ggplot(data = cell_df) +
+  geom_pointdensity(aes(x = CenterX_local_px, y = log2AspectRatio)) +
+  scale_color_viridis_c() +
+  theme(legend.position = "none",
+        plot.margin = margin())
+
+p2 <- ggdensity(data = cell_df, x = "log2AspectRatio", color = "#ccccff", 
+                fill = "#ccccff", alpha = 0.5) + theme_classic() + 
+  theme(legend.position = "none", axis.title.y = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    axis.line.y = element_blank(),
+    axis.line.x = element_blank(),
+    plot.margin = margin()) + coord_flip()
+
+p3 <- ggdensity(data = cell_df, x = "CenterX_local_px", color = "#ccccff", 
+                fill = "#ccccff", alpha = 0.5) + theme_classic() + 
+  theme(legend.position = "none", axis.title.x = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.line.x = element_blank(),
+    axis.line.y = element_blank(),
+    plot.margin = margin()) 
+
+plot_grid(p3, NULL, p1, p2, ncol = 2, align = "hv",
+          rel_widths = c(2,1), rel_heights = c(1, 2))
+```
+
+Logged width/height ratio ~ local coordinates on X axis in px
+
+```{r, out.width="150%", out.height="150%"}
+p1 <- ggplot(data = cell_df) +
+  geom_pointdensity(aes(x = CenterY_local_px, y = log2AspectRatio)) +
+  scale_color_viridis_c() +
+  theme(legend.position = "none",
+        plot.margin = margin())
+
+p2 <- ggdensity(data = cell_df, x = "log2AspectRatio", color = "#ccccff", 
+                fill = "#ccccff", alpha = 0.5) + theme_classic() + 
+  theme(legend.position = "none", axis.title.y = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    axis.line.y = element_blank(),
+    axis.line.x = element_blank(),
+    plot.margin = margin()) + coord_flip()
+
+p3 <- ggdensity(data = cell_df, x = "CenterY_local_px", color = "#ccccff", 
+                fill = "#ccccff", alpha = 0.5) + theme_classic() + 
+  theme(legend.position = "none", axis.title.x = element_blank(),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.line.x = element_blank(),
+    axis.line.y = element_blank(),
+    plot.margin = margin()) 
+
+plot_grid(p3, NULL, p1, p2, ncol = 2, align = "hv",
+          rel_widths = c(2,1), rel_heights = c(1, 2))
+```
+
+# FOV plots 
+
+```{r}
+spe$polygons$fov_id <- paste(spe$polygons$fov, spe$polygons$cellID, sep = "_")
+spe$polygons$outlier_fence_color <- case_when(spe$flagged_0total == TRUE ~ "darkturquoise",
+                                              spe$outlier_ctrl_tot == TRUE ~ "magenta",
+                                           spe$Mean.DAPI > round(metadata(spe)$dapi_fence[2,1], 2) ~ "greenyellow",
+                                           spe$Mean.DAPI < round(metadata(spe)$dapi_fence[1,1], 2) ~ "purple",
+                                           spe$Area_um > round(metadata(spe)$area_fence[2,1], 2) ~ "red",
+                                           spe$Area_um < round(metadata(spe)$area_fence[1,1], 2) ~ "white",
+                                           TRUE ~ "black")
+```
+
+
+```{r}
+polygons_sub <- spe$polygons[spe$polygons$fov%in%1:8,]
+tm_shape(polygons_sub) + 
+tm_fill(col= "outlier_fence_color") +
+tm_borders(lwd = 0.2, col = "cyan") +
+tm_layout(legend.outside = TRUE,
+          main.title.position = c("center", "top"),
+          main.title = "",
+          main.title.fontface = 2,
+          main.title.size = 1, 
+          inner.margins = c(0, 0, 0, 0),
+          outer.margins = c(0, 0, 0, 0),
+          bg.color = "black") +
+tm_add_legend(col = c("black", "darkturquoise", "magenta", "purple", "greenyellow","white", "red"),
+              labels = c("unflagged cells", "cells with 0 total counts", "cells with ctrl/total ratio > 0.1", "outlier for DAPI lower thr.", "outlier for DAPI higher thr.", "outlier for um area lower thr.","outlier for um area higher thr."))
+```
+
+```{r}
+tm_shape(polygons_sub) + 
+tm_fill(col= "IST_Refined_color") +
+tm_layout(legend.outside = TRUE,
+          main.title.position = c("center", "top"),
+          main.title = "",
+          main.title.fontface = 2,
+          main.title.size = 1, 
+          inner.margins = c(0, 0, 0, 0),
+          outer.margins = c(0, 0, 0, 0),
+          bg.color = "black") +
+  tm_add_legend(labels = names(celltype_palette),
+                col = celltype_palette)
+```
+
+
+```{r}
+polygons1 <- subset(polygons_sub, subset = fov == 1)
+tm_shape(polygons1) + 
+tm_fill(col= "outlier_fence_color") +
+tm_borders(lwd = 0.2, col = "cyan") +
+tm_layout(legend.outside = TRUE,
+          main.title.position = c("center", "top"),
+          main.title = "",
+          main.title.fontface = 2,
+          main.title.size = 1, 
+          inner.margins = c(0, 0, 0, 0),
+          outer.margins = c(0, 0, 0, 0),
+          bg.color = "black")+
+tm_add_legend(col = c("black", "darkturquoise", "magenta", "purple", "greenyellow","white", "red"),
+              labels = c("unflagged cells", "cells with 0 total counts", "cells with ctrl/total ratio > 0.1", "outlier for DAPI lower thr.", "outlier for DAPI higher thr.", "outlier for um area lower thr.","outlier for um area higher thr."))
+```
+
+
+```{r}
+polygons2 <- subset(polygons_sub, subset = fov == 2)
+tm_shape(polygons2) + 
+tm_fill(col= "outlier_fence_color") +
+tm_borders(lwd = 0.2, col = "cyan") +
+tm_layout(legend.outside = TRUE,
+          main.title.position = c("center", "top"),
+          main.title = "",
+          main.title.fontface = 2,
+          main.title.size = 1, 
+          inner.margins = c(0, 0, 0, 0),
+          outer.margins = c(0, 0, 0, 0),
+          bg.color = "black")+
+tm_add_legend(col = c("black", "darkturquoise", "magenta", "purple", "greenyellow","white", "red"),
+              labels = c("unflagged cells", "cells with 0 total counts", "cells with ctrl/total ratio > 0.1", "outlier for DAPI lower thr.", "outlier for DAPI higher thr.", "outlier for um area lower thr.","outlier for um area higher thr."))
+```
+
+```{r}
+polygons3 <- subset(polygons_sub, subset = fov == 3)
+tm_shape(polygons3) + 
+tm_fill(col= "outlier_fence_color") +
+tm_borders(lwd = 0.2, col = "cyan") +
+tm_layout(legend.outside = TRUE,
+          main.title.position = c("center", "top"),
+          main.title = "",
+          main.title.fontface = 2,
+          main.title.size = 1, 
+          inner.margins = c(0, 0, 0, 0),
+          outer.margins = c(0, 0, 0, 0),
+          bg.color = "black")+
+tm_add_legend(col = c("black", "darkturquoise", "magenta", "purple", "greenyellow","white", "red"),
+              labels = c("unflagged cells", "cells with 0 total counts", "cells with ctrl/total ratio > 0.1", "outlier for DAPI lower thr.", "outlier for DAPI higher thr.", "outlier for um area lower thr.","outlier for um area higher thr."))
+```
+
+```{r}
+polygons3 <- subset(polygons_sub, subset = fov == 3)
+tm_shape(polygons3) + 
+tm_fill(col= "outlier_fence_color") +
+tm_borders(lwd = 0.2, col = "cyan") +
+tm_layout(legend.outside = TRUE,
+          main.title.position = c("center", "top"),
+          main.title = "",
+          main.title.fontface = 2,
+          main.title.size = 1, 
+          inner.margins = c(0, 0, 0, 0),
+          outer.margins = c(0, 0, 0, 0),
+          bg.color = "black")+
+tm_add_legend(col = c("black", "darkturquoise", "magenta", "purple", "greenyellow","white", "red"),
+              labels = c("unflagged cells", "cells with 0 total counts", "cells with ctrl/total ratio > 0.1", "outlier for DAPI lower thr.", "outlier for DAPI higher thr.", "outlier for um area lower thr.","outlier for um area higher thr."))
+```
+
+```{r}
+polygons4 <- subset(polygons_sub, subset = fov == 4)
+tm_shape(polygons4) + 
+tm_fill(col= "outlier_fence_color") +
+tm_borders(lwd = 0.2, col = "cyan") +
+tm_layout(legend.outside = TRUE,
+          main.title.position = c("center", "top"),
+          main.title = "",
+          main.title.fontface = 2,
+          main.title.size = 1, 
+          inner.margins = c(0, 0, 0, 0),
+          outer.margins = c(0, 0, 0, 0),
+          bg.color = "black")+
+tm_add_legend(col = c("black", "darkturquoise", "magenta", "purple", "greenyellow","white", "red"),
+              labels = c("unflagged cells", "cells with 0 total counts", "cells with ctrl/total ratio > 0.1", "outlier for DAPI lower thr.", "outlier for DAPI higher thr.", "outlier for um area lower thr.","outlier for um area higher thr."))
+```
+
+```{r}
+polygons5 <- subset(polygons_sub, subset = fov == 5)
+tm_shape(polygons5) + 
+tm_fill(col= "outlier_fence_color") +
+tm_borders(lwd = 0.2, col = "cyan") +
+tm_layout(legend.outside = TRUE,
+          main.title.position = c("center", "top"),
+          main.title = "",
+          main.title.fontface = 2,
+          main.title.size = 1, 
+          inner.margins = c(0, 0, 0, 0),
+          outer.margins = c(0, 0, 0, 0),
+          bg.color = "black")+
+tm_add_legend(col = c("black", "darkturquoise", "magenta", "purple", "greenyellow","white", "red"),
+              labels = c("unflagged cells", "cells with 0 total counts", "cells with ctrl/total ratio > 0.1", "outlier for DAPI lower thr.", "outlier for DAPI higher thr.", "outlier for um area lower thr.","outlier for um area higher thr."))
+```
+
+```{r}
+polygons6 <- subset(polygons_sub, subset = fov == 6)
+tm_shape(polygons6) + 
+tm_fill(col= "outlier_fence_color") +
+tm_borders(lwd = 0.2, col = "cyan") +
+tm_layout(legend.outside = TRUE,
+          main.title.position = c("center", "top"),
+          main.title = "",
+          main.title.fontface = 2,
+          main.title.size = 1, 
+          inner.margins = c(0, 0, 0, 0),
+          outer.margins = c(0, 0, 0, 0),
+          bg.color = "black")+
+tm_add_legend(col = c("black", "darkturquoise", "magenta", "purple", "greenyellow","white", "red"),
+              labels = c("unflagged cells", "cells with 0 total counts", "cells with ctrl/total ratio > 0.1", "outlier for DAPI lower thr.", "outlier for DAPI higher thr.", "outlier for um area lower thr.","outlier for um area higher thr."))
+```
+
+```{r}
+polygons7 <- subset(polygons_sub, subset = fov == 7)
+tm_shape(polygons7) + 
+tm_fill(col= "outlier_fence_color") +
+tm_borders(lwd = 0.2, col = "cyan") +
+tm_layout(legend.outside = TRUE,
+          main.title.position = c("center", "top"),
+          main.title = "",
+          main.title.fontface = 2,
+          main.title.size = 1, 
+          inner.margins = c(0, 0, 0, 0),
+          outer.margins = c(0, 0, 0, 0),
+          bg.color = "black")+
+tm_add_legend(col = c("black", "darkturquoise", "magenta", "purple", "greenyellow","white", "red"),
+              labels = c("unflagged cells", "cells with 0 total counts", "cells with ctrl/total ratio > 0.1", "outlier for DAPI lower thr.", "outlier for DAPI higher thr.", "outlier for um area lower thr.","outlier for um area higher thr."))
+```
+
+```{r}
+polygons8 <- subset(polygons_sub, subset = fov == 8)
+tm_shape(polygons8) + 
+tm_fill(col= "outlier_fence_color") +
+tm_borders(lwd = 0.2, col = "cyan") +
+tm_layout(legend.outside = TRUE,
+          main.title.position = c("center", "top"),
+          main.title = "",
+          main.title.fontface = 2,
+          main.title.size = 1, 
+          inner.margins = c(0, 0, 0, 0),
+          outer.margins = c(0, 0, 0, 0),
+          bg.color = "black")+
+tm_add_legend(col = c("black", "darkturquoise", "magenta", "purple", "greenyellow","white", "red"),
+              labels = c("unflagged cells", "cells with 0 total counts", "cells with ctrl/total ratio > 0.1", "outlier for DAPI lower thr.", "outlier for DAPI higher thr.", "outlier for um area lower thr.","outlier for um area higher thr."))
+```
+
+# FOV 21 for flag score focus
+
+```{r}
+spe$polygons$fscore_outlier <- ifelse(spe$polygons$fscore_outlier == "red", "red", "black")
+polygons21 <- subset(spe$polygons, subset = fov == 21)
+tm_shape(polygons21) + 
+tm_fill(col= "fscore_outlier") +
+tm_borders(lwd = 0.2, col = "cyan") +
+tm_layout(legend.outside = TRUE,
+          main.title.position = c("center", "top"),
+          main.title = "",
+          main.title.fontface = 2,
+          main.title.size = 1, 
+          inner.margins = c(0, 0, 0, 0),
+          outer.margins = c(0, 0, 0, 0),
+          bg.color = "black")
+```
+
+# Flag score with differential colors on fov 21
+
+```{r}
+polygons21$cell_color <- case_when(polygons21$fov_id == "21_704" ~ "darkturquoise",
+                        polygons21$fov_id == "21_2026" ~ "greenyellow",
+                        polygons21$fov_id == "21_453" ~ "magenta",
+                        polygons21$fscore_outlier == "red" ~ "red",
+                        polygons21$fov_id == "21_158" ~ "white",
+                        TRUE ~ "black") 
+tm_shape(polygons21) + 
+  tm_fill(col= "cell_color") +
+  tm_borders(lwd = 0.2, col = "cyan") +
+  tm_layout(legend.outside = TRUE,
+            main.title.position = c("center", "top"),
+            main.title = "Flagged cells",
+            main.title.size = 0.5, 
+            inner.margins = c(0, 0, 0, 0),
+            outer.margins = c(0, 0, 0, 0),
+            bg.color = "black")
+```
+
+# Flag score with differential colors on fov 21, selected cells for fov 21
+
+```{r}
+# cell flagged only for target counts on area and flag score: 21_704, darkturquoise
+
+polygons21[polygons21$fov_id == "21_704",]$flag_score # 0.57
+polygons21[polygons21$fov_id == "21_704",]$target_area_ratio # 1.07
+abs(polygons21[polygons21$fov_id == "21_704",]$log2AspectRatio) # 0.02
+
+# cell flagged only for aspect ratio and flag score: 21_2026, greenyellow
+
+polygons21[polygons21$fov_id == "21_2026",]$flag_score # 0.57
+polygons21[polygons21$fov_id == "21_2026",]$target_area_ratio # 4
+abs(polygons21[polygons21$fov_id == "21_2026",]$log2AspectRatio) # 0.91
+
+# cell flagged for both target counts/area, aspect ratio high and flag score: 21_453, magenta
+
+polygons21[polygons21$fov_id == "21_453",]$flag_score # 0.46
+polygons21[polygons21$fov_id == "21_453",]$target_area_ratio # 2.35
+abs(polygons21[polygons21$fov_id == "21_453",]$log2AspectRatio) # 0.83
+
+# unflagged cell, 21_158, white
+polygons21[polygons21$fov_id == "21_158",]$flag_score # 0.96
+polygons21[polygons21$fov_id == "21_158",]$target_area_ratio # 11.6
+abs(polygons21[polygons21$fov_id == "21_158",]$log2AspectRatio) # 0.04
+```
+
+
+
