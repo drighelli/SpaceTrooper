@@ -12,7 +12,8 @@ plotZoomFovsMap(
   map_numbers_col = "black",
   map_alpha_numbers = 0.8,
   title = NULL,
-  ...
+  ...,
+  useggplot = TRUE
 )
 }
 \arguments{
