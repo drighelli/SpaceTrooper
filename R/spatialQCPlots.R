@@ -256,7 +256,7 @@ plotMetricHist <- function(spe, metric, fill_color="#69b3a2",
 #' # plotPolygonsSPE(spe, colour_by="gene_expression")
 plotPolygonsSPE <- function(spe, colour_by=NULL,sample_id=unique(spe$sample_id),
                     fill_alpha=NA, palette=NULL, border_col=NA, border_alpha=NA,
-                    border_line_width=0.1)
+                    border_line_width=0.1, bg_color="black")
 {
     stopifnot(is(spe, "SpatialExperiment"))
     stopifnot("polygons" %in% names(colData(spe)))
@@ -298,7 +298,8 @@ plotPolygonsSPE <- function(spe, colour_by=NULL,sample_id=unique(spe$sample_id),
                             main.title.fontface = 2,
                             main.title.size = 1,
                             inner.margins = c(0, 0, 0, 0),
-                            outer.margins = c(0, 0, 0, 0))
+                            outer.margins = c(0, 0, 0, 0),
+                            bg.color=bg_color)
     return(tmm)
 }
 
