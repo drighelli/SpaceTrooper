@@ -118,16 +118,16 @@ computeBorderDistanceCosMx <- function(spe,
 {
     stopifnot(is(spe, "SpatialExperiment"))
 
-        cd <- colData(spe)
+    cd <- colData(spe)
     cdf <- left_join(as.data.frame(cd), metadata(spe)$fov_positions, by="fov")
     spcn <- spatialCoordsNames(spe)
     fovpn <- colnames(metadata(spe)$fov_positions)[c(2:3)]
 
-    cd$dist_border_x <- pmin(cdf[,spcn[1]] - cdf[[fovpn[1]]],
-                            (cdf[[fovpn[1]]] + xwindim) - cdf[[spcn[1]]])
+    cd$dist_border_x <- pmin(cdf[,spcn[1]] - cdf[,fovpn[1]],
+                            (cdf[,fovpn[1]] + xwindim) - cdf[,spcn[1]])
 
-    cd$dist_border_y <- pmin(cdf[,spcn[2]] - cdf[[fovpn[2]]],
-                             (cdf[[fovpn[2]]] + ywindim) - cdf[[spcn[2]]])
+    cd$dist_border_y <- pmin(cdf[,spcn[2]] - cdf[,fovpn[2]],
+                             (cdf[,fovpn[2]] + ywindim) - cdf[,spcn[2]])
 
     cd$dist_border <- pmin(cd$dist_border_x, cd$dist_border_y)
     colData(spe) <- cd
@@ -167,7 +167,7 @@ computeQCScore <- function(spe, a=1, b=1)#0.3, b=0.8)
         }
         fs <- 1 / (1 + exp(-a * spe$log2CountArea +
                                            b * abs(spe$log2AspectRatio) *
-                                           as.numeric(spe$dist_border<50)))
+                                           as.numeric(spe$dist_border < 50)))
     } else {
         fs <- 1 / (1 + exp(-a * spe$log2CountArea +
                                            b * abs(spe$log2AspectRatio)))
@@ -322,7 +322,7 @@ computeFilterFlags <- function(spe, fs_threshold=0.5,
     #flagging cells with probe counts on total counts ratio > 0.1
     spe$is_ctrl_tot_outlier <- ifelse(spe$ctrl_total_ratio >
                                 ctrl_tot_ratio_threshold, TRUE, FALSE)
-    if(!use_fs_quantiles)
+    if(use_fs_quantiles)
     {
         spe$is_fscore_outlier <- ifelse(spe$flag_score <
                                 quantile(spe$flag_score, probs=fs_threshold),
