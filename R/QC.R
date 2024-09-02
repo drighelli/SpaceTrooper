@@ -62,8 +62,11 @@ spatialPerCellQC <- function(spe, micronConvFact=0.12,
     spe$target_sum <- spe$sum - npc
     spe$target_detected <- spe$detected - npd
 
-    #### CHANGE SPE constructor WITH COORDINATES IN COLDATA #########
-    colData(spe) <- cbind.DataFrame(colData(spe), spatialCoords(spe))
+    if(!all(spatialCoordsNames(spe) %in% names(colData(spe))))
+    {
+        #### CHANGE SPE constructor WITH COORDINATES IN COLDATA #########
+        colData(spe) <- cbind.DataFrame(colData(spe), spatialCoords(spe))
+    }
 
     if(metadata(spe)$technology == "Nanostring_CosMx")
     {

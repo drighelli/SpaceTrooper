@@ -122,6 +122,10 @@ readCosmxSPE <- function(dirname,
                         polygons=pol_file, technology="Nanostring_CosMx")
         ## keep atomx versioning in metadata, if possible
     )
+
+    #### CHANGE SPE constructor WITH COORDINATES IN COLDATA #########
+    colData(spe) <- cbind.DataFrame(colData(spe), spatialCoords(spe))
+
     # Polygons file has cellID instead of cell_ID and it distinguish better
     # when compared to our cell_id
     names(colData(spe))[names(colData(spe))=="cell_ID"] <- "cellID"
