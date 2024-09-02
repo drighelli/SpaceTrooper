@@ -77,6 +77,10 @@ plotCellsFovs <- function(spe, sample_id=unique(spe$sample_id),
 #' used as the plot title. (Default is the unique sample ID from `spe`)
 #' @param isNegativeProbe A logical value indicating whether to apply a custom
 #' color gradient for negative probe data. (Default is `FALSE`)
+#' @param palette A vector of colors to be used as a custom palette. For
+#' categorical data, this should be a vector of colors with the same length as
+#' the number of levels in `colour_by`. For continuous data, this should be a
+#' vector of colors used to create a gradient.
 #' @param point_col A character string specifying the color of the points when
 #' `colour_by` is `NULL`. (Default is `"darkmagenta"`)
 #' @param size A numeric value specifying the size of the points. (Default is
@@ -94,7 +98,7 @@ plotCellsFovs <- function(spe, sample_id=unique(spe$sample_id),
 #' polygon centroids.
 #'
 #' @importFrom ggplot2 geom_point aes_string theme_bw theme ggtitle guides
-#' guide_legend
+#' guide_legend scale_color_gradient scale_color_manual scale_color_gradientn
 #' @importFrom scater plotColData
 #' @importFrom SummarizedExperiment colData
 #' @export
@@ -103,7 +107,7 @@ plotCellsFovs <- function(spe, sample_id=unique(spe$sample_id),
 #' #TBD
 plotCentroidsSPE <- function(spe, colour_by=NULL, order_by=NULL,
                         sample_id=unique(spe$sample_id),
-                        isNegativeProbe=FALSE,
+                        isNegativeProbe=FALSE, palette=NULL,
                         point_col="darkmagenta", size=0.05, alpha=0.2,
                         aspect_ratio=1,
                         legend_point_size=2, legend_point_alpha=0.8)
@@ -127,10 +131,23 @@ plotCentroidsSPE <- function(spe, colour_by=NULL, order_by=NULL,
                     colour_by=colour_by, order_by=order_by,
                     point_size=size, point_alpha=alpha)
         if(isNegativeProbe)
+        {
             ggp <- ggp + scale_color_gradient(low="white", high="red",
                                               name=colour_by) +
                 .negative_image_theme()
+        } else if(all(!is.null(palette), (palette %in% names(colData(spe))))) {
+            palette <- createPaletteFromColData(spe, palette_names=colour_by,
+                                                    palette_colors=palette)
+            if(is.factor(colData(spe)[[colour_by]]))
+            {
+                ggp <- ggp + scale_color_manual(values=palette)
+            } else if(is.numeric(colData(spe)[[colour_by]])) {
+                ggp <- ggp + scale_color_gradientn(colors=palette)
+            }
+        }
     }
+
+
     ggp <- ggp + ggtitle(sample_id) +
         theme(aspect.ratio=aspect_ratio, plot.title=element_text(hjust=0.5))+
         guides(colour=guide_legend(override.aes=list(size=legend_point_size,
@@ -204,26 +221,39 @@ plotMetricHist <- function(spe, metric, fill_color="#69b3a2",
 
 
 #' plotPolygonsSPE
+#'
 #' @description
-#' Plot Polygons from a SpatialExperiment Object
+#' Plot Polygons from a SpatialExperiment Object.
 #' This function generates a plot of polygons stored in a `SpatialExperiment`
 #' object.
 #'
 #' @param spe A `SpatialExperiment` object containing spatial transcriptomics
-#' data, including polygon data as sf object.
+#' data, including polygon data as an `sf` object.
 #' @param colour_by An optional character string specifying the column in
-#' `colData(spe)` to use for coloring the points. If `NULL`, all points will be
-#' colored the same. (Defatult is `NULL`)
-#' @param title A character string specifying the title of the plot.
-#' (Default is the unique sample ID from `spe`)
+#' `colData(spe)` to use for coloring the polygons. If `NULL`, all polygons
+#' will be colored the same. Default is `NULL`.
+#' @param sample_id A character string specifying the title of the plot.
+#' Default is the unique sample ID from `spe`.
+#' @param fill_alpha A numeric value specifying the transparency level of the
+#' polygon fill. Default is `NA`.
+#' @param palette A character vector specifying the colors to use for filling
+#' the polygons when `colour_by` is a factor. Default is `NULL`.
+#' @param border_col A character string specifying the color of the polygon
+#' borders. Default is `NA`.
+#' @param border_alpha A numeric value specifying the transparency level of the
+#' polygon borders. Default is `NA`.
+#' @param border_line_width A numeric value specifying the width of the polygon
+#' borders. Default is `0.1`.
 #'
 #' @return A `tmap` plot object displaying the polygons.
 #'
 #' @importFrom tmap tm_shape tm_borders tm_layout tm_fill tm_polygons
 #' @importFrom SummarizedExperiment colData
 #' @export
+#'
 #' @examples
-#' #TBD
+#' # Assuming `spe` is a SpatialExperiment object with polygon data:
+#' # plotPolygonsSPE(spe, colour_by="gene_expression")
 plotPolygonsSPE <- function(spe, colour_by=NULL,sample_id=unique(spe$sample_id),
                     fill_alpha=NA, palette=NULL, border_col=NA, border_alpha=NA,
                     border_line_width=0.1)

@@ -5,5 +5,7 @@ addLabelsDBKero <- function(spe, filename)
     spe$labels_colors <- "black"
     spe$labels[match(labels$cell_id, spe$cell_id)] <- labels$InSituType_simple
     spe$labels_colors[match(labels$cell_id, spe$cell_id)] <- labels$IST_simple_colors
+    spe$labels <- as.factor(spe$labels)
+    spe$labels_colors <- as.factor(spe$labels_colors)
     spe
 }

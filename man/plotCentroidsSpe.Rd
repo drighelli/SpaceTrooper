@@ -10,6 +10,7 @@ plotCentroidsSPE(
   order_by = NULL,
   sample_id = unique(spe$sample_id),
   isNegativeProbe = FALSE,
+  palette = NULL,
   point_col = "darkmagenta",
   size = 0.05,
   alpha = 0.2,
@@ -34,6 +35,11 @@ used as the plot title. (Default is the unique sample ID from `spe`)}
 
 \item{isNegativeProbe}{A logical value indicating whether to apply a custom
 color gradient for negative probe data. (Default is `FALSE`)}
+
+\item{palette}{A vector of colors to be used as a custom palette. For
+categorical data, this should be a vector of colors with the same length as
+the number of levels in `colour_by`. For continuous data, this should be a
+vector of colors used to create a gradient.}
 
 \item{point_col}{A character string specifying the color of the points when
 `colour_by` is `NULL`. (Default is `"darkmagenta"`)}

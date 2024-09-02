@@ -17,23 +17,39 @@ plotPolygonsSPE(
 }
 \arguments{
 \item{spe}{A `SpatialExperiment` object containing spatial transcriptomics
-data, including polygon data as sf object.}
+data, including polygon data as an `sf` object.}
 
 \item{colour_by}{An optional character string specifying the column in
-`colData(spe)` to use for coloring the points. If `NULL`, all points will be
-colored the same. (Defatult is `NULL`)}
+`colData(spe)` to use for coloring the polygons. If `NULL`, all polygons
+will be colored the same. Default is `NULL`.}
 
-\item{title}{A character string specifying the title of the plot.
-(Default is the unique sample ID from `spe`)}
+\item{sample_id}{A character string specifying the title of the plot.
+Default is the unique sample ID from `spe`.}
+
+\item{fill_alpha}{A numeric value specifying the transparency level of the
+polygon fill. Default is `NA`.}
+
+\item{palette}{A character vector specifying the colors to use for filling
+the polygons when `colour_by` is a factor. Default is `NULL`.}
+
+\item{border_col}{A character string specifying the color of the polygon
+borders. Default is `NA`.}
+
+\item{border_alpha}{A numeric value specifying the transparency level of the
+polygon borders. Default is `NA`.}
+
+\item{border_line_width}{A numeric value specifying the width of the polygon
+borders. Default is `0.1`.}
 }
 \value{
 A `tmap` plot object displaying the polygons.
 }
 \description{
-Plot Polygons from a SpatialExperiment Object
+Plot Polygons from a SpatialExperiment Object.
 This function generates a plot of polygons stored in a `SpatialExperiment`
 object.
 }
 \examples{
-#TBD
+# Assuming `spe` is a SpatialExperiment object with polygon data:
+# plotPolygonsSPE(spe, colour_by="gene_expression")
 }
