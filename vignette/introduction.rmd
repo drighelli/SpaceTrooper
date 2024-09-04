@@ -125,8 +125,6 @@ plotCentroidsSPE(spe, colour_by="labels")
 plotCentroidsSPE(spe, colour_by="labels", palette="labels_colors")
 ```
 
-
-
 # Quality control 
 
 The `spatialPerCellQC` function, inspired by `scater::addPerCellQC`, computes
@@ -137,6 +135,7 @@ the detection of negative control probes, which is crucial for QC.
 # Perform per-cell quality control checks
 spe <- spatialPerCellQC(spe, negProbList=c("NegPrb", "Negative",
                                            "SystemControl"))
+names(colData(spe))
 ```
 
 
@@ -166,8 +165,7 @@ statistics on a specified metric (`compute_by` argument). It can also use
 `scuttle::isOutlier` for asymmetric distributions. The `method` argument
 supports "mc", "scuttle", or "both".
 
-This outlier detection approach can be used to decide if and which cells can 
-be discarded on a singular metric.
+This outlier detection approach can be used to decide if and which cells can be discarded on a singular metric.
 
 ```{r cosmx-analysis-outlier}
 # Identify spatial outliers based on cell area (Area_um)
@@ -175,6 +173,7 @@ spe <- computeSpatialOutlier(spe, compute_by="Area_um", method="both")
 
 # Identify spatial outliers based on mean DAPI intensity
 spe <- computeSpatialOutlier(spe, compute_by="Mean.DAPI", method="both")
+names(colData(spe))
 ```
 
 If we computed outliers with the computeSpatialOutlier function we can also 
@@ -206,6 +205,7 @@ otherwise).
 ```{r cosmx-analysis-score}
 # Calculate quality scores for each cell
 spe <- computeQCScore(spe)
+names(colData(spe))
 ```
 
 Logical filters can then be computed using `computeFilterFlags`, which requires
@@ -227,6 +227,7 @@ thresholds for various metrics. Currently, the function considers:
 ```{r cosmx-analysis-score2}
 # Compute flags to identify cells for filtering
 spe <- computeFilterFlags(spe, fs_threshold=0.7)
+names(colData(spe))
 ```
 
 # Polygon Addition and Visualization
