@@ -15,3 +15,6 @@ character with the name of the active geometry
 \description{
 .getActiveGeometryName
 }
+\examples{
+#TBD
+}

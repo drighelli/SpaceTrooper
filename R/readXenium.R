@@ -13,6 +13,8 @@
 #' @param coord_names
 #' @param boundaries_type
 #' @param compute_missing_metrics
+#' @param keep_polygons logical indicating if to save the optionally loaded
+#' (to compute the missing metrics) polygons into the `colData`
 #' @param countsfilepattern
 #' @param metadatafpattern a filename pattern of the zipped .csv file that
 #' contains cell metadata and spatial coords. Default value is \code{"cells.csv.gz"}, and there is no
@@ -20,7 +22,8 @@
 #' @param polygonsfpattern a vector of two strings specify the spatial coord names.
 #' Default value is \code{c("x_centroid", "y_centroid")}, and there is no need to change.
 #'
-#' @details # WHAT ABOUT THE OTHER PARAMETERS/FILES? WHAT ABOUT THE OUTS FOLDER(added)?
+#' @details
+#' # WHAT ABOUT THE OTHER PARAMETERS/FILES? WHAT ABOUT THE OUTS FOLDER(added)?
 #' The constructor assumes the downloaded unzipped Xenium Output Bundle has the
 #' following structure, with mandatory file of cells.csv.gz and either folder
 #' /cell_feature_matrix or .h5 file cell_feature_matrix.h5:
@@ -72,7 +75,7 @@ readXeniumSPE <- function(dirname,
                           type=c("HDF5", "sparse"),
                           coord_names=c("x_centroid", "y_centroid"),
                           boundaries_type=c("parquet", "csv"),
-                          compute_missing_metrics=TRUE,
+                          compute_missing_metrics=TRUE, keep_polygons=FALSE,
                           countsfilepattern="cell_feature_matrix",
                           metadatafpattern="cells",
                           polygonsfpattern="cell_boundaries")
@@ -119,7 +122,7 @@ readXeniumSPE <- function(dirname,
     if (compute_missing_metrics)
     {
         message("Computing missing metrics, this could take some time...")
-        cd <- computeMissingMetricsXenium(pol_file, cd)
+        cd <- computeMissingMetricsXenium(pol_file, cd, keep_polygons)
     }
     # construct 'SpatialExperiment'
     spe <- SpatialExperiment::SpatialExperiment(
@@ -133,11 +136,44 @@ readXeniumSPE <- function(dirname,
     return(spe)
 }
 
-
-computeMissingMetricsXenium <- function(pol_file, coldata)
+#' computeMissingMetricsXenium
+#' @description
+#'
+#' Compute Missing Metrics for Xenium Data
+#'
+#' This function computes missing metrics, such as the aspect ratio, from
+#' polygon data in a Xenium dataset and optionally appends the polygon data to
+#' the resulting `colData`.
+#'
+#' @param pol_file A character string specifying the file path to the polygon
+#' data.
+#' @param coldata A `DataFrame` containing the `colData` for the Xenium dataset.
+#' @param keep_polygons A logical value indicating whether to keep the polygon
+#' data in the resulting `colData`. Default is `FALSE`.
+#'
+#' @return A `DataFrame` containing the updated `colData` with computed metrics.
+#' If `keep_polygons` is `TRUE`, the polygon data is also included.
+#'
+#' @details The function reads the polygon data from the specified file,
+#' computes the aspect ratio for each polygon, and merges these metrics with
+#' the provided `colData`. Optionally, the polygon data can be kept in the
+#' returned `colData`.
+#'
+#' @importFrom S4Vectors cbind.DataFrame
+#' @export
+#'
+#' @examples
+#' # Assuming 'pol_file' is the path to the polygon file and 'coldata' is a
+#' # DataFrame:
+#' #updated_cd <- computeMissingMetricsXenium(pol_file = "path/to/polygons",
+#' #                                          coldata = coldata,
+#' #                                          keep_polygons = TRUE)
+computeMissingMetricsXenium <- function(pol_file, coldata, keep_polygons=FALSE)
 {
+    stopifnot(dir.exists(pol_file))
     polygons <- readPolygonsXenium(pol_file, keepMultiPol=TRUE)
     cd <- computeAspectRatioFromPolygons(polygons, coldata)
+    if(keep_polygons) cd <- cbind.DataFrame(cd, polygons)
     return(cd)
 }
 

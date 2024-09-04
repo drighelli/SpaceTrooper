@@ -2,18 +2,40 @@ Package: SpaceTrooper
 Type: Package
 Title: SpaceTrooper performs Quality Control analysis of Image-Based spatial data
 Version: 0.1.0
-Author: Who wrote it
-Maintainer: The package maintainer <yourself@somewhere.net>
-Description: More about what it does (maybe more than one line)
-    Use four spaces when indenting paragraphs within the Description.
-License: What license is it under?
+Authors@R:
+    c(person(given="Dario", family="Righelli", email="dario.righelli@gmail.com",
+        role=c("aut", "cre")),
+        person(given="Benedetta", family="Banzi", role="aut"),
+          person(given="Oriana", family="Romano", role="aut"),
+          person(given="Mattia", family="Forcato", role="aut"),
+          person(given="Silvio", family="Bicciato", role="aut"),
+          person(given="Davide", family="Risso", role="aut"))
+Maintainer: Dario Righelli <dario.righelli@gmail.com>
+Description: SpaceTrooper performs Quality Control analysis of Image-Based 
+    spatial data, providing exploration plots, QC metrics computation,
+    outlier detection.
+License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
 Depends: 
     SpatialExperiment
 Imports:
-    sf,
+    DropletUtils,
+    S4Vectors,
+    SummarizedExperiment,
+    arrow,
     data.table,
-    dplyr
+    dplyr,
+    e1071,
+    ggplot2,
+    ggpubr,
+    robustbase,
+    scater,
+    scuttle,
+    sf,
+    sfheaders,
+    terra,
+    tmap,
+    tools
 Suggests:
 RoxygenNote: 7.2.3

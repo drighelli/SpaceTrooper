@@ -16,8 +16,31 @@ readPolygonsCosmx(
 )
 }
 \arguments{
-\item{verbose}{}
+\item{polygonsFile}{A character string specifying the file path to the
+polygon data.}
+
+\item{type}{A character string specifying the file type ("csv" or "parquet").}
+
+\item{x}{A character string specifying the x-coordinate column.}
+
+\item{y}{A character string specifying the y-coordinate column.}
+
+\item{xloc}{A character string specifying the local x-coordinate column.}
+
+\item{yloc}{A character string specifying the local y-coordinate column.}
+
+\item{keepMultiPol}{A logical value indicating whether to keep multipolygons.}
+
+\item{verbose}{A logical value indicating whether to print additional
+information.}
+}
+\value{
+An `sf` object containing the CosMx polygon data.
 }
 \description{
-readPolygonsCosmx
+This function reads polygon data specific to CosMx technology.
+}
+\examples{
+# Read CosMx polygon data from a CSV file:
+# polygons <- readPolygonsCosmx("path/to/polygons.csv", type="csv")
 }

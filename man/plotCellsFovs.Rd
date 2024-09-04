@@ -4,15 +4,22 @@
 \alias{plotCellsFovs}
 \title{plotCellsFovs}
 \usage{
-plotCellsFovs(spe, point_col = "darkmagenta", sample_id = NULL)
+plotCellsFovs(
+  spe,
+  sample_id = unique(spe$sample_id),
+  point_col = "darkmagenta",
+  numbers_col = "black",
+  alpha_numbers = 0.8
+)
 }
 \arguments{
 \item{spe}{A SpatialExperiment object}
 
-\item{point_col}{the color to use for the dots in the plot (default is "darkmagenta")}
-
 \item{sample_id}{string indicating the sample to plot (default is NULL,
 implying a single sample in the spe)}
+
+\item{point_col}{the color to use for the dots in the plot
+(default is "darkmagenta")}
 }
 \value{
 a ggplot2 object
@@ -22,5 +29,5 @@ Creates a scatter plot with all the centroids of the cells distributed inside
 their own FoVs as an overlapping grid.
 }
 \examples{
-TBD
+# TBD
 }

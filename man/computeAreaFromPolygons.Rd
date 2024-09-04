@@ -7,8 +7,17 @@
 computeAreaFromPolygons(polygons, coldata)
 }
 \arguments{
-\item{coldata}{}
+\item{polygons}{An `sf` object containing polygon data.}
+
+\item{coldata}{A `DataFrame` containing the `colData` to which area information will be added.}
+}
+\value{
+A `DataFrame` with the added area information.
 }
 \description{
-computeAreaFromPolygons
+This function computes the area from polygon data and adds it to the `colData`.
+}
+\examples{
+# Assuming `polygons` is an sf object and `coldata` is a DataFrame:
+# coldata <- computeAreaFromPolygons(polygons, coldata)
 }

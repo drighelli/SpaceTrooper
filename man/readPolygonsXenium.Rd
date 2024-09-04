@@ -14,8 +14,27 @@ readPolygonsXenium(
 )
 }
 \arguments{
-\item{verbose}{}
+\item{polygonsFile}{A character string specifying the file path to the
+polygon data.}
+
+\item{type}{A character string specifying the file type ("parquet" or "csv").}
+
+\item{x}{A character string specifying the x-coordinate column.}
+
+\item{y}{A character string specifying the y-coordinate column.}
+
+\item{keepMultiPol}{A logical value indicating whether to keep multipolygons.}
+
+\item{verbose}{A logical value indicating whether to print additional
+information.}
+}
+\value{
+An `sf` object containing the Xenium polygon data.
 }
 \description{
-readPolygonsXenium
+This function reads polygon data specific to Xenium technology.
+}
+\examples{
+# Read Xenium polygon data from a Parquet file:
+# polygons <- readPolygonsXenium("path/to/polygons.parquet", type="parquet")
 }

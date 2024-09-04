@@ -6,6 +6,7 @@
 #' @export
 #'
 #' @examples
+#' #TBD
 .getActiveGeometryName <- function(sf)
 {
     stopifnot(is(sf, "sf"))
@@ -22,6 +23,7 @@
 #' @export
 #'
 #' @examples
+#' #TBD
 .setActiveGeometry <- function(sf, name)
 {
     stopifnot(is(sf, "sf"), name %in% names(sf))
@@ -45,6 +47,7 @@
 #' @export
 #'
 #' @examples
+#' #TBD
 .renameGeometry <- function(sf, from, to, activate=FALSE)
 {
     stopifnot(all(is(sf, "sf"), from %in% names(sf)))
@@ -54,4 +57,43 @@
     if(from==act) { sf <- .setActiveGeometry(sf, to) }
     if(activate) { sf <- .setActiveGeometry(sf, to) }
     return(sf)
+}
+
+#' getFencesOutlier
+#' Retrieve Threshold (Fence) Values from a SpatialExperiment Object
+#'
+#' This function extracts the threshold values, also known as fences,
+#' from a specified column in the `colData` of a `SpatialExperiment` object.
+#'
+#' @param spe A `SpatialExperiment` object containing spatial transcriptomics
+#' data.
+#' @param fences_of A character string specifying the name of the column in
+#' `colData(spe)` from which to extract the fence values. This column should
+#' contain an `outlier.filter` object.
+#' @param decimal.round An optional integer specifying the number of decimal
+#' places to which the fence values should be rounded. If `NULL`, no rounding is
+#'  applied. Default is `NULL`.
+#'
+#' @return A numeric vector containing the lower and upper threshold values
+#' extracted from the specified column.
+#'
+#' @importFrom SummarizedExperiment colData
+#' @export
+#' @examples
+#' #TBD
+getFencesOutlier <- function(spe, fences_of,
+                    high_low=c("both", "lower", "higher"), decimal_round=NULL)
+{
+    stopifnot(is(spe, "SpatialExperiment"))
+    stopifnot(fences_of %in% names(colData(spe)))
+    stopifnot(is(colData(spe)[[fences_of]], "outlier.filter"))
+    high_low <- match.arg(high_low)
+    fences <- attr(colData(spe)[[fences_of]], "thresholds")
+    if(!is.null(decimal_round)) {fences <- round(fences, decimal_round)}
+    fences <- switch (high_low,
+        both = {fences},
+        lower = {fences[1]},
+        higher = {fences[2]}
+    )
+    return(fences)
 }

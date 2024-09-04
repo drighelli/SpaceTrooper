@@ -12,12 +12,31 @@ spatialPerCellQC(
 )
 }
 \arguments{
-\item{micronConvFact}{}
+\item{spe}{A `SpatialExperiment` object containing spatial transcriptomics
+data.}
+
+\item{micronConvFact}{A numeric value for converting pixel dimensions to
+microns. Default is `0.12`.}
+
+\item{negProbList}{A character vector of patterns used to identify negative
+probes.
+Default values are:
+- For Nanostring CosMx: `"NegPrb"`, `"Negative"`, `"SystemControl"`
+- For Xenium: `"NegControlProbe"`, `"NegControlCodeWord"`,
+`"UnassignedCodeWord"`
+- For MERFISH: `"Blank"`}
+}
+\value{
+The `SpatialExperiment` object with added quality control metrics in
+`colData`.
 }
 \description{
-spatialPerCellQC
+Perform Per-Cell Quality Control on a SpatialExperiment Object
+
+This function calculates quality control metrics for each cell in a
+`SpatialExperiment` object and adds them to `colData`.
 }
-\examples{
-spe <- readCosmxSPE("~/Downloads/CosMx_data/DBKero/CosMx_Breast/CosMx_data_Case2/", sample_name="DBKero_BC")
-spe <- spatialPerCellQC(spe)
+\details{
+The function computes several QC metrics, including control probe
+sums, target probe sums, and the ratio of control probes to the total.
 }

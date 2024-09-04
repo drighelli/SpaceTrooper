@@ -1,23 +1,47 @@
 #' readPolygons
+#' @description
+#'  Read and Validate Polygons from a File
 #'
-#' @param polygonsFile
-#' @param x
-#' @param y
-#' @param xloc
-#' @param yloc
-#' @param micronConvFact
-#' @param keepMultiPol
-#' @param verbose
+#' This function reads polygon data from a specified file, validates the polygons,
+#' and returns them as an `sf` object. It supports multiple file formats and can
+#' handle both global and local coordinates.
 #'
-#' @return an sf object with the loaded and validated polygons
+#' @param polygonsFile A character string specifying the path to the polygon
+#' file.
+#' @param type A character string specifying the file type. Supported types are
+#' `"csv"`, `"parquet"`, and `"h5"`. Default is `"csv"`.
+#' @param x A character vector specifying the column names for the x-coordinates
+#' in the polygon data. Default is `c("x_global_px", "vertex_x")`.
+#' @param y A character vector specifying the column names for the y-coordinates
+#' in the polygon data. Default is `c("y_global_px", "vertex_y")`.
+#' @param xloc A character string specifying the column name for the local
+#' x-coordinates. Default is `"x_local_px"`.
+#' @param yloc A character string specifying the column name for the local
+#' y-coordinates. Default is `"y_local_px"`.
+#' @param keepMultiPol A logical value indicating whether to keep multipolygons
+#' during validation. Default is `TRUE`.
+#' @param verbose A logical value indicating whether to print additional
+#' information during processing. Default is `FALSE`.
 #'
-#' @export
+#' @return An `sf` object with the loaded and validated polygons.
+#'
+#' @details The function reads polygon data from the specified file and formats.
+#' It validates the polygons and handles both global and local coordinates if
+#' provided. If the file type is `"h5"`, the function currently does not handle
+#' the data, as this part of the code is not implemented.
+#'
 #' @importFrom data.table fread
 #' @importFrom arrow read_parquet
 #' @importFrom sf st_geometry
+#' @export
 #'
 #' @examples
-# polygons <- readPolygonsCosMx("~/Downloads/CosMx_data/DBKero/CosMx_Breast/CosMx_data_Case2/Run5810_Case2-polygons.csv")
+#' # Reading polygon data from a CSV file:
+#' # polygons <- readPolygons("~/Downloads/CosMx_data/polygons.csv")
+#'
+#' # Reading polygon data from a Parquet file with verbose output:
+#' # polygons <- readPolygons("~/Downloads/CosMx_data/polygons.parquet",
+#' #                         type = "parquet", verbose = TRUE)
 readPolygons <- function(polygonsFile, type=c("csv", "parquet", "h5"),
                             x=c("x_global_px", "vertex_x"),
                             y=c("y_global_px", "vertex_y"),
@@ -102,18 +126,20 @@ readPolygons <- function(polygonsFile, type=c("csv", "parquet", "h5"),
 #' If keeMultiPol is FALSE, possible detected multipolygons are removed.
 #'
 #'
-#' @param sf an sf class object
+#' @param sf An `sf` class object containing the spatial data.
 #' @param geometry character for the geometry to check validity, if `NULL`
 #' it checks the active geometry (default is `NULL`)
 #' @param keepMultiPol logical for keeping/removing moltipolygons, if any
 #' (default is `TRUE`, so keeping the multipolygons)
 #' @param verbose logical to print verbose output (default is `FALSE`)
 #'
-#' @return
+#' @return An `sf` object with valid geometries, possibly with multipolygons
+#' removed.
 #' @keywords internal
 #' @importFrom sf st_is_valid st_buffer st_geometry_type
 #'
 #' @examples
+#' # TBD
 .checkPolygonsValidity <- function(sf, geometry=NULL, keepMultiPol=TRUE,
                                     verbose=FALSE)
 {
@@ -174,17 +200,21 @@ readPolygons <- function(polygonsFile, type=c("csv", "parquet", "h5"),
     return(sf)
 }
 
-
 #' addPolygonsToSPE
 #'
-#' @param spe
-#' @param polygons
+#' @description This function adds polygon data to a `SpatialExperiment` object.
 #'
-#' @return
+#' @param spe A `SpatialExperiment` object to which polygons will be added.
+#' @param polygons An `sf` object containing the polygon data.
+#'
+#' @return The `SpatialExperiment` object with polygons added to the `colData`.
+#'
 #' @importFrom dplyr left_join
 #' @export
 #'
 #' @examples
+#' # Assuming `spe` is a SpatialExperiment object and `polygons` is an sf object:
+#' # spe <- addPolygonsToSPE(spe, polygons)
 addPolygonsToSPE <- function(spe, polygons)
 {
     stopifnot(all(is(spe, "SpatialExperiment"), is(polygons, "sf")))
@@ -205,20 +235,22 @@ addPolygonsToSPE <- function(spe, polygons)
     colData(spe)$polygons <- polygons
     return(spe)
 }
-
 #' .createPolygons
 #'
-#' @param spat_obj
-#' @param x
-#' @param y
-#' @param polygon_id
+#' @description This internal function creates polygons from a spatial data object.
 #'
-#' @return
+#' @param spat_obj A data frame or similar object containing spatial data.
+#' @param x A character vector specifying the x-coordinates.
+#' @param y A character vector specifying the y-coordinates.
+#' @param polygon_id A character string specifying the polygon ID.
+#'
+#' @return An `sf` object containing the created polygons.
 #' @keywords internal
 #' @importFrom sfheaders sf_polygon
 #' @importFrom sf st_as_sf
 #'
 #' @examples
+#' #TBD
 .createPolygons <- function(spat_obj, x=NULL, y=NULL, polygon_id=NULL, geometry="Geometry")
 {
     if(all(!is.null(x), !is.null(y)))
@@ -241,23 +273,27 @@ addPolygonsToSPE <- function(spe, polygons)
     # polygons <- polygons[order(polygons$cell_id),]
     return(polygons)
 }
-
 #' readPolygonsCosmx
-#' @description
 #'
-#' @param polygonsFile
-#' @param type
-#' @param x
-#' @param y
-#' @param xloc
-#' @param yloc
-#' @param keepMultiPol
-#' @param verbose
+#' @description This function reads polygon data specific to CosMx technology.
 #'
-#' @return
+#' @param polygonsFile A character string specifying the file path to the
+#' polygon data.
+#' @param type A character string specifying the file type ("csv" or "parquet").
+#' @param x A character string specifying the x-coordinate column.
+#' @param y A character string specifying the y-coordinate column.
+#' @param xloc A character string specifying the local x-coordinate column.
+#' @param yloc A character string specifying the local y-coordinate column.
+#' @param keepMultiPol A logical value indicating whether to keep multipolygons.
+#' @param verbose A logical value indicating whether to print additional
+#' information.
+#'
+#' @return An `sf` object containing the CosMx polygon data.
 #' @export
 #'
 #' @examples
+#' # Read CosMx polygon data from a CSV file:
+#' # polygons <- readPolygonsCosmx("path/to/polygons.csv", type="csv")
 readPolygonsCosmx <- function(polygonsFile, type=c("csv", "parquet"),
                               x="x_global_px",
                               y="y_global_px",
@@ -274,22 +310,27 @@ readPolygonsCosmx <- function(polygonsFile, type=c("csv", "parquet"),
     cnames <- colnames(polygons)[!colnames(polygons) %in% mandatory]
     polygons <- polygons[,c(mandatory, cnames)]
     return(polygons)
-
 }
 
 #' readPolygonsXenium
 #'
-#' @param polygonsFile
-#' @param type
-#' @param x
-#' @param y
-#' @param keepMultiPol
-#' @param verbose
+#' @description This function reads polygon data specific to Xenium technology.
 #'
-#' @return
+#' @param polygonsFile A character string specifying the file path to the
+#' polygon data.
+#' @param type A character string specifying the file type ("parquet" or "csv").
+#' @param x A character string specifying the x-coordinate column.
+#' @param y A character string specifying the y-coordinate column.
+#' @param keepMultiPol A logical value indicating whether to keep multipolygons.
+#' @param verbose A logical value indicating whether to print additional
+#' information.
+#'
+#' @return An `sf` object containing the Xenium polygon data.
 #' @export
 #'
 #' @examples
+#' # Read Xenium polygon data from a Parquet file:
+#' # polygons <- readPolygonsXenium("path/to/polygons.parquet", type="parquet")
 readPolygonsXenium <- function(polygonsFile, type=c("parquet", "csv"),
                    x="vertex_x", y="vertex_y", keepMultiPol=TRUE,
                    verbose=FALSE)
@@ -305,16 +346,29 @@ readPolygonsXenium <- function(polygonsFile, type=c("parquet", "csv"),
 
 #' readPolygonsMerfish
 #'
-#' @param polygonsFolder
-#' @param type
-#' @param hdf5pattern
+#' @description This function reads polygon data specific to MERFISH technology.
 #'
-#' @return
+#' @param polygonsFolder A character string specifying the folder containing the
+#' polygon data files.
+#' @param type A character string specifying the file type ("HDF5" or "parquet").
+#' @param hdf5pattern A character string specifying the pattern to match HDF5
+#' files.
+#' @param keepMultiPol A logical value indicating whether to keep multipolygons.
+#' @param z_lev An integer specifying the Z level to filter the data. Default is
+#' `3L`.
+#' @param zcolumn A character string specifying the column name for the Z index.
+#' @param geometry A character string specifying the geometry column name.
+#' @param verbose A logical value indicating whether to print additional
+#' information.
+#'
+#' @return An `sf` object containing the MERFISH polygon data.
 #' @export
 #' @importFrom sf st_sf st_cast st_sfc
 #' @importFrom arrow read_parquet
 #'
 #' @examples
+#' # Read MERFISH polygon data from a Parquet file:
+#' # polygons <- readPolygonsMerfish("path/to/polygon_folder", type="parquet")
 readPolygonsMerfish <- function(polygonsFolder, type=c("HDF5", "parquet"),
                                 keepMultiPol=TRUE, hdf5pattern="hdf5",
                                 z_lev=3L, zcolumn="ZIndex",
@@ -358,13 +412,17 @@ readPolygonsMerfish <- function(polygonsFolder, type=c("HDF5", "parquet"),
 
 #' computeAreaFromPolygons
 #'
-#' @param polygons
-#' @param coldata
+#' @description This function computes the area from polygon data and adds it to the `colData`.
 #'
-#' @return
+#' @param polygons An `sf` object containing polygon data.
+#' @param coldata A `DataFrame` containing the `colData` to which area information will be added.
+#'
+#' @return A `DataFrame` with the added area information.
 #' @export
 #'
 #' @examples
+#' # Assuming `polygons` is an sf object and `coldata` is a DataFrame:
+#' # coldata <- computeAreaFromPolygons(polygons, coldata)
 computeAreaFromPolygons <- function(polygons, coldata)
 {
     cd <- coldata
@@ -377,13 +435,17 @@ computeAreaFromPolygons <- function(polygons, coldata)
 
 #' computeAspectRatioFromPolygons
 #'
-#' @param polygons
-#' @param coldata
+#' @description This function computes the aspect ratio from polygon data and adds it to the `colData`.
 #'
-#' @return
+#' @param polygons An `sf` object containing polygon data.
+#' @param coldata A `DataFrame` containing the `colData` to which aspect ratio information will be added.
+#'
+#' @return A `DataFrame` with the added aspect ratio information.
 #' @export
 #'
 #' @examples
+#' # Assuming `polygons` is an sf object and `coldata` is a DataFrame:
+#' # coldata <- computeAspectRatioFromPolygons(polygons, coldata)
 computeAspectRatioFromPolygons <- function(polygons, coldata)
 {
     cd <- coldata
@@ -408,15 +470,19 @@ computeAspectRatioFromPolygons <- function(polygons, coldata)
     return(cd)
 }
 
-
 #' readh5polygons
 #'
-#' @param pol_file
+#' @description This function reads polygon data from an HDF5 file.
+#'
+#' @param pol_file A character string specifying the file path to the HDF5 polygon data.
+#'
+#' @return A list containing the polygon geometries and their associated cell IDs.
 #' @author Lambda Moses
-#' @return
 #' @export
 #'
 #' @examples
+#' # Read polygons from an HDF5 file:
+#' # polygons <- readh5polygons("path/to/polygons.h5")
 readh5polygons <- function(pol_file)
 {
     l <- rhdf5::h5dump(pol_file)[[1]]

@@ -13,9 +13,21 @@
 )
 }
 \arguments{
-\item{polygon_id}{}
+\item{spat_obj}{A data frame or similar object containing spatial data.}
+
+\item{x}{A character vector specifying the x-coordinates.}
+
+\item{y}{A character vector specifying the y-coordinates.}
+
+\item{polygon_id}{A character string specifying the polygon ID.}
+}
+\value{
+An `sf` object containing the created polygons.
 }
 \description{
-.createPolygons
+This internal function creates polygons from a spatial data object.
+}
+\examples{
+#TBD
 }
 \keyword{internal}

@@ -6,8 +6,18 @@
 \usage{
 readh5polygons(pol_file)
 }
+\arguments{
+\item{pol_file}{A character string specifying the file path to the HDF5 polygon data.}
+}
+\value{
+A list containing the polygon geometries and their associated cell IDs.
+}
 \description{
-readh5polygons
+This function reads polygon data from an HDF5 file.
+}
+\examples{
+# Read polygons from an HDF5 file:
+# polygons <- readh5polygons("path/to/polygons.h5")
 }
 \author{
 Lambda Moses

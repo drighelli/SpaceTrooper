@@ -4,17 +4,21 @@
 \alias{computeQCScore}
 \title{computeQCScore}
 \usage{
-computeQCScore(spe, a = 0.3, b = 0.8)
+computeQCScore(spe, a = 1, b = 1)
 }
 \arguments{
 \item{spe}{a SpatialExperiment object with target_counts, area in micron
 and log2 of the aspect ratio in the `colData`, tipically computed with
 \link{spatialPerCellQC}}
 }
+\value{
+a `SpatialExperiment` object with a `flag_score` stored in
+the `colData`.
+}
 \description{
 Compute for each cell a flag score based on the target_counts, area in micron
 and log2 of the aspect ratio.
 }
 \examples{
-#TBD
+# TBD
 }

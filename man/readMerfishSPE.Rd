@@ -8,6 +8,7 @@ readMerfishSPE(
   dirname,
   sample_name = "sample01",
   compute_missing_metrics = TRUE,
+  keep_polygons = FALSE,
   boundaries_type = c("HDF5", "parquet"),
   countmatfpattern = "cell_by_gene.csv",
   metadatafpattern = "cell_metadata.csv",
@@ -23,4 +24,7 @@ A SpatialExperiment object
 }
 \description{
 readMerfishSPE
+}
+\examples{
+# TBD
 }
