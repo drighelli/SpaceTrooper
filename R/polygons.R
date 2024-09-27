@@ -226,6 +226,7 @@ addPolygonsToSPE <- function(spe, polygons)
                               by=c("fov", "cellID"))
         cd <- left_join(cd, polygons[ , c("fov", "cellID")],
                         by=c("fov","cellID"))
+        polygons$cell_id <- paste0("f", polygons$fov, "_c", polygons$cellID)
         rownames(cd) <- cd$cell_id
         rownames(polygons) <- polygons$cell_id
         spe <- spe[, spe$cell_id %in% rownames(polygons)]
