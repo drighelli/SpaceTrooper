@@ -200,6 +200,40 @@ readPolygons <- function(polygonsFile, type=c("csv", "parquet", "h5"),
     return(sf)
 }
 
+readAndAddPolygonsToSPE(spe, keepMultiPol=TRUE,
+                    boundaries_type=c("HDF5", "parquet")
+                    )
+{
+    boundaries_type<-match.arg(boundaries_type)
+    stopifnot("technology" %in% names(metadata(spe)))
+    tech <- metadata(spe)$technology
+    if(is.null(polygons))
+    {
+        switch(tech,
+               "Nanostring_CosMx"=
+                   {
+                       polygons <- readPolygonsCosmx(metadata(spe)$polygons)
+                   },
+               "Vizgen_MERFISH"=
+                   {
+                       # ifelse(boundaries_type=="HDF5", merpol=)
+                       polygons <- readPolygonsMerfish(polygonsFolder,
+                                        keepMultiPol=TRUE, type=boundaries_type)
+
+                   },
+               "10X_Xenium"=
+                   {
+                       polygons <- readPolygonsXenium(pol_file, keepMultiPol=TRUE)
+                   },
+               stop("Unrecognized technology, please use an SPE from one of ",
+                    "Nanostring_CosMx, Vizgen_MERFISH and 10x_Xenium")
+        )
+    }
+    spe <- addPolygonsToSPE(spe, polygons)
+}
+
+
+
 #' addPolygonsToSPE
 #'
 #' @description This function adds polygon data to a `SpatialExperiment` object.
@@ -215,7 +249,7 @@ readPolygons <- function(polygonsFile, type=c("csv", "parquet", "h5"),
 #' @examples
 #' # Assuming `spe` is a SpatialExperiment object and `polygons` is an sf object:
 #' # spe <- addPolygonsToSPE(spe, polygons)
-addPolygonsToSPE <- function(spe, polygons)
+addPolygonsToSPE <- function(spe, polygons=NULL)
 {
     stopifnot(all(is(spe, "SpatialExperiment"), is(polygons, "sf")))
 
