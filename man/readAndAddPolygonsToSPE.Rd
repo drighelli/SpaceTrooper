@@ -8,7 +8,7 @@ readAndAddPolygonsToSPE(
   spe,
   polygonsCol = "polygons",
   keepMultiPol = TRUE,
-  boundariesType = c("csv", "HDF5", "parquet")
+  boundaries_type = c("csv", "HDF5", "parquet")
 )
 }
 \arguments{

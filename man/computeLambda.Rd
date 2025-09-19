@@ -4,19 +4,23 @@
 \alias{computeLambda}
 \title{computeLambda}
 \usage{
-computeLambda(technology, trainDF)
+computeLambda(spe, train_df, model_formula)
 }
 \arguments{
-\item{technology}{\[character\]
-The name of the experimental technology. Passed to
-\code{getModelFormula()} to retrieve the corresponding model formula.}
+\item{spe}{\linkS4class{SpatialExperiment}
+A SpatialExperiment containing at least:
+\itemize{
+  \item assay(s) with nonzero \code{total} counts,
+  \item \code{colData(spe)} columns including \code{log2CountArea},
+  \code{Area_um}, \code{log2Ctrl_total_ratio}, etc.
+}}
 
-\item{trainDF}{\[data.frame\]
+\item{train_df}{\[data.frame\]
 A data frame for training that must include:
 \describe{
   \item{Predictor columns}{All columns referenced in the formula returned
   by \code{getModelFormula()}.}
-  \item{\code{qscore_train}}{A binary (0/1) response vector to be modeled.}
+  \item{\code{qcscore_train}}{A binary (0/1) response vector to be modeled.}
 }}
 }
 \value{
@@ -35,8 +39,6 @@ cross-validation to identify the optimal regularization parameter
 \details{
 Internally, the function:
 \enumerate{
-  \item Calls \code{getModelFormula(technology)} to obtain a model formula
-  as text,
   \item Constructs the design matrix via \code{model.matrix()},
   \item Runs ridge logistic regression cross-validation using
         \code{\link[glmnet]{cv.glmnet}} with \code{alpha = 0},
@@ -45,8 +47,8 @@ Internally, the function:
 }
 \examples{
 example(spatialPerCellQC)
-withr::with_seed(1998, trainDF <- computeTrainDF(spe))
-best_lambda <- computeLambda(metadata(spe)$technology, trainDF)
+withr::with_seed(1998, train_df <- computeTrainDF(spe))
+best_lambda <- computeLambda(spe, train_df, model_formula)
 print(best_lambda)
 
 }

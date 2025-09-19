@@ -173,34 +173,35 @@ readPolygons <- function(polygonsFile, type=c("csv", "parquet", "h5"),
 #' spe <- readAndAddPolygonsToSPE(spe)
 #' colData(spe)
 readAndAddPolygonsToSPE <- function(spe, polygonsCol="polygons",
-    keepMultiPol=TRUE, boundariesType=c("csv", "HDF5", "parquet"))
+                                    keepMultiPol=TRUE, boundaries_type=c("csv", "HDF5", "parquet"))
 {
-    boundariesType <- match.arg(boundariesType)
+    boundaries_type <- match.arg(boundaries_type)
     stopifnot("technology" %in% names(metadata(spe)))
     tech <- metadata(spe)$technology
     switch(tech,
-            "Nanostring_CosMx"={
-                polygons <- readPolygonsCosmx(metadata(spe)$polygons)
-            },
-            "Vizgen_MERFISH"={
-                ##### NEED TO HANDLE THE DIFFERENCES BETWEEN HDF5 FILES
-                ##### AND PARQUET, TO PROPAGATE TO READING FUNCTION
-                # ifelse(boundariesType=="HDF5", merpol=)
-                polygons <- readPolygonsMerfish(metadata(spe)$polygons,
-                                keepMultiPol=TRUE, type=boundariesType)
-            },
-            "10X_Xenium"={
-                polygons <- readPolygonsXenium(metadata(spe)$polygons,
-                                            keepMultiPol=TRUE)
-            },
-            stop("Unrecognized technology, please use an SPE from one of ",
+           "Nanostring_CosMx"={
+               polygons <- readPolygonsCosmx(metadata(spe)$polygons)
+           },
+           "Nanostring_CosMx_Protein"={
+               polygons <- readPolygonsCosmx(metadata(spe)$polygons)
+           },
+           "Vizgen_MERFISH"={
+               ##### NEED TO HANDLE THE DIFFERENCES BETWEEN HDF5 FILES
+               ##### AND PARQUET, TO PROPAGATE TO READING FUNCTION
+               # ifelse(boundaries_type=="HDF5", merpol=)
+               polygons <- readPolygonsMerfish(polygonsFolder,
+                                               keepMultiPol=TRUE, type=boundaries_type)
+           },
+           "10X_Xenium"={
+               polygons <- readPolygonsXenium(metadata(spe)$polygons,
+                                              keepMultiPol=TRUE)
+           },
+           stop("Unrecognized technology, please use an SPE from one of ",
                 "Nanostring_CosMx, Vizgen_MERFISH and 10x_Xenium")
     )
     spe <- addPolygonsToSPE(spe, polygons, polygonsCol=polygonsCol)
     return(spe)
 }
-
-
 
 #' .addPolygonsToCD
 #' @name .addPolygonsToCD

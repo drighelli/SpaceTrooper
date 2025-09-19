@@ -4,20 +4,22 @@
 \alias{getModelFormula}
 \title{getModelFormula}
 \usage{
-getModelFormula(technology)
+getModelFormula(spe, verbose = verbose)
 }
 \arguments{
-\item{technology}{\[character\]
-Technology name to decide which predictors to include.}
+\item{spe}{A `SpatialExperiment` object with spatial omics data.}
+
+\item{verbose}{Logical. If `TRUE`, prints the final formula used for QC score}
 }
 \value{
 \[character\]
   A one‐sided formula as a string (e.g. "~ log2CountArea + ...").
 }
 \description{
-Returns the right‐hand side of a model formula string based on technology.
+Returns the right‐hand side of a model formula string based on formula variables
+found in the `metadata` of a `SpatialExperiment` object.
 }
 \examples{
-example(spatialPerCellQC)
-getModelFormula(metadata(spe)$technology)
+example(checkOutliers)
+getModelFormula(spe, verbose=TRUE)
 }

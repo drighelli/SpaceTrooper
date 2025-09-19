@@ -4,7 +4,7 @@
 \alias{computeTrainDF}
 \title{computeTrainDF}
 \usage{
-computeTrainDF(spe, verbose = FALSE)
+computeTrainDF(spe, verbose = TRUE)
 }
 \arguments{
 \item{spe}{\linkS4class{SpatialExperiment}
@@ -12,8 +12,7 @@ A SpatialExperiment containing at least:
 \itemize{
   \item assay(s) with nonzero \code{total} counts,
   \item \code{colData(spe)} columns including \code{log2CountArea},
-  \code{dist_border}, etc.,
-  \item \code{metadata(spe)$technology} indicating the platform.
+  \code{Area_um}, \code{log2Ctrl_total_ratio}, etc.
 }}
 
 \item{verbose}{\[logical(1)\] (default \code{FALSE})
@@ -22,33 +21,26 @@ If \code{TRUE}, prints the number of “bad” and “good” cells selected.}
 \value{
 A \code{data.frame} with one row per cell, including:
 \itemize{
-  \item \code{qscore_train} (0/1) indicating “bad” vs “good”,
+  \item \code{qcscore_train} (0/1) indicating “bad” vs “good”,
   \item relevant \code{colData} columns used for modeling.
+  \item Deduplicates and down-samples “good” cells to match the number of
+   “bad” cells.
 }
 }
 \description{
 Build a Balanced Training Data Frame from a SpatialExperiment
 
-\code{computeTrainDF} takes a \linkS4class{SpatialExperiment} object,
-flags spatial outliers on “log2CountArea”, then assembles a
-balanced training set of “good” vs “bad” cells for subsequent model fitting.
+\code{computeTrainDF} takes a \linkS4class{SpatialExperiment} object
+and assembles a balanced training set of “good” vs “bad” cells for
+subsequent model fitting.
 }
 \details{
-Internally the function:
-\enumerate{
-   \item Filters out zero-count cells,
-   \item Calls \code{computeSpatialOutlier()} on “log2CountArea” to get
-   fences,
-   \item Labels cells as “LOW”/“HIGH” outliers or “NO”,
-   \item Delegates to either \code{.computeCosmxTrainSet()} or
-   \code{.computeXenMerTrainSet()} based on \code{metadata(spe)$technology},
-   \item Deduplicates and down-samples “good” cells to match the number of
-   “bad” cells.
-}
+The function builds a training set using the variables specified
+in the `metadata` of the `SpatialExperiment` object.
 }
 \examples{
 example(spatialPerCellQC)
 df_train <- computeTrainDF(spe, verbose = TRUE)
-table(df_train$qscore_train)
+table(df_train$qcscore_train)
 
 }
