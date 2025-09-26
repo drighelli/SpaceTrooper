@@ -63,7 +63,7 @@ spatialPerCellQC <- function(spe, micronConvFact=0.12, rmZeros=TRUE,
 
     spe$ctrl_total_ratio <- spe$control_sum/spe$total
     spe$ctrl_total_ratio[which(is.na(spe$ctrl_total_ratio))] <- 0
-    spe$log2Ctrl_total_ratio <- log2(spe$ctrl_total_ratio)
+    spe$log2Ctrl_total_ratio <- log2(spe$ctrl_total_ratio+0.0001)
     if(metadata(spe)$technology == "Nanostring_CosMx_Protein") {
         idx <- which(names(colData(spe)) == "Area.um2")
         if(length(idx)!=0) { names(colData(spe))[idx] <- "Area_um" }
@@ -330,7 +330,7 @@ computeOutliersQCScore <- function(spe, metric_list = c("log2CountArea", "Area_u
     # log2CountArea
     if("log2CountArea" %in% names(method)){
         spe_temp <- computeSpatialOutlier(spe[,spe$total>0],
-                                          compute_by="log2CountArea", method=method["log2CountArea"])
+                                          computeBy="log2CountArea", method=method["log2CountArea"])
 
         out_var <- colnames(colData(spe_temp))[grep(colnames(colData(spe_temp)), pattern=paste0("log2CountArea_outlier_", method["log2CountArea"]))]
 
@@ -355,7 +355,7 @@ computeOutliersQCScore <- function(spe, metric_list = c("log2CountArea", "Area_u
 
     # log2Ctrl_total_ratio
     if("log2Ctrl_total_ratio" %in% names(method)){
-        spe_temp <- computeSpatialOutlier(spe[,spe$ctrl_total_ratio!=0], compute_by="log2Ctrl_total_ratio", method=method["log2Ctrl_total_ratio"])
+        spe_temp <- computeSpatialOutlier(spe[,spe$ctrl_total_ratio!=0], computeBy="log2Ctrl_total_ratio", method=method["log2Ctrl_total_ratio"])
 
         out_var <- colnames(colData(spe_temp))[grep(colnames(colData(spe_temp)), pattern=paste0("log2Ctrl_total_ratio_outlier_", method["log2Ctrl_total_ratio"]))]
 
@@ -373,7 +373,7 @@ computeOutliersQCScore <- function(spe, metric_list = c("log2CountArea", "Area_u
     submethod <- method[!names(method)%in%c("log2CountArea", "log2Ctrl_total_ratio")]
 
     for(j in names(submethod)){
-        spe <- computeSpatialOutlier(spe, compute_by=j,method=submethod[j])
+        spe <- computeSpatialOutlier(spe, computeBy=j,method=submethod[j])
     }
 
     out_var <- paste0(names(method), "_outlier_", method)
@@ -424,14 +424,16 @@ computeOutliersQCScore <- function(spe, metric_list = c("log2CountArea", "Area_u
     if("log2CountArea" %in% names(method)){
         logca_skw <- e1071::skewness(spe[,spe$total>0]$log2CountArea, na.rm = TRUE)
         logca_method <- ifelse((logca_skw>-1 & logca_skw<1), "sc", "mc")
-        if(method[names(method)== "log2CountArea"]!= logca_method){
+        if(method[names(method)== "log2CountArea"]!= logca_method |
+            is.na(method[names(method)== "log2CountArea"])){
             method[names(method)== "log2CountArea"] <- logca_method
         }
     }
     if("log2Ctrl_total_ratio" %in% names(method)){
         logctr_skw <- e1071::skewness(spe[,spe$ctrl_total_ratio!=0]$log2Ctrl_total_ratio, na.rm = TRUE)
         logctr_method <- ifelse((logctr_skw>-1 & logctr_skw<1), "sc", "mc")
-        if(method[names(method)== "log2Ctrl_total_ratio"]!= logctr_method){
+        if(method[names(method)== "log2Ctrl_total_ratio"]!= logctr_method |
+           is.na(method[names(method)== "log2Ctrl_total_ratio"])){
             method[names(method)== "log2Ctrl_total_ratio"] <- logctr_method
         }
     }
@@ -736,9 +738,10 @@ trainModel <- function(model_matrix, train_df){
 #'     \item{\code{qcscore_train}}{A binary (0/1) response vector to be modeled.}
 #'   }
 #'
-#' @param model_formula  \[character\]
-#'   A character string representing the model formula (e.g.
-#'   "\code{~ log2CountArea + ...}"), as returned by
+#' @param model_formula \[character\]
+#'   A character string representing the model formula
+#'   \describe{
+#'    "\code{~ log2CountArea + ...}"), as returned by
 #'   \code{getModelFormula()}.
 #'   }
 #'
@@ -826,7 +829,11 @@ computeLambda <- function(spe, train_df, model_formula) {
 computeQCScore <- function(spe, metric_list = c("log2CountArea", "Area_um",
                                                 "log2AspectRatio", "log2Ctrl_total_ratio"), best_lambda=NULL, verbose=TRUE) {
     stopifnot(is(spe, "SpatialExperiment"))
-
+    if(dim(spe[,spe$total==0])[2]!=0){
+        warning(paste0(dim(spe[,spe$total==0])[2],
+        " cells with 0 counts were found. These cells will be removed."))
+        spe <- spe[,spe$total>0]
+    }
     spe <- computeOutliersQCScore(spe, metric_list = metric_list)
     spe <- checkOutliers(spe, verbose)
     train_df <- computeTrainDF(spe, verbose)

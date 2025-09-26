@@ -22,6 +22,13 @@ A data frame for training that must include:
   by \code{getModelFormula()}.}
   \item{\code{qcscore_train}}{A binary (0/1) response vector to be modeled.}
 }}
+
+\item{model_formula}{\[character\]
+A character string representing the model formula
+\describe{
+ "\code{~ log2CountArea + ...}"), as returned by
+\code{getModelFormula()}.
+}}
 }
 \value{
 \[numeric\]

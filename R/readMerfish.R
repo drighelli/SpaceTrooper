@@ -136,7 +136,7 @@ computeMissingMetricsMerfish <- function(polFile, coldata,
     boundariesType <- match.arg(boundariesType)
     polygons <- readPolygonsMerfish(polFile, type=boundariesType)
     cd <- DataFrame(coldata)
-    cd$um_area <- computeAreaFromPolygons(polygons)
+    cd$Area_um <- computeAreaFromPolygons(polygons)
     cd$AspectRatio <- computeAspectRatioFromPolygons(polygons)
     if (keepPolygons) cd <- .addPolygonsToCD(cd, polygons, polygonsCol)
     return(cd)

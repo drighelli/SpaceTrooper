@@ -35,6 +35,7 @@
 #' @importFrom data.table fread
 #' @importFrom arrow read_parquet
 #' @importFrom sf st_geometry
+#' @importFrom dplyr group_by mutate ungroup filter n
 #' @export
 #' @examples
 #' example(readCosmxSPE)
@@ -58,6 +59,16 @@ readPolygons <- function(polygonsFile, type=c("csv", "parquet", "h5"),
             spat_obj$cell_id <- paste0("f", spat_obj$fov, "_c", spat_obj$cellID)
         }
         spat_obj$cell_id <- as.factor(spat_obj$cell_id)
+
+        # removing polygons with less than 4 points
+        if(any(as.vector(table(spat_obj$cell_id)<4)))
+        {
+          warning(paste0("Removing ", table(table(spat_obj$cell_id)<4)["TRUE"],
+                           " polygons, they have less than 4 points."))
+          spat_obj <- spat_obj |> group_by(cell_id) |> mutate(n_points = n()) |>
+                ungroup() |>  filter(n_points >= 4)
+        }
+
         polygons <- .createPolygons(spat_obj, x=x, y=y,
                                         polygon_id="cell_id")
         polygons <- .renameGeometry(polygons, "geometry", "global") ##for cosmx
@@ -533,8 +544,8 @@ computeAreaFromPolygons <- function(polygons)
 {
     stopifnot(is(polygons, "sf"))
     area <- sf::st_area(polygons)
-    um_area <- unlist(area)
-    return(um_area)
+    Area_um <- unlist(area)
+    return(Area_um)
 }
 
 
