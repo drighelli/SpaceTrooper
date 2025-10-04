@@ -501,8 +501,18 @@ plotQScoreTerms <- function(spe, sampleId=unique(spe$sample_id), size=0.05,
             lwd = 0,
             show.legend = "polygon"
         ) +
-        ggplot2::scale_fill_manual(values = pal) +
-        ggplot2::scale_color_manual(values = pal)
+        ggplot2::scale_fill_manual(
+            values = pal,
+            limits = names(pal),
+            drop   = FALSE,
+            na.value = "grey80"
+        ) +
+        ggplot2::scale_color_manual(
+            values = pal,
+            limits = names(pal),
+            drop   = FALSE,
+            na.value = "grey80"
+        )
 
     if (!leg) {
         p <- p + ggplot2::theme(legend.position = "none")
