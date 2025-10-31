@@ -572,8 +572,8 @@ computeAspectRatioFromPolygons <- function(polygons)
     }
     aspRatL[!polygons$is_multi] <- lapply(polygons$global[!polygons$is_multi],
         function(x) {
-            (max(x[[1]][, 2]) - min(x[[1]][, 2]))/(max(x[[1]][, 1]) -
-                                                    min(x[[1]][, 1]))
+            (max(x[[1]][, 1]) - min(x[[1]][, 1]))/(max(x[[1]][, 2]) -
+                                                    min(x[[1]][, 2]))
     })
     names(aspRatL) <- polygons$cell_id
     ar <- unlist(aspRatL)
