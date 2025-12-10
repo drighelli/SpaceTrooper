@@ -81,7 +81,7 @@ readMerfishSPE <- function(dirName, sampleName="sample01",
     rownames(counts) <- features
     colnames(counts) <- as.character(cn)
     # TODO: rowData (does not exist) tx file use readSparseCSV from sparseArray
-    colData <- left_join(metadata, countmat[, "cell_id"], by = "cell_id")
+    colData <- metadata[match(countmat$cell_id, metadata$cell_id), ]
     rownames(colData) <- colData$cell_id
     cd <- subset(colData, select = c(2,1,3:dim(colData)[2]))
     if (computeMissingMetrics) {
