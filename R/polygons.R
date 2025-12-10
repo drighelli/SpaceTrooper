@@ -546,37 +546,60 @@ computeAreaFromPolygons <- function(polygons)
     return(Area_um)
 }
 
-
 #' computeAspectRatioFromPolygons
 #' @name computeAspectRatioFromPolygons
 #' @rdname computeAspectRatioFromPolygons
-#' @description This function computes the aspect ratio from polygon data.
+#' @description This function computes the aspect ratio (width / height)
+#' from polygon data.
 #'
 #' @param polygons An `sf` object containing polygon data.
 #'
 #' @return A `numeric` vector with the aspect ratio information.
 #' @export
-#'
+#' @importFrom sf st_geometry st_is_empty st_bbox
 #' @examples
 #' example(readPolygonsMerfish)
 #' ar <- computeAspectRatioFromPolygons(polygons)
 #' ar
 computeAspectRatioFromPolygons <- function(polygons)
 {
-    stopifnot(all(is(polygons, "sf"), ("is_multi" %in% colnames(polygons))))
-    aspRatL <- numeric(nrow(polygons))
-    if(any(polygons$is_multi)) {
-        aspRatL[which(polygons$is_multi)] <- NA
-        warning("Found ", sum(polygons$is_multi),
-            " multi-poligons: returning NA aspect ratio for them.")
+    stopifnot(inherits(polygons, "sf"))
+    if (!"cell_id" %in% names(polygons)) {
+        stop("'polygons' must contain a 'cell_id' column.")
     }
-    aspRatL[!polygons$is_multi] <- lapply(polygons$global[!polygons$is_multi],
-        function(x) {
-            (max(x[[1]][, 2]) - min(x[[1]][, 2]))/(max(x[[1]][, 1]) -
-                                                    min(x[[1]][, 1]))
-    })
-    names(aspRatL) <- polygons$cell_id
-    ar <- unlist(aspRatL)
+
+    g <- sf::st_geometry(polygons)
+    n <- length(g)
+    # counting multi polygons if present
+    if ("is_multi" %in% names(polygons)) {
+        is_multi <- polygons$is_multi %in% TRUE
+        if (any(is_multi)) {
+            warning(
+                "Found ", sum(is_multi),
+                " multi-polygons: returning NA aspect ratio for them."
+            )
+        }
+    } else {
+        is_multi <- rep(FALSE, n)
+    }
+    # helper fun: aspect ratio via bounding box (CosMx-style: width / height)
+    .bbox_aspect_ratio <- function(geom) {
+        # geom: sfg (POLYGON, MULTIPOLYGON, ecc.)
+        bb <- sf::st_bbox(geom) # bounding box computes xmin, ymin, xmax, ymax
+        width  <- unname(bb["xmax"] - bb["xmin"])
+        height <- unname(bb["ymax"] - bb["ymin"])
+        if (height == 0) {
+            return(NA_real_)
+        }
+        width / height
+    }
+
+    ar <- rep(NA_real_, n)
+    idx <- which(!is_multi & !sf::st_is_empty(g))
+    if (length(idx) > 0) {
+        ar[idx] <- vapply(g[idx], .bbox_aspect_ratio, numeric(1))
+    }
+    names(ar) <- polygons$cell_id
     return(ar)
 }
 

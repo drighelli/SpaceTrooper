@@ -122,7 +122,7 @@ spatialPerCellQC <- function(spe, micronConvFact=0.12, rmZeros=TRUE,
                                     ywindim=metadata(spe)$fov_dim[["ydim"]]) {
     stopifnot(is(spe, "SpatialExperiment"))
     cd <- colData(spe)
-    cdf <- left_join(as.data.frame(cd),metadata(spe)$fov_positions,by="fov")
+    cdf <- left_join(as.data.frame(cd), metadata(spe)$fov_positions, by="fov")
     spcn <- spatialCoordsNames(spe)
     fovpn <- colnames(metadata(spe)$fov_positions)[colnames(
         metadata(spe)$fov_positions) %in% c("x_global_px", "y_global_px")]

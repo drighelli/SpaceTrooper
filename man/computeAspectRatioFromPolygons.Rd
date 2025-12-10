@@ -13,7 +13,8 @@ computeAspectRatioFromPolygons(polygons)
 A `numeric` vector with the aspect ratio information.
 }
 \description{
-This function computes the aspect ratio from polygon data.
+This function computes the aspect ratio (width / height)
+from polygon data.
 }
 \examples{
 example(readPolygonsMerfish)
