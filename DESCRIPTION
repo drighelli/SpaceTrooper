@@ -1,7 +1,7 @@
 Package: SpaceTrooper
 Type: Package
 Title: SpaceTrooper performs Quality Control analysis of Image-Based spatial
-Version: 1.1.4
+Version: 1.1.5
 Authors@R:
         c(person("Dario", "Righelli",
             email="dario.righelli@gmail.com",

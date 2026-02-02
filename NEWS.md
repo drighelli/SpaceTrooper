@@ -1,3 +1,9 @@
+# Changes in version 1.1.5
+
+* minor enhancement of cosmx input reading, polygonsCol added
+* minor documentation clarification on QCScore computation
+* cleaned LICENSE stub and creating LICENSE.md file
+
 # Changes in version 1.1.4
 
 * updating documentation along multiple functions
