@@ -14,7 +14,8 @@ readCosmxSPE(
   polygonsFPattern = "polygons.csv",
   fovPosFPattern = "fov_positions_file.csv",
   fovdims = c(xdim = 4256, ydim = 4256),
-  keepPolygons = FALSE
+  keepPolygons = FALSE,
+  polygonsCol = "polygons"
 )
 }
 \arguments{
@@ -45,6 +46,8 @@ in pixels. Default is `c(xdim=4256, ydim=4256)`.}
 
 \item{keepPolygons}{Logical indicating if the polygons need to be loaded into
 memory or not (Default is `FALSE`).}
+
+\item{polygonsCol}{Character name of the column in colData to store polygons.}
 }
 \value{
 A `SpatialExperiment` object containing the read CosMx data,
