@@ -383,21 +383,33 @@ computeLambda <- function(trainDF, modelFormula) {
 #' @description
 #' Compute QC score and automatically define weights for QC score
 #' through glm training. This function computes QC score with a formula
-#' that is defined based on the metrics specified in metric_list and on the
-#' number of available outliers for each metric.
+#' defined on the metrics as "log2SignalDensity", "Area_um",
+#' "log2AspectRatio", "log2Ctrl_total_ratio", as computed from
+#' the `spatialPerCellQC` function.
+#' It automatically computes the number of available outliers for each available
+#' metric, as they are needed for the glm training.
+#' See Details for further information.
 #'
-#' @details For CosMx datasets, also CosMx Protein, the QC Score formula is
-#' defined as follows:
+#' @details For all the techologies, the QC Score formula depends on the follow
+#' metrics:
 #'
-#' QC score ~ count density - aspect ratio - control-total ratio - area
+#' QC score ~ count density - aspect ratio - control-total ratio - size
 #'
-#' count density is total counts-to-area ratio, aspect ratio represents
-#' FOV border effect typical of CosMx datasets and control-total ratio is
-#' the aspecific signal. For each couple of variables interaction terms are
-#' computed.
+#' Where count density is the total counts-to-size ratio, aspect ratio
+#' represents the ratio between the width and the height of the cell
+#' (computed from the provided polygons if not already present in the experiment
+#' metadata) and control-total ratio is the aspecific signal;
+#' size is the area for CosMx and Xenium, while it is the volume for Merfish.
+#' For each couple of variables interaction terms are computed.
 #'
-#' For Xenium and Merscope datasets, QC score cannot depend on aspect ratio
+#' Additionally, for CosMx datasets, the distance from the border of the FOV is
+#' also included in the formula as a metric to take into account .
+#' For Xenium and Merscope datasets, QC score cannot depend on FoV border effect,
 #' as no FOV border effect was captured through this metric.
+#'
+#' Note that the function is responsible for automatically including/excluding
+#' metrics in the formula based on their availability in the `colData` of the
+#' `SpatialExperiment` object.
 #'
 #' Inclusion of metrics in the formula depends also on the number of available
 #' outliers. If the number of outliers for each metric is < 0.1% out of the
@@ -408,7 +420,7 @@ computeLambda <- function(trainDF, modelFormula) {
 #' and `computeLambda()` (cross‑validation) to select lambda unless
 #' `bestLambda` is supplied.
 #'
-#' - Lmbda details: because of the randomness in the training set selection,
+#' - Lambda details: because of the randomness in the training set selection,
 #' results may vary so that it is possible to set a fixed lambda value
 #' previously  computed with `computeLambda` preceeded by `computeTrainDF` and
 #' `getModelFormula`.
