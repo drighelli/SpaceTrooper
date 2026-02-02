@@ -14,7 +14,8 @@ updateCosmxProteinSPE(
   polygonsFPattern = "polygons.csv",
   fovPosFPattern = "fov_positions_file.csv",
   fovdims = c(xdim = 4256, ydim = 4256),
-  keepPolygons = FALSE
+  keepPolygons = FALSE,
+  polygonsCol = "polygons"
 )
 }
 \arguments{
@@ -40,6 +41,8 @@ column names in the per-cell metadata. Default
 
 \item{keepPolygons}{Logical indicating if the polygons need to be loaded into
 memory or not (Default is `FALSE`).}
+
+\item{polygonsCol}{Character name of the column in colData to store polygons.}
 }
 \value{
 SpatialExperiment object with updated technology metadata.

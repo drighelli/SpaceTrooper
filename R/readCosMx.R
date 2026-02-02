@@ -189,7 +189,7 @@ updateCosmxSPE <- function(spe, dirName, sampleName="sample01",
     stopifnot("fovdims not x|y dim"=all(names(fovdims) == c("xdim", "ydim")))
     stopifnot("dirName not exists"=file.exists(dirName))
     spe <- .setupCosmxSPE(spe, dirName, sampleName, polygonsFPattern, fovdims,
-        keepPolygons, poligonsCol)
+        keepPolygons, polygonsCol)
     return(spe)
 }
 
@@ -256,7 +256,7 @@ updateCosmxSPE <- function(spe, dirName, sampleName="sample01",
 #' @param fovdims Named numeric vector with FOV size in pixels.
 #' @param keepPolygons Logical indicating if the polygons need to be loaded into
 #' memory or not (Default is `FALSE`).
-#'
+#' @param polygonsCol Character name of the column in colData to store polygons.
 #' @details
 #' This function sets \code{metadata(spe)$technology <- "Nanostring_CosMx_Protein"}.
 #' It does not modify other assay or metadata components.
@@ -275,12 +275,12 @@ updateCosmxProteinSPE <- function(spe, dirName, sampleName="sample01",
     coordNames=c("CenterX_global_px", "CenterY_global_px"),
     countMatFPattern="exprMat_file.csv", metadataFPattern="metadata_file.csv",
     polygonsFPattern="polygons.csv", fovPosFPattern="fov_positions_file.csv",
-    fovdims=c(xdim=4256, ydim=4256), keepPolygons=FALSE, poligonsCol="polygons")
+    fovdims=c(xdim=4256, ydim=4256), keepPolygons=FALSE, polygonsCol="polygons")
 {
 
     stopifnot(is(spe, "SpatialExperiment"))
     spe <- updateCosmxSPE(spe, dirName, sampleName, polygonsFPattern, fovdims,
-        keepPolygons, poligonsCol)
+        keepPolygons, polygonsCol)
     metadata(spe)$technology <- "Nanostring_CosMx_Protein"
     return(spe)
 }
