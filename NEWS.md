@@ -1,3 +1,7 @@
+# Changes in version 1.1.6
+
+* adding new vignette about SpaceTrooper utilities
+
 # Changes in version 1.1.5
 
 * minor enhancement of cosmx input reading, polygonsCol added
