@@ -147,6 +147,7 @@ The package includes three vignettes that cover:
 
 - [Imaging-based spatial transcriptomics workflows](https://bioconductor.org/packages/devel/bioc/vignettes/SpaceTrooper/inst/doc/RNA_tutorial_vignette.html)
 - [CosMx protein workflow](https://bioconductor.org/packages/devel/bioc/vignettes/SpaceTrooper/inst/doc/Protein_tutorial_vignette.html)
+- [SpaceTrooper utilities](https://bioconductor.org/packages/devel/bioc/vignettes/SpaceTrooper/inst/doc/SpaceTrooper_utilities.html)
 - [SpaceTrooper interoperability](https://bioconductor.org/packages/devel/bioc/vignettes/SpaceTrooper/inst/doc/interoperability.html)
 
 
