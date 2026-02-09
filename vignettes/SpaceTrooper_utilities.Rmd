@@ -1,0 +1,582 @@
+---
+title: "SpaceTrooper utilities overview"
+author: 
+    - name: "Benedetta Banzi"
+    - name: "Dario Righelli"
+date: "`r BiocStyle::doc_date()`"
+output:
+    BiocStyle::html_document:
+        toc: true
+        toc_float: true
+vignette: >
+    %\VignetteIndexEntry{Imaging-based Spatial Transcriptomics Data Quality Control with SpaceTrooper}
+    %\VignetteEncoding{UTF-8}
+    %\VignetteEngine{knitr::rmarkdown}
+editor_options:
+    chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+# Set chunk options: suppress echo, messages, and warnings in code output
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+## Introduction
+
+`SpaceTrooper` is an `R/Bioconductor` package for Quality Control (QC)
+of imaging-based spatial transcriptomics and proteomics data. It provides
+multi-platform data harmonization, cell-level QC, and visualization utilities.
+The package leverages [SpatialExperiment](https://www.bioconductor.org/packages/release/bioc/html/SpatialExperiment.html) objects to support data from 
+**CosMx**, **Xenium**, and **MERFISH** technologies.
+
+This vignette describes additional SpaceTrooper utilities that extend the
+standard workflow and are intended to further improve the user experience.
+Please, be aware that this is an appendix vignette and does not present an
+exhaustive analytical workflow. Therefore, users should consult [RNA](https://bioconductor.org/packages/devel/bioc/vignettes/SpaceTrooper/inst/doc/RNA_tutorial_vignette.html) and [Protein](https://bioconductor.org/packages/devel/bioc/vignettes/SpaceTrooper/inst/doc/Protein_tutorial_vignette.html)
+tutorials before proceeding. 
+
+In addition, this vignette provides practical tips for making the most effective
+use of the package. It is organized into three main sections, corresponding to
+the typical analysis pipeline, with relevant insights for each step:
+
+- Data loading
+- Quality Control (QC)
+- Visualization
+
+## Data loading
+
+### SpatialExperiment object creation
+
+This section explains how to specify the inputs required by each data-reading 
+function. Both `readCosmxSPE` and `readXeniumSPE` are wrapper functions built on 
+the [SpatialExperimentIO](https://bioconductor.org/packages/release/bioc/html/SpatialExperimentIO.html) infrastructure. 
+Further details on their usage are available in the corresponding function 
+documentation, e.g. `help(readCosmxSPE)`.
+
+**COSMX**
+
+```{r load-cosmx}
+library(SpaceTrooper)
+library(ggplot2)
+
+cosmxFolder <- system.file(file.path("extdata", "CosMx_DBKero_Tiny"), 
+                        package="SpaceTrooper")
+
+spe <- readCosmxSPE(dirName=cosmxFolder, 
+                    sampleName="DBKero_CosMx",
+                    coordNames=c("CenterX_global_px", "CenterY_global_px"),
+                    countMatFPattern="exprMat_file.csv",
+                    metadataFPattern="metadata_file.csv",
+                    polygonsFPattern="polygons.csv",
+                    fovPosFPattern="fov_positions_file.csv",
+                    fovdims=c(xdim = 4256, ydim = 4256)
+)
+```
+
+Here are summarized the default values of the input parameters. The `dirName` 
+parameter specifies the path to the directory containing the flat files produced
+by the CosMx platform:
+
+- expression matrix, (e.g. `exprMat_file.csv`)
+- cell metadata, (e.g. `metadata_file.csv`)
+- Fields of View positions, (e.g. `fov_positions_file.csv`)
+- cell polygons, (e.g. `polygons.csv`)
+
+These files represent the minimum set of inputs required to run the data-reading
+function.
+
+The `sampleName` parameter defines the dataset label used as the title in 
+plotting functions. 
+The `coordNames` parameter specifies the column names in the cell metadata 
+corresponding to centroid coordinates. These are stored in the `spatialCoords` 
+slot of the `SpatialExperiment` and can be assessed via `spatialCoords(spe)`. 
+They are also the columns used by `plotCentroid` function.
+Additional details on working with `SpatialExperiment` objects are available in 
+the [SpatialExperiment](https://www.bioconductor.org/packages/release/bioc/html/SpatialExperiment.html) documentation.
+
+The `countMatFPattern`, `metadataFPattern`, `polygonsFPattern` and 
+`fovPosFPattern` define file name patterns used to identify the expression 
+matrix, cell metadata, Fields of view (FoV) positions, and polygon files, 
+respectively. As file naming conventions may change over time with evolving 
+technologies, these parameters allow users to adapt to different file names or 
+extensions. Currently, CSV files are supported, including compressed `.csv.gz.` 
+formats.
+
+**IMPORTANT**: the cell polygon file is the only input that is not imported
+directly into the `SpatialExperiment` object by the reading function. However,
+because polygons can be added later using the `readAndAddPolygonsToSPE` function
+(see the [Load polygons](#load-polygons) subsection), the path to the cell
+polygon file is stored in the `metadata` slot and accessed via
+`metadata(spe)$polygons`.
+
+The `fovdims` parameter specifies the FoV dimensions as a vector containing the 
+x and y sizes. While FoV size and shape have changed over time, e.g. from
+rectangular to square, in recent CosMx versions they have stabilized at 4,256 
+pixels per side.
+
+**COSMX PROTEIN**
+
+```{r load-cosmx-protein}
+protfolder <- system.file( "extdata", "S01_prot", package="SpaceTrooper")
+
+prot <- readCosmxProteinSPE(dirName=protfolder, 
+                           sampleName="CosMx_Protein_Tonsil",
+                           coordNames=c("CenterX_global_px", "CenterY_global_px"),
+                           countMatFPattern="exprMat_file.csv", 
+                           metadataFPattern="metadata_file.csv", 
+                           polygonsFPattern="polygons.csv", 
+                           fovPosFPattern="fov_positions_file.csv", 
+                           fovdims=c(xdim = 4256, ydim = 4256)
+)
+
+# code line for shift correction
+metadata(prot)$fov_positions$y_global_px <- metadata(prot)$fov_positions$y_global_px - 4256
+```
+
+`readCosmxProteinSPE` is a wrapper around `readCosmxSPE`, thus the required 
+input files and parameters are identical. Input files may be provided in 
+compressed `csv.gz` file format, and the `countMatFPattern`, `metadataFPattern`,
+`polygonsFPattern` and `fovPosFPattern` parameters are used to specify the 
+corresponding file name patterns.
+
+**XENIUM**
+
+```{r load-xenium, message = TRUE, warning = TRUE}
+xeniumFolder <- system.file( "extdata", "Xenium_small", package="SpaceTrooper")
+
+xen <- readXeniumSPE(dirName=xeniumFolder, 
+                     sampleName="Xenium_small",
+                     type=c("HDF5", "sparse"),
+                     coordNames=c("x_centroid", "y_centroid"),
+                     boundariesType=c("parquet", "csv"),
+                     computeMissingMetrics=TRUE,
+                     keepPolygons=FALSE,
+                     countsFilePattern="cell_feature_matrix",
+                     metadataFPattern="cells.csv.gz",
+                     polygonsFPattern="cell_boundaries",
+                     polygonsCol="polygons",
+                     txPattern="transcripts",
+                     addFOVs=FALSE
+
+)
+```
+
+`readXeniumSPE` function requires the path to the directory containing the 
+Xenium output files. This directory is typically generated automatically by the 
+Xenium pipeline and usually includes the pattern `outs` in its name. If the 
+directory exists but this pattern is missing from the provided path, a warning 
+is issued to allow the path to be corrected.
+
+Xenium outputs are often provided redundantly in multiple formats. The 
+minimum set of files required to run the `SpaceTrooper` pipeline includes:
+
+- expression matrix
+- cell metadata
+- cell polygons
+
+Optionally:
+
+- transcript file
+
+The `dirName`, `sampleName` and `coordNames` parameters behave in the same way 
+as in `readCosmxSPE`.
+
+The remaining parameters are described below:
+
+`type` specifies the format of the expression matrix to be loaded. Currently
+only the following two formats are supported: MEX for sparse matrices (Cell
+Ranger output) and HDF5. By default, the HDF5 file is used. If only the sparse
+MEX format is available, you should provide a vector containing only that
+format.
+
+`boundariesType` specifies the format of the polygon file and must be either
+Parquet or CSV. By default, the function uses Parquet format. If only the CSV
+file is available, you should provide a vector containing only that format.
+
+`computeMissingMetrics` is set to TRUE by default and enables the computation of
+`Area_um` and `AspectRatio` cell metrics from boundary polygons. 
+**IMPORTANT**: it is strongly recommended to keep this parameter set to `TRUE` 
+as both metrics are required to run `computeQCScore()`, even if they are not used
+in the final formula.
+
+`keepPolygons` controls whether polygons are retained in the `SpatialExperiment` 
+object and is **ONLY** effective when `computeMissingMetrics=TRUE`. While 
+missing metrics can be computed without keeping polygons, polygons cannot be 
+retained without computing these metrics. However, polygons may also be loaded 
+at a later stage (see the [Load polygons](#load-polygons) subsection).
+
+`countsFilePattern` and `polygonsFPattern` define file name patterns (excluding
+the file extension) for the expression matrix and polygon files, correspondingly,
+since their formats are already specified via `type` and `boundariesType`.
+
+`metadataFPattern` requires the full file name (including extension) of the cell 
+metadata file. Only `.csv.gz` and `.parquet` files are supported.
+
+`polygonsCol` defines the name of the column in `colData` that stores polygon
+geometries. 
+
+Optionally, FoV information can be retrieved for each cell from the transcript 
+file. The `txPattern` parameter specifies the file name pattern for the 
+transcript file (Parquet format only), while `addFOVs` controls whether FoV
+information is extracted. This option is not mandatory and is therefore set to
+`FALSE` by default.
+
+**OF NOTE**, because `readXeniumSPE` is a wrapper function around
+`SpatialExperimentIO::readXeniumSXE`, and multiple probe identifier sets could
+be available, Gene Symbols are selected and used as row names.
+
+**MERFISH**
+
+```{r load-merfish, message = TRUE, warning= TRUE}
+merfishFolder <- system.file("extdata", "Merfish_Tiny", package="SpaceTrooper")
+
+mer <- readMerfishSPE(dirName=merfishFolder, 
+                      sampleName="Merfish_Tiny",
+                      computeMissingMetrics=TRUE,
+                      keepPolygons=FALSE,
+                      boundariesType=c("parquet"),
+                      countmatFPattern="cell_by_gene.csv",
+                      metadataFPattern="cell_metadata.csv",
+                      polygonsFPattern="cell_boundaries.parquet",
+                      coordNames=c("center_x", "center_y"),
+                      polygonsCol="polygons")
+```
+
+As with the other data-reading functions, `readMerfishSPE` requires the path to 
+the directory containing the MERFISH output files. The minimum set of inputs 
+required to run the `SpaceTrooper` pipeline includes:
+
+- expression matrix
+- cell metadata
+- cell polygons
+
+The expression matrix and cell metadata are typically provided in CSV format. 
+
+Polygon data can be supplied either as a single Parquet file (recommended when 
+available) or as multiple HDF5 files. In MERFISH/MERSCOPE experiments, HDF5 
+polygon files are generated per FoV and may easily scale to thousands of files, 
+making this option computationally intensive and time-consuming. Fortunately, in
+more recent datasets, a Parquet file is usually available.
+
+For this reason, it is recommended to override the default setting and provide a
+vector containing only `Parquet` to the `boundariesType` parameter.
+
+**IMPORTANT**: please, pay attention to warnings. `computeMissingMetrics` 
+parameter must be set to `TRUE` whenever it is desired to compute Quality Score
+(QS). In MERFISH experiments, transcript hybridization signals are captured also 
+across the z dimension, and cell size is therefore represented by cell volume in 
+the provided metadata. 
+
+In contrast, cell area can also be computed by `SpaceTrooper` from polygon
+boundaries obtained from the MERFISH experiment but from a single z plane only
+(by running `computeMissingMetricsMerfish()` with `useVolume=FALSE`).
+That said, cell volume appears to be a more appropriate measure of cell size for
+QS computation with MERFISH data.
+
+In the current version of `SpaceTrooper`, when `computeMissingMetrics=TRUE`, the
+`volume` is renamed as `Area_um` for compatibility with the `computeQCScore`
+function, whereas cell area is not computed.
+
+### Load polygons
+
+For all supported technologies, polygons can be loaded after `SpatialExperiment` 
+object creation. The function `readAndAddPolygonsToSPE` performs the following
+steps:
+
+- reads the cell polygon file;
+- standardizes polygon formats and converts them into an `sf` object;
+- validates polygon geometries (e.g. checks that polygons are properly closed 
+and contain at least four vertices etc.);
+- removes cells from the `SpatialExperiment` object if no valid polygon is 
+associated with them;
+- stores the resulting `sf` object in a `colData` column whose name can be 
+specified via the `polygonsCol` argument;
+
+```{r load-poly,  message = TRUE}
+# polygon loading
+spe <- readAndAddPolygonsToSPE(spe, 
+                               polygonsCol="polygons",
+                               keepMultiPol=TRUE,
+                               boundariesType=c("csv", "HDF5", "parquet")
+)
+
+spe$polygons
+```
+
+In some technologies, segmentation may produce multi-polygons (indicated as
+`TRUE` in the `is_multi` column of the `sf` object shown here), meaning that
+more than one polygon is associated with a single cell. This can cause issues
+when computing certain derived metrics, particularly the`AspectRatio`. 
+
+By default, the `keepMultiPol` parameter is set to `TRUE`. Under this setting, 
+cells associated with multi-polygons are retained in the dataset; however, their
+`AspectRatio` is `NA`.  
+
+```{r load-poly-xen,  message = TRUE}
+# xenium polygon loading
+xen <- readAndAddPolygonsToSPE(xen, boundariesType=c("parquet"))
+```
+
+```{r load-poly-mer,  message = TRUE}
+# merfish polygon loading
+mer <- readAndAddPolygonsToSPE(mer, boundariesType=c("parquet"))
+```
+
+```{r load-poly-prot,  message = TRUE}
+# protein polygon loading
+prot <- readAndAddPolygonsToSPE(prot, boundariesType=c("csv"))
+```
+
+Multiple geometries files can be loaded into a `SpatialExperiment` object using
+the `readAndAddPolygonsToSPE` function. The `polygonsCol` parameter allows users
+to specify distinct column names under which these geometries are stored in
+`colData`.
+
+## Quality Control
+
+### Compute QC metrics
+
+This section describes the cell metadata and quality metrics computed by the 
+`spatialPerCellQC` function. When inspecting `colData`, additional metadata and 
+metrics provided natively by each technology may also be present; these are 
+technology-specific and are generally not shared across all platforms. For
+details on these additional fields, please refer to the corresponding technology
+reference documentation.
+
+```{r analysis-qc-1}
+spe <- spatialPerCellQC(spe, rmZeros=TRUE,
+        negProbList=c("NegPrb", "Negative", "SystemControl"))
+
+xen <- spatialPerCellQC(xen, rmZeros=TRUE)
+
+mer <- spatialPerCellQC(mer, rmZeros=TRUE)
+
+prot <- spatialPerCellQC(prot, rmZeros=TRUE)
+```
+
+```{r analysis-qc-2}
+# check added columns to colData
+colnames(colData(spe))
+```
+
+This function is a wrapper around `scuttle::addPerCellQC()`, hence a subset of
+the reported metrics is derived from that function:
+
+- `sample_id`: character string specifying the dataset sample name. This matches
+the value provided to the `sampleName` argument in the reading function;
+- `sum`/`total`: numeric value representing total probe counts (RNA) or total 
+protein intensity per cell. In this context, `sum` and `total` are equivalent;
+- `subsets_controlProbeName_sum`: numeric value giving sum of the counts 
+(intensities) obtained from each type of control probe (control protein). For 
+each one, a separate column is created by replacing "controlProbeName" with the 
+corresponding pattern from `negProbList` , e.g. negative control probes (RNA), 
+negative codewords (RNA), negative control antibodies (protein), etc.;
+- `subsets_controlProbeName_detected`: numeric value indicating the number of 
+uniquely detected control probes (proteins) per each type;
+- `subsets_controlProbeName_percent`: numeric value representing the percentage 
+of counts (intensities) from each type of control probe (protein) relative to
+the total probe counts (protein intensities) per cell;
+- `control_sum`: numeric value indicating total control probe counts (protein
+intensities) per cell. It is the sum of counts (intensities) of all types of
+controls;
+- `control_detected`: numeric value representing the number of uniquely detected 
+control probes (proteins) per cell;
+- `target_sum`: numeric value giving target probe counts (protein intensities)
+per cell, obtained as `sum` - `control_sum`;
+- `target_detected`: numeric value indicating number of uniquely detected target 
+probes (proteins) per cell;
+- `ctrl_total_ratio`: numeric value representing the ratio between total control
+probe counts (protein intensities) and total probe counts (protein intensities)
+per cell;
+- `log2Ctrl_total_ratio`: numeric value indicating log2-transformed 
+`ctrl_total_ratio`
+- `Area_um`: numeric value giving cell area in μm² (for MERFISH technology it 
+corresponds to `volume` in μm³);
+- `dist_border_x`: numeric value representing the distance in pixels from the 
+cell to the closest vertical border of its FoV (only available for CosMx);
+- `dist_border_y`: numeric value representing the distance in pixels from the 
+cell to the closest horizontal border of its FoV (only available for CosMx);
+- `dist_border`: numeric value representing the distance from the cell to the
+nearest border of its FoV (only available for CosMx), computed as the minimum of 
+`dist_border_x` and `dist_border_y`;
+- `log2AspectRatio`: numeric value indicating log2-transformed ratio between 
+cell maximum length along the x dimension and cell maximum length along the y 
+dimension in pixels;
+- `SignalDensity`: numeric value indicating the ratio between total probe counts 
+(protein intensities) per cell and cell area in µm² (or volume in µm³ for 
+MERFISH technology);
+- `log2SignalDensity`: log2-transformed `SignalDensity`.
+
+### Compute Quality Score (QS)
+
+This section provides further details about the core component of the method: 
+the Quality Score (QS). As already mentioned in
+[RNA](https://bioconductor.org/packages/devel/bioc/vignettes/SpaceTrooper/inst/doc/RNA_tutorial_vignette.html) and [Protein](https://bioconductor.org/packages/devel/bioc/vignettes/SpaceTrooper/inst/doc/Protein_tutorial_vignette.html) tutorial vignettes,
+a random seed should be set to ensure reproducible results, as the method 
+involves underlying stochastic processes.
+
+**IMPORTANT**: when working with recent MERSCOPE datasets, or with any dataset 
+that uses numeric cell identifiers, it is strongly recommended to convert cell 
+IDs to character strings before calling the `computeQCScore` function. This 
+prevents errors during the selection of training examples when estimating the 
+coefficients of the QS formula.
+
+```{r compute-QS,  message = TRUE}
+# MERSCOPE cell_id conversion
+# spe$cell_id <- as.character(spe$cell_id)
+
+set.seed(1713)
+
+spe <- computeQCScore(spe, verbose=TRUE)
+```
+
+When `verbose=TRUE`, additional information regarding the underlying steps is 
+reported during the estimation of the QS formula coefficients. For this purpose,
+bad and good example cells are selected to train a model that has to assign an
+appropriate QS to each cell. 
+
+Bad example cells are identified separately for each metric according to several 
+criteria, based on outlier detection through a statistical test. The specific 
+test applied depends on the distribution of the metric: for asymmetric 
+distributions the Medcouple method is used, whereas for symmetric distributions 
+the Median Absolute Deviation (MAD) is applied, as implemented in 
+`scuttle::isOutlier()` with default parameters. 
+
+For a detailed description of the selection criteria used for each metric,
+please refer to the Methods section of the [paper](https://www.biorxiv.org/content/10.64898/2025.12.24.696336v1). 
+
+When inspecting the printed output, the following information is reported:
+
+- The first section summarizes the number of outliers identified for each
+metric. The three reported values correspond to outliers detected in the right
+tail, the left tail of the distribution, and the remaining non-outlier cells, 
+respectively.
+Outlier detection is performed on the full dataset after excluding
+cells with zero counts, if these were retained when running the
+`spatialPerCellQC` function. 
+This step is carried out for all metrics, even those that are not ultimately
+included in the final QS formula; however, outliers from excluded metrics are
+not used for model training.
+
+- The next section reports the number of selected bad example cells, followed by
+the number of good example cells, which matches the former. Because the criteria
+for selecting good examples are intentionally permissive, these cells are
+sampled at random.
+
+- The final section displays the QS formula used for model training and score
+computation, along with the estimated coefficients for each retained term and
+all pairwise interactions.
+
+**IMPORTANT**: at present, QS computation requires `log2SignalDensity` as a
+mandatory metric in the QS formula. If an insufficient number of outliers is
+detected for this metric (fewer than 0.1% of the dataset after excluding
+zero-count cells), QS computation cannot proceed using the remaining metrics.
+In such cases, the provided code will still add a`QC_score` column to `colData`.
+This column is populated if the minimum requirement is met and contains `NA`
+values otherwise.
+
+```{r compute-QS-safe-run,  message = TRUE}
+# safe run function
+safe_run <- function(expr) {
+tryCatch(
+  list(result = expr, error = NULL),
+  error = function(e) list(result = NULL, error = e)
+ )
+}
+
+out <- safe_run(computeQCScore(spe))
+if (!is.null(out$error)) {
+message("Failed: ", out$error$message)
+colData(spe)$QC_score <- NA
+} else {
+spe <- out$result
+}
+```
+
+### Single metric flagging 
+
+The `SpaceTrooper` package allows the identification of numerically aberrant
+cells through outlier detection for each quantitative metric, using the same
+procedures applied internally by the `computeQCScore` function. This enables
+metric-specific cell flagging in a manner analogous to standard scRNA-seq
+quality control workflows.
+
+```{r compute-outliers-1,  message = TRUE, warning = TRUE}
+# detecting outliers for cell area in Xenium dataset with both Medcouple
+# and MAD
+xen <- computeSpatialOutlier(xen, computeBy="Area_um", method = "both")
+```
+
+Pay attention to warnings: setting the method to `both`, applies both the
+Medcouple and MAD approaches to identify outliers. Outlier results are stored in
+two separate `colData` columns, with names formed by appending `_outlier_mc`
+and `_outlier_sc` to the variable name. If a warning indicates that the variable
+is symmetric, only the `_outlier_sc` column should be used for downstream
+analyses.
+
+```{r compute-outliers-3,  message = TRUE}
+spe <- computeSpatialOutlier(spe, computeBy="Mean.CD68", method = "both")
+
+table(spe$Mean.CD68_outlier_mc)
+```
+
+The three numbers correspond to outliers in the right tail (`HIGH`), in the 
+left tail (`LOW`) of the variable distribution, and remaining non-outlier cells
+(`NO`). 
+
+## Visualization
+
+Variable distributions can be visualized using the `plotMetricsHist` function,
+as demonstrated in the [RNA](https://bioconductor.org/packages/devel/bioc/vignettes/SpaceTrooper/inst/doc/RNA_tutorial_vignette.html) and [Protein](https://bioconductor.org/packages/devel/bioc/vignettes/SpaceTrooper/inst/doc/Protein_tutorial_vignette.html) tutorial vignette. 
+If the `computeSpatialOutlier` function has already been executed, the resulting
+columns can be provided as input to `useFences` parameter to display lines
+corresponding to the upper and lower thresholds, used to define `HIGH` and `LOW`
+outliers, respectively.
+
+```{r plot-hist-1}
+spe <- computeSpatialOutlier(spe, computeBy="log2SignalDensity", method = "both")
+
+plotMetricHist(spe, metric="log2SignalDensity", 
+               useFences="log2SignalDensity_outlier_mc")
+```
+
+The threshold values are indicated in the plot legend.
+
+The `plotZoomFovsMap` function provides a zoomed-in view of selected FoVs, with
+cell polygons colored according to the metric specified in the `colourBy` parameter.
+In addition, it includes an overview map of all FoVs, analogous to that produced
+by `plotCellsFovs` function.
+
+```{r plot-zoom-fov-1}
+# plotting FoVs map and zoom in of selected FoV colored by QS
+plotZoomFovsMap(spe, fovs=16, colourBy="QC_score", csize=3, scaleBars=TRUE)
+```
+
+For this plot, `scaleBars` parameter controls whether scale bars are displayed
+in both plots simultaneously. To show the scale bar in only one of the two
+plots, set either `scaleBarMap=FALSE` or `scaleBarPol=FALSE`.
+
+```{r plot-zoom-fov-2}
+plotZoomFovsMap(prot, fovs = 344, colourBy="Area_um", csize=3, scaleBarMap=TRUE, 
+                scaleBarPol=FALSE)
+```
+
+For the other plots, the `scaleBar` parameter can be set to `FALSE` to hide the
+scale bar.
+
+```{r plot-centroids}
+plotCentroids(spe, colourBy="QC_score", size=3, scaleBar=FALSE) +
+    scale_fill_viridis_c(option = "plasma") +
+    scale_color_viridis_c(option = "plasma")
+```
+
+```{r plot-polygons}
+plotPolygons(prot, colourBy="log2SignalDensity", scaleBar=FALSE) + 
+    scale_fill_viridis_c(option="mako")
+```
+
+## Session Information
+
+```{r sessionInfo}
+sessionInfo()
+```
