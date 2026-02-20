@@ -8,8 +8,8 @@ Authors@R:
             role=c("aut", "cre"),
             comment=c(ORCID="0000-0003-1504-3583")),
         person(given="Benedetta", family="Banzi", role="aut"),
+        person(given="Matteo", family="Marchionni", role="aut"),
         person(given="Oriana", family="Romano", role="ctb"),
-        person(given="Matteo", family="Merchionni", role="ctb"),
         person(given="Mattia", family="Forcato", role="ctb"),
         person(given="Silvio", family="Bicciato", role="aut"),
         person(given="Davide", family="Risso", role="ctb"))
