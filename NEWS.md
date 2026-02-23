@@ -1,3 +1,7 @@
+# Changes in version 1.1.7
+
+* fixing author name typo
+
 # Changes in version 1.1.6
 
 * adding new vignette about SpaceTrooper utilities
