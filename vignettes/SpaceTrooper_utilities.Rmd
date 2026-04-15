@@ -9,7 +9,7 @@ output:
         toc: true
         toc_float: true
 vignette: >
-    %\VignetteIndexEntry{Imaging-based Spatial Transcriptomics Data Quality Control with SpaceTrooper}
+    %\VignetteIndexEntry{SpaceTrooper utilities overview}
     %\VignetteEncoding{UTF-8}
     %\VignetteEngine{knitr::rmarkdown}
 editor_options:
