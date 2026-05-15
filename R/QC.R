@@ -370,7 +370,17 @@ computeThresholdFlags <- function(spe, totalThreshold=0,
 #' @export
 computeLambda <- function(trainDF, modelFormula) {
     # model_formula <- getModelFormula(technology)
+    train_ok <- .filterCompleteModelCases(
+        df=trainDF,
+        modelFormula=modelFormula,
+        response=trainDF$qcscore_train,
+        context="training cells for lambda selection"
+    )
+
+    trainDF <- trainDF[train_ok, , drop=FALSE]
+
     model_matrix <- model.matrix(as.formula(modelFormula), data=trainDF)
+    model_matrix <- .dropModelIntercept(model_matrix)
     ridge_cv <- cv.glmnet(model_matrix, trainDF$qcscore_train,
                         family="binomial", alpha=0, lambda=NULL)
     bestLambda <- ridge_cv$lambda.min
@@ -442,7 +452,7 @@ computeLambda <- function(trainDF, modelFormula) {
 #' set.seed(1998)
 #' spe <- computeQCScore(spe)
 #' summary(spe$QC_score)
-computeQCScore <- function(spe, bestLambda=NULL, verbose=FALSE) {
+computeQCScore <- function(spe, bestLambda=NULL, modelFormula=NULL, verbose=FALSE) {
     stopifnot(is(spe, "SpatialExperiment"))
     if (dim(spe[,spe$total == 0])[2] != 0) {
         warning(paste0(dim(spe[,spe$total == 0])[2],
@@ -458,34 +468,71 @@ computeQCScore <- function(spe, bestLambda=NULL, verbose=FALSE) {
 
     train_df <- computeTrainDF(df, out_var, tech, verbose)
 
-    model_formula <- getModelFormula(out_var, verbose)
+    if (is.null(modelFormula)) {
+        model_formula <- getModelFormula(out_var, verbose)
+    } else {
+        model_formula <- modelFormula
+        if (verbose) {
+            message("Using user-supplied model formula:")
+            message(model_formula)
+        }
+    }
+    train_ok <- .filterCompleteModelCases(
+        df=train_df,
+        modelFormula=model_formula,
+        response=train_df$qcscore_train,
+        context="training cells"
+    )
+
+    train_df <- train_df[train_ok, , drop=FALSE]
 
     model_matrix <- model.matrix(as.formula(model_formula), data=train_df)
+    model_matrix <- .dropModelIntercept(model_matrix)
     model <- trainModel(model_matrix, train_df)
     if(is.null(bestLambda)) {
         bestLambda <- computeLambda(train_df, model_formula)
     }
 
+    coefs <- coef(model, s=bestLambda)
+
     if (verbose) {
         message("Model coefficients for every term used in the formula:")
-        message(paste(round(predict(model, s=bestLambda, type="coefficients"),
-                            2),
-                    collapse = " "))
+        message( paste( rownames(coefs), round(as.numeric(coefs), 2), sep="=",
+            collapse=" "))
     }
 
-    full_matrix <- model.matrix(as.formula(model_formula), data=df)
-    cd <- colData(spe)
-    cd$QC_score <- as.vector(predict(model, s=bestLambda,
-                                    newx = full_matrix,
-                                    type = "response"))
-    spe$QC_score <- cd$QC_score
-    # train_identity <- rep("TEST", dim(spe)[2])
-    # train_bad <- train_df$cell_id[train_df$qcscore_train==0]
-    # train_good <- train_df$cell_id[train_df$qcscore_train==1]
-    # spe$training_status <- dplyr::case_when(
-    #     spe$cell_id %in% train_bad ~ "BAD",
-    #     spe$cell_id %in% train_good ~ "GOOD",
-    #     TRUE ~ train_identity)
+    full_ok <- .filterCompleteModelCases(df=df, modelFormula=model_formula,
+        context="cells")
+
+    full_matrix <- model.matrix(as.formula(model_formula),
+        data=df[full_ok, , drop=FALSE])
+
+    full_matrix <- .dropModelIntercept(full_matrix)
+    full_matrix <- full_matrix[, colnames(model_matrix), drop=FALSE]
+
+    ## NAs may come from model variables used in `model_formula`, e.g. cells with
+    ## missing `log2AspectRatio` when aspect ratio cannot be computed from polygons.
+    ## Predict only complete cases; incomplete cells keep QC_score = NA.
+    qc_score <- rep(NA_real_, nrow(df))
+    qc_score[full_ok] <- as.vector(
+        predict(model, s=bestLambda, newx=full_matrix, type="response")
+    )
+
+    spe$QC_score <- qc_score
+
+    metadata(spe)$QCScore_model <- list(
+        model=model,
+        bestLambda=bestLambda,
+        model_formula=model_formula,
+        formula_variables=out_var,
+        model_matrix_colnames=colnames(model_matrix),
+        coefficients=coefs,
+        coefficients_table=data.frame(
+            term=rownames(coefs),
+            coefficient=as.numeric(coefs),
+            row.names=NULL
+        )
+    )
     return(spe)
 }
 
@@ -1148,3 +1195,163 @@ checkOutliers <- function(spe, verbose=FALSE) {
     return(list(df=df, out_var=out_var, tech=tech))
 }
 
+#' applyQCScoreModel
+#'
+#' @description
+#' Apply a previously trained QC score model to a new SpatialExperiment object.
+#'
+#' @param spe A `SpatialExperiment` object with QC metrics already computed.
+#' @param qcModel A QC score model object, usually stored in
+#'   `metadata(spe)$QCScore_model`.
+#' @param scoreName Name of the output column in `colData`.
+#'
+#' @return A `SpatialExperiment` object with added QC score in `colData`.
+#'
+#' @export
+#' @examples
+#'
+#' example(readCosmxSPE)
+#'
+#' ## Compute per-cell quality control metrics
+#' spe <- spatialPerCellQC(spe)
+#'
+#' ## Split the object only for example purposes
+#' set.seed(1998)
+#' idx <- sample(seq_len(ncol(spe)), floor(ncol(spe) / 2))
+#' spe_train <- spe[, idx]
+#' spe_test <- spe[, -idx]
+#'
+#' ## Train the Quality Control (QC) score model on one dataset
+#' spe_train <- computeQCScore(spe_train)
+#' qc_model <- metadata(spe_train)$QCScore_model
+#'
+#' ## Apply the trained model to another dataset
+#' spe_test <- applyQCScoreModel(
+#'     spe=spe_test,
+#'     qcModel=qc_model,
+#'     scoreName="QC_score_transferred"
+#' )
+#'
+#' summary(spe_test$QC_score_transferred)
+applyQCScoreModel <- function(spe, qcModel, scoreName="QC_score") {
+    stopifnot(is(spe, "SpatialExperiment"))
+
+    required <- c(
+        "model",
+        "bestLambda",
+        "model_formula",
+        "model_matrix_colnames"
+    )
+
+    stopifnot(
+        "qcModel is missing required fields" =
+            all(required %in% names(qcModel))
+    )
+
+    df <- as.data.frame(colData(spe))
+
+    ok <- .filterCompleteModelCases(
+        df=df,
+        modelFormula=qcModel$model_formula,
+        context="cells"
+    )
+
+    new_matrix <- model.matrix(
+        as.formula(qcModel$model_formula),
+        data=df[ok, , drop=FALSE]
+    )
+
+    new_matrix <- .dropModelIntercept(new_matrix)
+
+    missing_cols <- setdiff(
+        qcModel$model_matrix_colnames,
+        colnames(new_matrix)
+    )
+
+    if (length(missing_cols) > 0L) {
+        zero_matrix <- matrix(
+            0,
+            nrow=nrow(new_matrix),
+            ncol=length(missing_cols),
+            dimnames=list(rownames(new_matrix), missing_cols)
+        )
+
+        new_matrix <- cbind(new_matrix, zero_matrix)
+    }
+
+    extra_cols <- setdiff(
+        colnames(new_matrix),
+        qcModel$model_matrix_colnames
+    )
+
+    if (length(extra_cols) > 0L) {
+        warning(
+            "New model matrix contains columns not present in the ",
+            "training matrix. These columns will be ignored: ",
+            paste(extra_cols, collapse=", ")
+        )
+    }
+
+    new_matrix <- new_matrix[, qcModel$model_matrix_colnames, drop=FALSE]
+
+    score <- rep(NA_real_, nrow(df))
+
+    score[ok] <- as.vector(
+        predict(
+            qcModel$model,
+            s=qcModel$bestLambda,
+            newx=new_matrix,
+            type="response"
+        )
+    )
+
+    cd <- colData(spe)
+    cd[[scoreName]] <- score
+    colData(spe) <- cd
+
+    metadata(spe)$QCScore_model_applied <- qcModel
+
+    return(spe)
+}
+
+.dropModelIntercept <- function(modelMatrix) {
+    if ("(Intercept)" %in% colnames(modelMatrix)) {
+        modelMatrix <- modelMatrix[, colnames(modelMatrix)!="(Intercept)",
+            drop=FALSE]
+    }
+
+    return(modelMatrix)
+}
+
+.filterCompleteModelCases <- function(df, modelFormula, response=NULL,
+    context="cells") {
+
+    vars <- all.vars(as.formula(modelFormula))
+
+    missing_vars <- setdiff(vars, colnames(df))
+
+    if (length(missing_vars) > 0L) {
+        stop(
+            "Missing variables required by model formula: ",
+            paste(missing_vars, collapse=", ")
+        )
+    }
+    ## Missing values may come from variables used in `modelFormula`, for
+    ## example `log2AspectRatio` when aspect ratio cannot be computed from
+    ## polygons.
+    ok <- complete.cases(df[, vars, drop=FALSE])
+
+    if (!is.null(response)) {
+        ok <- ok & !is.na(response)
+    }
+
+    if (!all(ok)) {
+        warning(
+            sum(!ok),
+            " ", context,
+            " contain missing model variables."
+        )
+    }
+
+    return(ok)
+}
