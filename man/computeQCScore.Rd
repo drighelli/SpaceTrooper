@@ -4,12 +4,21 @@
 \alias{computeQCScore}
 \title{computeQCScore}
 \usage{
-computeQCScore(spe, bestLambda = NULL, verbose = FALSE)
+computeQCScore(spe, bestLambda = NULL, modelFormula = NULL, verbose = FALSE)
 }
 \arguments{
 \item{spe}{A `SpatialExperiment` object with spatial transcriptomics data.}
 
 \item{bestLambda}{the best lambda typically computed using `computeLambda`.}
+
+\item{modelFormula}{a character string representing the model formula to be
+used for training the model. If NULL, the formula is automatically generated
+based on the available metrics and outliers in the dataset.
+See Details for more information.
+Note that the automatically generated formula will include interaction
+terms between the metrics, and will exclude metrics with insufficient
+outliers (< 0.1% of the dataset). If a custom `modelFormula` is provided,
+it will be used as is without modification or checks for outlier counts.}
 
 \item{verbose}{logical for having a verbose output. Default is FALSE.}
 }

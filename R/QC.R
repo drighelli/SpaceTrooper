@@ -441,12 +441,20 @@ computeLambda <- function(trainDF, modelFormula) {
 #' @param spe A `SpatialExperiment` object with spatial transcriptomics data.
 #' @param verbose logical for having a verbose output. Default is FALSE.
 #' @param bestLambda the best lambda typically computed using `computeLambda`.
+#' @param modelFormula a character string representing the model formula to be
+#' used for training the model. If NULL, the formula is automatically generated
+#' based on the available metrics and outliers in the dataset.
+#' See Details for more information.
+#' Note that the automatically generated formula will include interaction
+#' terms between the metrics, and will exclude metrics with insufficient
+#' outliers (< 0.1% of the dataset). If a custom `modelFormula` is provided,
+#' it will be used as is without modification or checks for outlier counts.
 #'
 #' @return The `SpatialExperiment` object with added QC score in `colData`.
 #' @export
 #' @importFrom dplyr case_when filter mutate distinct pull
 #' @importFrom glmnet glmnet cv.glmnet
-#' @importFrom stats as.formula model.matrix quantile predict
+#' @importFrom stats as.formula model.matrix quantile predict coef
 #' @examples
 #' example(spatialPerCellQC)
 #' set.seed(1998)
@@ -1323,6 +1331,7 @@ applyQCScoreModel <- function(spe, qcModel, scoreName="QC_score") {
     return(modelMatrix)
 }
 
+#' @importFrom stats complete.cases
 .filterCompleteModelCases <- function(df, modelFormula, response=NULL,
     context="cells") {
 
