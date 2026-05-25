@@ -1,0 +1,23 @@
+bibentry(
+    bibtype="Article",
+    title="SpaceTrooper: a quality control framework for imaging-based spatial omics data",
+    author=c(
+        person("Benedetta", "Banzi"),
+        person("Dario", "Righelli"),
+        person("Matteo", "Marchionni"),
+        person("Oriana", "Romano"),
+        person("Mattia", "Forcato"),
+        person("Davide", "Risso"),
+        person("Silvio", "Bicciato")
+    ),
+    journal="bioRxiv",
+    year="2025",
+    doi="10.64898/2025.12.24.696336",
+    url="https://doi.org/10.64898/2025.12.24.696336",
+    textVersion=paste(
+        "Banzi B, Righelli D, Marchionni M, Romano O, Forcato M,",
+        "Risso D, Bicciato S. SpaceTrooper: a quality control framework",
+        "for imaging-based spatial omics data. bioRxiv, 2025.",
+        "doi:10.64898/2025.12.24.696336"
+    )
+)
