@@ -413,7 +413,7 @@ computeLambda <- function(trainDF, modelFormula) {
 #' For each couple of variables interaction terms are computed.
 #'
 #' Additionally, for CosMx datasets, the distance from the border of the FOV is
-#' also included in the formula as a metric to take into account .
+#' also included in the formula as a metric to take into account.
 #' For Xenium and Merscope datasets, QC score cannot depend on FoV border effect,
 #' as no FOV border effect was captured through this metric.
 #'
@@ -437,6 +437,9 @@ computeLambda <- function(trainDF, modelFormula) {
 #' This is useful for reproducibility across different runs.
 #' Otherwise, an easier way is to let be lambda computed internally, just set
 #' a seed with `set.seed()` before running `computeQCScore`.
+#'
+#' The computed model output is stored in `metadata(spe)$QCScore_model`
+#' for inspection and reuse (see also \code{\link{applyQCScoreModel}}).
 #'
 #' @param spe A `SpatialExperiment` object with spatial transcriptomics data.
 #' @param verbose logical for having a verbose output. Default is FALSE.
@@ -1207,6 +1210,18 @@ checkOutliers <- function(spe, verbose=FALSE) {
 #'
 #' @description
 #' Apply a previously trained QC score model to a new SpatialExperiment object.
+#' See details for important considerations when applying a model to a
+#' different dataset.
+#' @details
+#' The authors do not reccommend applying a QC score model trained on one
+#' dataset to a different dataset, but this could be useful in some cases,
+#' for example to transfer a model trained on a dataset core and the applied to
+#' other cores from the same experiment.
+#' The QC score model should have been trained on a dataset with the same
+#' set of QC metrics and similar data distribution to have better
+#' predictions. The function will check for the presence of required model
+#' variables in the new dataset and will handle missing or extra variables
+#' accordingly.
 #'
 #' @param spe A `SpatialExperiment` object with QC metrics already computed.
 #' @param qcModel A QC score model object, usually stored in

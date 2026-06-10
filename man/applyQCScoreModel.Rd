@@ -19,6 +19,19 @@ A `SpatialExperiment` object with added QC score in `colData`.
 }
 \description{
 Apply a previously trained QC score model to a new SpatialExperiment object.
+See details for important considerations when applying a model to a
+different dataset.
+}
+\details{
+The authors do not reccommend applying a QC score model trained on one
+dataset to a different dataset, but this could be useful in some cases,
+for example to transfer a model trained on a dataset core and the applied to
+other cores from the same experiment.
+The QC score model should have been trained on a dataset with the same
+set of QC metrics and similar data distribution to have better
+predictions. The function will check for the presence of required model
+variables in the new dataset and will handle missing or extra variables
+accordingly.
 }
 \examples{
 

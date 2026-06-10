@@ -49,7 +49,7 @@ size is the area for CosMx and Xenium, while it is the volume for Merfish.
 For each couple of variables interaction terms are computed.
 
 Additionally, for CosMx datasets, the distance from the border of the FOV is
-also included in the formula as a metric to take into account .
+also included in the formula as a metric to take into account.
 For Xenium and Merscope datasets, QC score cannot depend on FoV border effect,
 as no FOV border effect was captured through this metric.
 
@@ -73,6 +73,9 @@ previously  computed with `computeLambda` preceeded by `computeTrainDF` and
 This is useful for reproducibility across different runs.
 Otherwise, an easier way is to let be lambda computed internally, just set
 a seed with `set.seed()` before running `computeQCScore`.
+
+The computed model output is stored in `metadata(spe)$QCScore_model`
+for inspection and reuse (see also \code{\link{applyQCScoreModel}}).
 }
 \examples{
 example(spatialPerCellQC)
