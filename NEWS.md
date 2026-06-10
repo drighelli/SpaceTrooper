@@ -2,7 +2,6 @@
 
 * fixing naming of of spacetrooper utilities vignette
 * adding functions for QC model transfer across datasets
-* several new scripts for QC tranferring and comparison
 * adding citation file with biorxiv paper
 
 # Changes in version 1.1.7
