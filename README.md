@@ -117,8 +117,8 @@ spe <- readAndAddPolygonsToSPE(spe, boundariesType="csv")
 spe <- spatialPerCellQC(spe)
 
 # 4. Compute QS and, optionally, flag cells with a score higher than 'qsThreshold'.
-spe <- computeQCScore(spe)
-spe <- computeQCScoreFlags(spe, qsThreshold=0.5)
+spe <- computeQScore(spe)
+spe <- computeQScoreFlags(spe, qsThreshold=0.5)
 
 # 5. Visualization
 ## Visualize cells as dots in their centroid coordinates, colored by a column in `colData(spe)` (e.g., QS computed above).
