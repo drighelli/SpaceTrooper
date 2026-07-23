@@ -9,8 +9,11 @@ plotZoomFovsMap(
   fovs = NULL,
   title = NULL,
   mapPointCol = "darkmagenta",
-  mapNumbersCol = "black",
-  mapAlphaNumbers = 0.8,
+  mapPointSize = 0.5,
+  mapPointAlpha = 0.8,
+  fovNumbersCol = "black",
+  fovNumberSize = 1,
+  fovNumbersAlpha = 0.8,
   csize = 0.05,
   calpha = 0.8,
   scaleBars = NULL,
@@ -32,17 +35,16 @@ plot. If `NULL`, no title is added. Default is `NULL`.}
 \item{mapPointCol}{A character string specifying the color of the points
 in the map. Default is `"darkmagenta"`.}
 
-\item{mapNumbersCol}{A character string specifying the color of the
-numbers on the map. Default is `"black"`.}
+\item{mapPointSize}{Numeric size for points in the map. Default: `0.5`.}
 
-\item{mapAlphaNumbers}{A numeric value specifying the transparency of the
-numbers on the map. Default is `0.8`.}
+\item{mapPointAlpha}{Numeric transparency for points in the map. Default: `0.8`.}
 
-\item{csize}{A numeric value specifying the size of the points in the map.
-Default is `0.05`.}
+\item{fovNumbersCol}{A character string specifying the color of the
+numbers on the FoV zoom-in. Default is `"black"`.}
 
-\item{calpha}{A numeric value specifying the transparency of the points in
-the map. Default is `0.8`.}
+\item{fovNumberSize}{Numeric size for the FoV labels. Default: `1`.}
+
+\item{fovNumbersAlpha}{Numeric transparency for FoV labels. Default: `0.8`.}
 
 \item{scaleBars}{Logical or NULL. Default is `NULL`.
 Master switch controlling the presence of scale bars in both panels.

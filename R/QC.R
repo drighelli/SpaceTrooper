@@ -4,10 +4,11 @@
 #' @description
 #' Computes quality‐control metrics for each cell and adds them to `colData`.
 #'
-#' @param spe A `SpatialExperiment` object containing spatial data.
+#' @param spe A `SpatialExperiment` object containing spatial omics data.
 #' @param micronConvFact Numeric factor to convert pixels to microns. Default
-#'    `0.12`.
-#' @param rmZeros logical for removing zero counts cells (default is TRUE).
+#' is 0.12.
+#' @param rmZeros logical for removing zero total counts (protein intensities) 
+#' cells (default is TRUE).
 #' @param negProbList Character vector of patterns to identify negative probes.
 #' Defaults include:
 #'   Nanostring CosMx: `"NegPrb"`, `"Negative"`, `"SystemControl"`
@@ -26,47 +27,57 @@
 #'
 #' Key behaviours and expectations:
 #' - Feature detection: negative‑probe patterns supplied in `negProbList` are
-#' used to build `subsets_*` groups passed to `scater::addPerCellQC()`
-#' (via `use_altexps` when requested). `addPerCellQC()` must be able to find
-#' matching feature names (`rownames` of spe) and will create `subsets_*_sum`
-#' and `subsets_*_detected` columns used below.
-#' - Required columns: the function expects `sum`, `detected` and `total`
-#' (from `addPerCellQC()` and the SPE assays) to be present; these are used to
-#' compute `control_sum`, `control_detected`, `target_sum` and
-#' `target_detected.`
+#' passed to `scater::addPerCellQC()` (via `use_altexps` when requested). 
+#' `addPerCellQC()` must be able to find matching control feature names 
+#' (`rownames` of spe) and will create `subsets_*_sum` and `subsets_*_detected` 
+#' columns used below for each of control feature types.
+#' 
+#' The function appends `sum`, `detected` and `total` to the SPE colData by
+#' calling internally `addPerCellQC()`; these are used to compute `control_sum`, 
+#' `control_detected`, `target_sum` and `target_detected.`
+#' 
 #' - Control metrics: `control_sum` and `control_detected` are computed by
 #' summing matching `subsets_*` columns; `target_*` metrics are computed as
-#' the complement vs sum / detected.
-#' - Ratios and logs: `ctrl_total_ratio` (`control` / 9) and its stabilized
-#' log2 transform `log2Ctrl_total_ratio` are added.
+#' sum(detected) - control_sum(_detected).
+#' 
+#' - Ratios and logs: `ctrl_total_ratio` (`control_sum`/`sum`) and its stabilized
+#' log2-transformed `log2Ctrl_total_ratio` are added.
+#' 
 #' - Coordinate and area handling:
 #' - For CosMx technologies (Nanostring_CosMx and Nanostring_CosMx_Protein)
 #' spatial coordinates are converted from pixels to microns using
 #' `micronConvFact` and appended to `colData` (column names have px -> um).
+#' 
 #' - For CosMx, `Area_um` is derived from an existing Area column scaled by
 #' micronConvFact^2 and `.computeBorderDistanceCosMx()` is invoked to
 #' compute `dist_border`.
+#' 
 #' - For Nanostring_CosMx_Protein, a legacy `Area.um2` column (if present)
 #' is renamed to `Area_um` to standardize naming.
+#' 
 #' - For Xenium (10X_Xenium), if `Area_um` is missing the function will
 #' attempt to use `cell_area` as a fallback and issue a warning.
+#' 
 #' - Aspect ratio: if `AspectRatio` exists it is logged (`log2AspectRatio`); if
 #' missing a warning is emitted.
+#' 
 #' - Signal density: `SignalDensity` is computed as `sum` / `Area_um` for most
-#' technologies; for Nanostring_CosMx_Protein it is set to total. A
-#' log transform `log2SignalDensity` is also added.
-#' - Zero‑count removal: when `rmZeros = TRUE` cells with `sum == 0` are
-#' removed from the returned SpatialExperiment (message printed).
+#' technologies; for Nanostring_CosMx_Protein it coincides with `total`. A
+#' log2-transformed `log2SignalDensity` is also added.
+#' 
+#' - Zero‑count (protein intensity) removal: when `rmZeros = TRUE` cells with 
+#' `sum == 0` are removed from the returned SpatialExperiment (message printed).
+#' 
 #' - Side effects: the function modifies `colData(spe)` (adds multiple new
-#' columns), may add spatial coordinates into `colData` if missing, and may
+#' columns). It may add spatial coordinates into `colData` if missing, and may
 #' subset the SPE to remove zero‑count cells. It issues warnings when expected
 #' inputs (e.g. area, aspect ratio, polygon‑derived fields) are missing or
 #' when fallbacks are used.
 #'
 #' Use this information to ensure the input SpatialExperiment contains the
 #' necessary assays and fields (feature names, `sum`/`detected`/`total`,
-#' `Area`/`cell_area` when available) so metrics are computed and assigned
-#' correctly.
+#' `Area`/`cell_area`, log2AspectRatio, dist_border when available) so 
+#' metrics are computed and assigned correctly.
 #'
 #' @importFrom SummarizedExperiment colData
 #' @importFrom scater addPerCellQC
@@ -109,7 +120,7 @@ spatialPerCellQC <- function(spe, micronConvFact=0.12, rmZeros=TRUE,
     eps <- 0.0001
     spe$log2Ctrl_total_ratio <- log2(spe$ctrl_total_ratio+eps)
     if(metadata(spe)$technology == "Nanostring_CosMx_Protein") {
-        # Only for proteins will be included in QCScore
+        # Only for proteins will be included in QScore
         idx <- which(names(colData(spe)) == "Area.um2")
         if(length(idx)!=0) { names(colData(spe))[idx] <- "Area_um" }
     }
@@ -155,14 +166,14 @@ spatialPerCellQC <- function(spe, micronConvFact=0.12, rmZeros=TRUE,
 #' @name .computeBorderDistanceCosMx
 #' @rdname dot-computeBorderDistanceCosMx
 #' @description
-#' Calculates the minimum distance of each cell to the field‐of‐view border
-#' and adds it to `colData`.
+#' Calculates the minimum distance of each cell to the Field‐Of‐View (FOV) 
+#' border and adds it to `colData`.
 #'
 #' @param spe A `SpatialExperiment` object with CosMx data.
-#' @param xwindim Width of FOV in x (default from `metadata(spe)$fov_dim`).
-#' @param ywindim Height of FOV in y (default from `metadata(spe)$fov_dim`).
+#' @param xwindim Width of FOV along x axis (default from `metadata(spe)$fov_dim`).
+#' @param ywindim Height of FOV along y axis (default from `metadata(spe)$fov_dim`).
 #'
-#' @return A `SpatialExperiment` object with `dist_border` columns in
+#' @return A `SpatialExperiment` object with `dist_border` column in
 #' `colData`.
 #'
 #' @importFrom dplyr left_join
@@ -191,37 +202,33 @@ spatialPerCellQC <- function(spe, micronConvFact=0.12, rmZeros=TRUE,
 #' @name computeSpatialOutlier
 #' @rdname computeSpatialOutlier
 #' @description
-#' Computes outliers based on the Area (in micron) of the experiment.
-#' It gives the possibility to choose between the medcouple (mc method argument)
-#' and the MADs (scuttle method argument).
+#' Computes outliers for quantitative cell metadata based on a statistical test:
+#' medcouple (`mc` method argument) or the Median Absolute Deviation (MAD, `scuttle` 
+#' method argument), when the metric distribution is respectively asymmetric or symmetric.
 #'
 #' @details
 #' The medcouple method is a measure for the skeweness of univariate
 #' distribution as described in Hubert M. et al. (2008).
 #' In particular, the computed medcouple value must be in a range between -0.6
-#' and 0.6 to computed adjusted boxplots and perform the outlier detection.
-#' For median absolute deviations (MADs) method we just wrap the isOutlier
-#' function in the scuttle package. Please see McCarthy DJ et al (2017)
-#' for further details.
+#' and 0.6 to compute adjusted boxplots and perform the outlier detection.
+#' For MAD method we just wrap the isOutlier function in the scuttle package. 
+#' Please see McCarthy DJ et al (2017) for further details.
 #'
-#' @param spe a SpatialExperiment object with target_counts, area in micron
-#' and log2 of the aspect ratio in the `colData`.
-#' @param computeBy character indicating a `colData` column name on which
-#' compute the outlier.
+#' @param spe a SpatialExperiment object with quantitative cell metrics in the `colData`.
+#' @param computeBy character indicating a `colData` column name to compute the outliers on.
 #' @param method one of `mc`, `scuttle`, `both`.
-#' Use `mc` for medcouple, `scuttle` for median absolute deviations as computed
-#' in `scuttle`, `both` for computing both of them.
-#' @param mcDoScale logical indicating if the values to compute the medcouple
-#' for the outlier detection should be scaled (default is FALSE, as suggested
-#' by the original Medcouple authors.). See \link[robustbase]{mc} for further
-#' readings.
+#' Use `mc` for medcouple, `scuttle` for MAD as computed in `scuttle`, `both` 
+#' for computing both of them.
+#' @param mcDoScale logical indicating if the metric values should be scaled 
+#' to compute medcouple (default is FALSE, as suggested by the original medcouple 
+#' authors). See \link[robustbase]{mc} for further readings.
 #' @param scuttleType One of `"both"`, `"lower"`, `"higher"` for scuttle method.
 #'
 #' @return a SpatialExperiment object with additional column(s) (named as
-#' the column name indicated in `column_by` followed by the outlier_sc/mc
-#' nomenclature) with the outlier detection as `outlier.filter` logical class
-#' object. This allows to store the thresholds as attributes of the column.
-#' use attr(,"thresholds") to retrieve them.
+#' the column name indicated in `computeBy` followed by the outlier_sc/mc).
+#' Resulting columns are `outlier.filter` logical class objects, allowing to store 
+#' the thresholds as attributes of the columns.
+#' Use attr(,"thresholds") to retrieve them.
 #'
 #' @export
 #' @importFrom robustbase mc adjbox
@@ -288,24 +295,25 @@ computeSpatialOutlier <- function(spe, computeBy=NULL,
 #' @name computeThresholdFlags
 #' @rdname computeThresholdFlags
 #' @description
-#' Compute Flagged cells using fixed thresholds for SpatialExperiment.
+#' Computes flagged cells using fixed thresholds for SpatialExperiment.
 #'
-#' This function calculates flagged cells only for total counts and control on
-#' total probe counts ratio using fixed thresholds for a `SpatialExperiment`
+#' This function calculates flagged cells only for total counts (protein intensities) 
+#' and control-to-total probe counts ratio using fixed thresholds for a `SpatialExperiment`
 #' object.
 #'
-#' @param spe A `SpatialExperiment` object with spatial transcriptomics data.
+#' @param spe A `SpatialExperiment` object with spatial omics data.
 #' @param totalThreshold A numeric value for the threshold of total counts to
 #' identify cells with low counts. Default is `0`.
 #' @param ctrlTotRatioThreshold A numeric value for the threshold of
 #' control-to-total ratio to flag cells over a certain threshold. Default is
 #' `0.1`.
 #'
-#' @return The `SpatialExperiment` object with added filter flags in `colData`.
+#' @return The `SpatialExperiment` object with added flagged cells as TRUE/FALSE
+#'  in `colData`.
 #'
 #' @details The function flags cells basing on zero counts and control-to-total
 #' ratio to identify junk cells.
-#' It also combines these flags into a single filter flag.
+#' It also combines these two flags into a single flag metric named `threshold_flags`.
 #'
 #' @importFrom SummarizedExperiment colData
 #' @export
@@ -334,15 +342,15 @@ computeThresholdFlags <- function(spe, totalThreshold=0,
 
 #' computeLambda
 #' @description
-#' Compute Optimal Ridge Regularization Parameter \eqn{\lambda} via
-#' Cross-Validation
+#' Computes optimal ridge regularization parameter \eqn{\lambda} via
+#' k-fold cross-validation.
 #'
 #' \code{computeLambda} performs ridge (L2) logistic regression with
-#' cross-validation to identify the optimal regularization parameter
-#' \eqn{\lambda} for a binary response.
+#' k-fold cross-validation to identify the optimal regularization parameter
+#' \eqn{\lambda} for Quality Score (QS) model training.
 #'
 #' @param trainDF  `data.frame`
-#'   A data frame for training that must include:
+#'   A data frame for QS model training that must include:
 #'     Predictor columns: All columns referenced in the formula returned by `getModelFormula()`.
 #'     `qscore_train` A binary (0/1) response vector to be modeled.
 #' @param modelFormula `character`
@@ -356,9 +364,9 @@ computeThresholdFlags <- function(spe, totalThreshold=0,
 #'
 #' @details
 #' Internally, the function:
-#'   Constructs the design matrix via \code{model.matrix()},
-#'   Runs ridge logistic regression cross-validation using `cv.glmnet` with `alpha = 0`,
-#'   Extracts and returns `ridge_cv$lambda.min`.
+#'   constructs the design matrix via \code{model.matrix()},
+#'   runs k-fold cross-validation of ridge logistic regression using `cv.glmnet` with `alpha = 0`,
+#'   extracts and returns `ridge_cv$lambda.min`.
 #'
 #' @examples
 #' example(computeTrainDF)
@@ -368,92 +376,84 @@ computeThresholdFlags <- function(spe, totalThreshold=0,
 #'
 #'
 #' @export
-computeLambda <- function(trainDF, modelFormula) {
-    # model_formula <- getModelFormula(technology)
-    train_ok <- .filterCompleteModelCases(
-        df=trainDF,
-        modelFormula=modelFormula,
-        response=trainDF$qcscore_train,
-        context="training cells for lambda selection"
-    )
 
-    trainDF <- trainDF[train_ok, , drop=FALSE]
-
-    model_matrix <- model.matrix(as.formula(modelFormula), data=trainDF)
-    model_matrix <- .dropModelIntercept(model_matrix)
-    ridge_cv <- cv.glmnet(model_matrix, trainDF$qcscore_train,
+computeLambda <- function(modelMatrix, trainDF) {
+    ridge_cv <- cv.glmnet(modelMatrix, trainDF$QScore_train,
                         family="binomial", alpha=0, lambda=NULL)
     bestLambda <- ridge_cv$lambda.min
     return(bestLambda)
 }
 
-#' computeQCScore
-#' @name computeQCScore
-#' @rdname computeQCScore
+#' computeQScore
+#' @name computeQScore
+#' @rdname computeQScore
 #' @description
-#' Compute QC score and automatically define weights for QC score
-#' through glm training. This function computes QC score with a formula
-#' defined on the metrics as "log2SignalDensity", "Area_um",
+#' Computes Quality Score (QS) and automatically define weights of the QS model
+#' terms through glm training. This function computes QS with a formula
+#' defined on the metrics "log2SignalDensity", "Area_um",
 #' "log2AspectRatio", "log2Ctrl_total_ratio", as computed from
 #' the `spatialPerCellQC` function.
-#' It automatically computes the number of available outliers for each available
-#' metric, as they are needed for the glm training.
+#' It automatically computes the number of outliers for each available
+#' metric, which are needed for the glm training.
 #' See Details for further information.
 #'
-#' @details For all the techologies, the QC Score formula depends on the follow
-#' metrics:
+#' @details For all the technologies, the QS formula can contain
+#' only the following terms at most:
 #'
-#' QC score ~ count density - aspect ratio - control-total ratio - size
+#' Quality Score ~ signal density - size - border effect - background signal 
 #'
-#' Where count density is the total counts-to-size ratio, aspect ratio
-#' represents the ratio between the width and the height of the cell
-#' (computed from the provided polygons if not already present in the experiment
-#' metadata) and control-total ratio is the aspecific signal;
-#' size is the area for CosMx and Xenium, while it is the volume for Merfish.
+#' Where signal density is the total counts/protein intensities-to-size ratio, 
+#' border effect is represented by the aspect ratio (i.e. width/height of the cell) 
+#' and is considered only for cells with a distance from the FOV border less than 
+#' 50 px and only for CosMx datasets. Background signal is represented by the ratio 
+#' of control probe counts to total counts (protein intensities) and cell size is 
+#' the area for CosMx and Xenium, while it is the volume for Merfish.
 #' For each couple of variables interaction terms are computed.
-#'
-#' Additionally, for CosMx datasets, the distance from the border of the FOV is
-#' also included in the formula as a metric to take into account.
-#' For Xenium and Merscope datasets, QC score cannot depend on FoV border effect,
-#' as no FOV border effect was captured through this metric.
 #'
 #' Note that the function is responsible for automatically including/excluding
 #' metrics in the formula based on their availability in the `colData` of the
 #' `SpatialExperiment` object.
 #'
 #' Inclusion of metrics in the formula depends also on the number of available
-#' outliers. If the number of outliers for each metric is < 0.1% out of the
-#' entire dataset, the metric will be excluded from the QC score formula.
+#' outliers. If the number of outliers for each metric is less than 0.1\% out of the
+#' entire dataset, the metric will be excluded from the QS formula.
 #'
 #' - Model fitting: ridge (L2) logistic regression is fitted (via `glmnet`) on
 #' the balanced training set. The function uses `trainModel()` for fitting
-#' and `computeLambda()` (cross‑validation) to select lambda unless
-#' `bestLambda` is supplied.
+#' and `computeLambda()` to select lambda unless `bestLambda` is supplied.
 #'
 #' - Lambda details: because of the randomness in the training set selection,
-#' results may vary so that it is possible to set a fixed lambda value
-#' previously  computed with `computeLambda` preceeded by `computeTrainDF` and
-#' `getModelFormula`.
-#' This is useful for reproducibility across different runs.
-#' Otherwise, an easier way is to let be lambda computed internally, just set
-#' a seed with `set.seed()` before running `computeQCScore`.
+#' results may vary. The easiest way to ensure reproducibility is to let lambda 
+#' be computed internally, just set a seed with `set.seed()` before running 
+#' `computeQScore`. Otherwise, a fixed value of lambda previously computed with 
+#' `computeLambda` preceeded by `computeTrainDF` and `getModelFormula` can be set.
+#' 
+#' - Model formula details: the model formula is automatically generated as
+#' follows:
+#' `~(log2SignalDensity + Area_um + I(abs(log2AspectRatio) * as.numeric(dist_border < 50)) + log2Ctrl_total_ratio)^2`.
+#'  When user-provided, the formula must follow the same default syntax and 
+#' removed (or added) terms should be written exactly as in the default formula, 
+#' e.g. `I(abs(log2AspectRatio) * as.numeric(dist_border < 50))` must have spaces 
+#' around the `*` and `<` operators.
+#' In any case, metrics with insufficient outliers (less than 0.1\% of the dataset) 
+#' will be excluded from the QS formula. 
 #'
-#' The computed model output is stored in `metadata(spe)$QCScore_model`
-#' for inspection and reuse (see also \code{\link{applyQCScoreModel}}).
+#' The computed model output is stored in `metadata(spe)$QScore_model`.
+#' For inspection and model coefficient transfer between datasets
+#' see also \code{\link{.applyQScoreModel}}. However, transferring models between
+#' datasets is not recommended. As described in the paper, QS model training is
+#' dataset-specific and does not generalize well across datasets. Moreover,
+#' this step is computationally efficient. Please, refer to the paper for  
+#' details on scalability and coefficient transfer.
 #'
-#' @param spe A `SpatialExperiment` object with spatial transcriptomics data.
+#' @param spe A `SpatialExperiment` object with spatial omics data.
 #' @param verbose logical for having a verbose output. Default is FALSE.
 #' @param bestLambda the best lambda typically computed using `computeLambda`.
-#' @param modelFormula a character string representing the model formula to be
-#' used for training the model. If NULL, the formula is automatically generated
-#' based on the available metrics and outliers in the dataset.
-#' See Details for more information.
-#' Note that the automatically generated formula will include interaction
-#' terms between the metrics, and will exclude metrics with insufficient
-#' outliers (< 0.1% of the dataset). If a custom `modelFormula` is provided,
-#' it will be used as is without modification or checks for outlier counts.
-#'
-#' @return The `SpatialExperiment` object with added QC score in `colData`.
+#' @param modelFormula a character string representing the formula to be used for 
+#' training the model. If NULL, the formula is automatically generated
+#' based on the available metrics and their outliers in the dataset. See details
+#' for more information.
+#' @return The `SpatialExperiment` object with added Quality Score in `colData`.
 #' @export
 #' @importFrom dplyr case_when filter mutate distinct pull
 #' @importFrom glmnet glmnet cv.glmnet
@@ -461,9 +461,9 @@ computeLambda <- function(trainDF, modelFormula) {
 #' @examples
 #' example(spatialPerCellQC)
 #' set.seed(1998)
-#' spe <- computeQCScore(spe)
-#' summary(spe$QC_score)
-computeQCScore <- function(spe, bestLambda=NULL, modelFormula=NULL, verbose=FALSE) {
+#' spe <- computeQScore(spe)
+#' summary(spe$QScore)
+computeQScore <- function(spe, bestLambda=NULL, modelFormula=NULL, verbose=FALSE) {
     stopifnot(is(spe, "SpatialExperiment"))
     if (dim(spe[,spe$total == 0])[2] != 0) {
         warning(paste0(dim(spe[,spe$total == 0])[2],
@@ -471,40 +471,49 @@ computeQCScore <- function(spe, bestLambda=NULL, modelFormula=NULL, verbose=FALS
         spe <- spe[,spe$total > 0]
     }
     metricList <- c("log2SignalDensity", "Area_um",
-                    "log2AspectRatio", "log2Ctrl_total_ratio")
+                    "log2AspectRatio", 
+                    "log2Ctrl_total_ratio")
+
+    if (!is.null(modelFormula)) {
+        model_formula <- modelFormula
+        metricList <- attr(terms(as.formula(modelFormula)), "term.labels")
+        metricList <- metricList[!grepl(":", metricList, fixed=TRUE)]
+        if("I(abs(log2AspectRatio) * as.numeric(dist_border < 50))" %in% metricList) {
+        metricList <- gsub("I\\(abs\\((log2AspectRatio)\\) \\* as\\.numeric\\((dist_border) < 50\\)\\)", 
+        "log2AspectRatio", metricList)              
+        }
+    }
 
     stopifnot("Not all required metrics in the colData.\nPlease run spatialPerCellQC first." = all(metricList %in% names(colData(spe))))
     ctx <- .prepQCContext(spe, metricList, verbose)
     df <- ctx$df; out_var <- ctx$out_var; tech <- ctx$tech
 
+    model_formula <- getModelFormula(names(out_var))
+
+    if (verbose) {
+        message("Using final model formula:")
+        message(model_formula)
+    }
+
     train_df <- computeTrainDF(df, out_var, tech, verbose)
 
-    if (is.null(modelFormula)) {
-        model_formula <- getModelFormula(out_var, verbose)
-    } else {
-        model_formula <- modelFormula
-        if (verbose) {
-            message("Using user-supplied model formula:")
-            message(model_formula)
-        }
-    }
     train_ok <- .filterCompleteModelCases(
         df=train_df,
         modelFormula=model_formula,
-        response=train_df$qcscore_train,
+        response=train_df$QScore_train,
         context="training cells"
     )
 
     train_df <- train_df[train_ok, , drop=FALSE]
 
     model_matrix <- model.matrix(as.formula(model_formula), data=train_df)
-    model_matrix <- .dropModelIntercept(model_matrix)
     model <- trainModel(model_matrix, train_df)
+    
     if(is.null(bestLambda)) {
-        bestLambda <- computeLambda(train_df, model_formula)
+        bestLambda <- computeLambda(model_matrix, train_df)
     }
 
-    coefs <- coef(model, s=bestLambda)
+    coefs <- coef(model, s=bestLambda)[coef(model, s=bestLambda)[,1]!= 0,,drop=FALSE]
 
     if (verbose) {
         message("Model coefficients for every term used in the formula:")
@@ -518,20 +527,17 @@ computeQCScore <- function(spe, bestLambda=NULL, modelFormula=NULL, verbose=FALS
     full_matrix <- model.matrix(as.formula(model_formula),
         data=df[full_ok, , drop=FALSE])
 
-    full_matrix <- .dropModelIntercept(full_matrix)
-    full_matrix <- full_matrix[, colnames(model_matrix), drop=FALSE]
-
     ## NAs may come from model variables used in `model_formula`, e.g. cells with
     ## missing `log2AspectRatio` when aspect ratio cannot be computed from polygons.
-    ## Predict only complete cases; incomplete cells keep QC_score = NA.
-    qc_score <- rep(NA_real_, nrow(df))
-    qc_score[full_ok] <- as.vector(
+    ## Predict only complete cases; incomplete cells keep QScore = NA.
+    qscore <- rep(NA_real_, nrow(df))
+    qscore[full_ok] <- as.vector(
         predict(model, s=bestLambda, newx=full_matrix, type="response")
     )
 
-    spe$QC_score <- qc_score
+    spe$QScore <- qscore
 
-    metadata(spe)$QCScore_model <- list(
+    metadata(spe)$QScore_model <- list(
         model=model,
         bestLambda=bestLambda,
         model_formula=model_formula,
@@ -551,7 +557,7 @@ computeQCScore <- function(spe, bestLambda=NULL, modelFormula=NULL, verbose=FALS
 #' @name trainModel
 #' @rdname trainModel
 #' @description
-#' Fit a Ridge Logistic Regression Model
+#' Fits a ridge logistic regression model.
 #'
 #' \code{trainModel} fits an L2-regularized (ridge) logistic regression
 #' using \pkg{glmnet}, given a design matrix and a training data frame.
@@ -576,7 +582,7 @@ computeQCScore <- function(spe, bestLambda=NULL, modelFormula=NULL, verbose=FALS
 #' coef(fit, s = 0.01)
 trainModel <- function(modelMatrix, trainDF)
 {
-    model <- glmnet(x=modelMatrix, y=trainDF$qcscore_train,
+    model <- glmnet(x=modelMatrix, y=trainDF$QScore_train,
                     family="binomial", lambda=NULL, alpha=0)
     return(model)
 }
@@ -586,22 +592,22 @@ trainModel <- function(modelMatrix, trainDF)
 #' @rdname computeTrainDF
 #'
 #' @description
-#' Build a Balanced Training Data Frame from a SpatialExperiment
+#' Builds a balanced training data frame from a SpatialExperiment.
 #'
 #' \code{computeTrainDF} takes a \code{SpatialExperiment} object
 #' and assembles a balanced training set of “good” vs “bad” cells for
 #' subsequent model fitting.
 #' @param colData A per-cell metadata table. Typically
 #'   `as.data.frame(colData(spe))`. Must include at least:
-#'   `cell_id`, raw metric columns named in `formulaVars` (e.g.
+#'   `cell_id`, raw metric columns named as in `formulaVars` (e.g.
 #'   `log2SignalDensity`, `Area_um`, `log2Ctrl_total_ratio`,
-#'   optionally `log2AspectRatio`), and the corresponding outlier-label
+#'   optionally `log2AspectRatio` and `dist_border`), and the corresponding outlier-label
 #'   columns referenced by `formulaVars`.
 #' @param formulaVars A named character vector mapping variable name to
 #'   its outlier label column name, e.g.
 #'   `c(log2SignalDensity="log2SignalDensity_outlier_train", ...)`.
 #' @param tech Character string with the acquisition technology. Used to
-#'   enable CosMx-specific handling for `log2AspectRatio`. Expected
+#'   enable CosMx-specific inclusion of border effect. Expected
 #'   values include `"Nanostring_CosMx"` or `"Nanostring_CosMx_Protein"`.
 #' @param verbose Logical; print progress messages.
 #'
@@ -610,7 +616,7 @@ trainModel <- function(modelMatrix, trainDF)
 #'
 #' @return
 #' A \code{data.frame} with one row per cell, including:
-#'   \code{qcscore_train} (0/1) indicating “bad” vs “good”,
+#'   \code{QScore_train} (0/1) indicating “bad” vs “good”,
 #'   relevant \code{colData} columns used for modeling.
 #'   Deduplicates and down-samples “good” cells to match the number of “bad” cells.
 #'
@@ -624,11 +630,11 @@ trainModel <- function(modelMatrix, trainDF)
 #'
 #' @examples
 #' example(spatialPerCellQC)
-#' spe <- computeOutliersQCScore(spe)
+#' spe <- computeOutliersQScore(spe)
 #' spe <- checkOutliers(spe)
 #' df_train <- computeTrainDF(colData(spe), metadata(spe)$formula_variables,
 #'     metadata(spe)$technology)
-#' table(df_train$qcscore_train)
+#' table(df_train$QScore_train)
 #'
 #' @export
 computeTrainDF <- function(colData, formulaVars, tech, verbose=FALSE) {
@@ -637,7 +643,7 @@ computeTrainDF <- function(colData, formulaVars, tech, verbose=FALSE) {
     train_bad_var <- character()
     train_good_var <- character()
 
-    stopifnot("log2SignalDensity is not included in the QC score formula.\nQC score cannot be computed"="log2SignalDensity" %in% names(out_var))
+    stopifnot("log2SignalDensity is not included in the Quality Score formula.\nQuality Score cannot be computed"="log2SignalDensity" %in% names(out_var))
 
     cfg <- list(
         log2SignalDensity=list(bad="LOW", good=c(0.90,0.99)),
@@ -702,12 +708,12 @@ computeTrainDF <- function(colData, formulaVars, tech, verbose=FALSE) {
 
     train_bad <- df |>
         dplyr::filter(cell_id %in% train_bad_var) |>
-        dplyr::mutate(qcscore_train=0)
+        dplyr::mutate(QScore_train=0)
 
     train_good <- df |>
         dplyr::filter(cell_id %in% train_good_var) |>
         dplyr::mutate(
-            qcscore_train=1,
+            QScore_train=1,
             is_a_bad_boy=cell_id %in% train_bad$cell_id
         )
 
@@ -742,8 +748,6 @@ computeTrainDF <- function(colData, formulaVars, tech, verbose=FALSE) {
     return(train_df)
 }
 
-
-
 #' getModelFormula
 #' @name getModelFormula
 #' @rdname getModelFormula
@@ -754,27 +758,21 @@ computeTrainDF <- function(colData, formulaVars, tech, verbose=FALSE) {
 #'   (e.g. `"log2SignalDensity"`, `"Area_um"`, etc.) to their corresponding
 #'   outlier label columns, typically from
 #'   `metadata(spe)$formula_variables`.
-#' @param verbose Logical. If `TRUE`, prints the final formula used for QC score
 #' @return `character`
 #'   A one‐sided formula as a string (e.g. "~ log2SignalDensity + ...").
 #' @export
 #' @examples
 #' example(checkOutliers)
 #' getModelFormula(metadata(spe)$formula_variables)
-getModelFormula <- function(formulaVars, verbose=FALSE)
+getModelFormula <- function(metricList)
 {
-    out_var <- formulaVars
-    if ("log2AspectRatio" %in% names(out_var)) {
-        names(out_var)[grep("log2AspectRatio_outlier", out_var)] <-
+    out_var <- metricList
+    if ("log2AspectRatio" %in% out_var) {
+        out_var[grep("log2AspectRatio", out_var)] <-
             "I(abs(log2AspectRatio) * as.numeric(dist_border<50))"
     }
-    model_formula <- paste0("~(", paste(names(out_var), collapse = " + "),
+    model_formula <- paste0("~(", paste(out_var, collapse = " + "),
                         ")^2", sep = "")
-
-    if (verbose) {
-        message("Final formula used for QC score computation:")
-        message(model_formula)
-    }
 
     return(model_formula)
 }
@@ -783,7 +781,7 @@ getModelFormula <- function(formulaVars, verbose=FALSE)
 #' @name dot-computeXenMerTrainSet
 #' @rdname dot-computeXenMerTrainSet
 #' @description
-#' Internal: Build Training Set for Xenium & MERFISH
+#' Internal: builds Training Set for Xenium & MERFISH.
 #' Splits a SpatialExperiment into “bad” vs “good” cells based on
 #' pre-computed outlier labels on log2SignalDensity.
 #' @param spe \code{SpatialExperiment}
@@ -806,9 +804,9 @@ getModelFormula <- function(formulaVars, verbose=FALSE)
 #' @name dot-computeCosmxTrainSet
 #' @rdname dot-computeCosmxTrainSet
 #' @description
-#' Internal: Build Training Set for CosMx
+#' Internal: builds Training Set for CosMx.
 #' Splits a SpatialExperiment into “bad” vs “good” cells based on
-#' outliers in aspect ratio near tissue border or low count area.
+#' outliers in aspect ratio near FOV border or low signal density.
 #' @param spe \code{SpatialExperiment}
 #' @return
 #' A list with elements \code{bad} and \code{good}, each a data.frame
@@ -837,9 +835,9 @@ getModelFormula <- function(formulaVars, verbose=FALSE)
 #' @name dot-computeCosmxProteinTrainSet
 #' @rdname dot-computeCosmxProteinTrainSet
 #' @description
-#' Internal: Build Training Set for CosMx-Protein
+#' Internal: builds Training Set for CosMx-Protein.
 #' Splits a SpatialExperiment into “bad” vs “good” cells based on
-#' outliers in aspect ratio near tissue border or low count area.
+#' outliers in aspect ratio near FOV border or low signal density.
 #' @param spe \code{SpatialExperiment}
 #' @return
 #' A list with elements \code{bad} and \code{good}, each a data.frame
@@ -867,47 +865,46 @@ getModelFormula <- function(formulaVars, verbose=FALSE)
 }
 
 
-#' computeQCScoreFlags
-#' @name computeQCScoreFlags
-#' @rdname computeQCScoreFlags
+#' computeQScoreFlags
+#' @name computeQScoreFlags
+#' @rdname computeQScoreFlags
 #' @description
-#' Compute flagged cells based on a manually chosen threshold on quality score
+#' Computes flagged cells based on a manually chosen threshold on Quality Score (QS).
 #'
-#' This function Compute flagged cells based on a manually chosen threshold on
-#' quality score stored in `SpatialExperiment` object.
+#' This function computes flagged cells based on a manually chosen threshold on
+#' QS stored in `SpatialExperiment` object.
 #'
-#' @param spe A `SpatialExperiment` object with spatial transcriptomics data.
-#' @param qsThreshold Numeric threshold or quantile for quality score. Default
-#'   `0.5`.
-#' @param useQSQuantiles Logical; if `TRUE`, treat `qsThreshold` as a
-#'   percentile.
+#' @param spe A `SpatialExperiment` object with spatial omics data.
+#' @param qsThreshold Numeric threshold or quantile for QS. Default is `0.5`.
+#' @param useQSQuantiles Logical; if `TRUE`, treat `qsThreshold` as a percentile.
 #'
-#' @return The `SpatialExperiment` object with added filter flags in `colData`.
+#' @return The `SpatialExperiment` object with added low-quality flagged cells as
+#' TRUE/FALSE in `colData`.
 #'
 #' @importFrom SummarizedExperiment colData
 #' @export
 #' @examples
-#' example(computeQCScore)
-#' spe <- computeQCScoreFlags(spe)
-#' table(spe$low_qcscore)
+#' example(computeQScore)
+#' spe <- computeQScoreFlags(spe)
+#' table(spe$low_QScore)
 #' # if fixed filters are defined we have an additional column
 #' spe <- computeThresholdFlags(spe)
-#' spe <- computeQCScoreFlags(spe)
-#' table(spe$low_threshold_qcscore)
-computeQCScoreFlags <- function(spe, qsThreshold=0.5, useQSQuantiles=FALSE) {
+#' spe <- computeQScoreFlags(spe)
+#' table(spe$low_threshold_QScore)
+computeQScoreFlags <- function(spe, qsThreshold=0.5, useQSQuantiles=FALSE) {
     stopifnot(is(spe, "SpatialExperiment"))
-    stopifnot("QC_score" %in% names(colData(spe)))
+    stopifnot("QScore" %in% names(colData(spe)))
 
     if(useQSQuantiles) {
-        spe$low_qcscore <- ifelse(
-            spe$QC_score < quantile(spe$QC_score, probs=qsThreshold),
+        spe$low_QScore <- ifelse(
+            spe$QScore < quantile(spe$QScore, probs=qsThreshold),
             TRUE, FALSE)
     } else {
-        spe$low_qcscore <- spe$QC_score < qsThreshold
+        spe$low_QScore <- spe$QScore < qsThreshold
     }
 
     if("threshold_flags" %in% names(colData(spe))) {
-        spe$low_threshold_qcscore <- (spe$low_qcscore &
+        spe$low_threshold_QScore <- (spe$low_QScore &
                                         spe$threshold_flags)
     }
     return(spe)
@@ -917,11 +914,11 @@ computeQCScoreFlags <- function(spe, qsThreshold=0.5, useQSQuantiles=FALSE) {
 #' @name dot-checkSkw
 #' @rdname dot-checkSkw
 #' @description
-#' Check skewness of metrics to choose outlier detection method.
+#' Internal: checks skewness of metrics to choose outlier detection method.
 #'
 #' @param cd colData of `SpatialExperiment` object.
 #' @param metricList A character vector specifying the metrics to include in
-#' the QC score formula. Defaults are "log2SignalDensity", "Area_um",
+#' the Quality Score formula. Defaults are "log2SignalDensity", "Area_um",
 #' "log2AspectRatio", "log2Ctrl_total_ratio".
 #'
 #' @return
@@ -954,11 +951,11 @@ computeQCScoreFlags <- function(spe, qsThreshold=0.5, useQSQuantiles=FALSE) {
     return(method)
 }
 
-#' computeOutliersQCScore
-#' @name computeOutliersQCScore
-#' @rdname computeOutliersQCScore
+#' computeOutliersQScore
+#' @name computeOutliersQScore
+#' @rdname computeOutliersQScore
 #' @description
-#' Compute outlier cells for each metric that can be used in QC score formula
+#' Computes outlier cells for each metric that can be used in Quality Score formula
 #' for SpatialExperiment.
 #'
 #' This function calculates outlier cells for each variable specified
@@ -966,16 +963,18 @@ computeQCScoreFlags <- function(spe, qsThreshold=0.5, useQSQuantiles=FALSE) {
 #' the `colData` of the `SpatialExperiment` object as a minimum requirement.
 #' The user can choose which metrics to include among the following: Area_um,
 #' log2Ctrl_total_ratio, log2AspectRatio. For Xenium and Merfish datasets,
-#' log2AspectRatio is automatically removed from the formula.
-#'
+#' even if outliers for log2AspectRatio are detected, neither the metric will be 
+#' included in the Quality Score formula nor nor the outliers will be used for
+#' training.
+#' 
 #' @param spe A `SpatialExperiment` object with spatial omics data.
 #' @param metricList A character vector specifying the metrics to include in
-#' the QC score formula. Default is `c("log2SignalDensity", "Area_um",
+#' the Quality Score formula. Default is `c("log2SignalDensity", "Area_um",
 #' "log2AspectRatio", "log2Ctrl_total_ratio")`.
 #'
 #' @return The `SpatialExperiment` object with added outlier variables in
-#' `colData` and the temporary QCScore metric variables that in the
-#' `metadata`.
+#' `colData` and the temporary metrics considered for Quality Score computation
+#' stored in the object `metadata`.
 #'
 #' @details The function computes outliers for each specified metric after
 #' automatically choosing the appropriate method according to the skewness of
@@ -983,10 +982,10 @@ computeQCScoreFlags <- function(spe, qsThreshold=0.5, useQSQuantiles=FALSE) {
 #' Internally the function:
 #' \enumerate{
 #'    \item Calls \code{.checkSkw()} to choose the proper outlier detection
-#'     method according to the variable skewness,
+#'     method according to the variable skewness;
 #'    \item Calls \code{computeSpatialOutlier()} on each included metric to get
-#'    fences,
-#'    \item Labels cells as “LOW”/“HIGH” outliers or “NO”
+#'    fences;
+#'    \item Labels cells as “LOW”/“HIGH” outliers or “NO”.
 #' }
 #'
 #' @importFrom SummarizedExperiment colData
@@ -997,9 +996,9 @@ computeQCScoreFlags <- function(spe, qsThreshold=0.5, useQSQuantiles=FALSE) {
 #' @examples
 #' example(readCosmxSPE)
 #' spe <- spatialPerCellQC(spe)
-#' spe <- computeOutliersQCScore(spe)
+#' spe <- computeOutliersQScore(spe)
 #' table(spe$log2SignalDensity_outlier_train)
-computeOutliersQCScore <- function(spe, metricList=c("log2SignalDensity","Area_um",
+computeOutliersQScore <- function(spe, metricList=c("log2SignalDensity","Area_um",
     "log2AspectRatio", "log2Ctrl_total_ratio")) {
 
     stopifnot(is(spe, "SpatialExperiment"))
@@ -1024,7 +1023,7 @@ computeOutliersQCScore <- function(spe, metricList=c("log2SignalDensity","Area_u
         idx <- which(is.na(method))
         for (i in idx) {
             message("Metric ", names(method)[i], " produced NA skewness values.",
-                "It will be removed from the QC score formula.")
+                "It will be removed from the Quality Score formula.")
             method <- method[-i]
         }
     }
@@ -1083,25 +1082,25 @@ computeOutliersQCScore <- function(spe, metricList=c("log2SignalDensity","Area_u
 #' @rdname checkOutliers
 #' @description
 #' Checks if computed outliers meet the minimum numerical requirement, being
-#' at least 0.1% of total cells for each metric to be used in QC score formula.
+#' at least 0.1\% of total cells for each metric to be used in Quality Score formula.
 #' If the requirement is not met, the variable is removed from the formula.
 #'
 #' @param spe A `SpatialExperiment` object with spatial omics data.
 #' @param verbose Logical. If `TRUE`, prints how many outliers were found for
 #' each metric.
 #'
-#' @return The `SpatialExperiment` object with added QCScore metric variables
-#'  in the `metadata`.
+#' @return The `SpatialExperiment` object with added metric variables that
+#' will be used for Quality Score computation stored in the object` metadata`.
 #'
 #' @details The function checks if computed outliers for each metric meet
-#' the minimum number to get the metric included in the QC score formula.
+#' the minimum number to get the metric included in the Quality Score formula.
 #' If verbose is TRUE, it also prints how many outliers were found for each
 #' metric.
 #'
 #' @importFrom SummarizedExperiment colData
 #' @export
 #' @examples
-#' example(computeOutliersQCScore)
+#' example(computeOutliersQScore)
 #' spe <- checkOutliers(spe, verbose = TRUE)
 #' metadata(spe)$formula_variables
 checkOutliers <- function(spe, verbose=FALSE) {
@@ -1110,7 +1109,7 @@ checkOutliers <- function(spe, verbose=FALSE) {
         m1 <- paste0("Not enough outlier cells for ", var, ".\n")
         m2 <- switch(warnstop,
                 s="In this version of SpaceTrooper, presence of outliers
-                for log2SignalDensity is required to compute QC score.",
+                for log2SignalDensity is required to compute Quality Score.",
                 w="This variable will not be used in the final formula")
         return(paste0(m1, m2))
     }
@@ -1119,12 +1118,14 @@ checkOutliers <- function(spe, verbose=FALSE) {
     if (verbose) {
         for (i in names(out_var)) {
             message("Outliers found for ", i, ":")
-            message(paste(table(cd[[out_var[i]]]), collapse = " "))
+            for (k in 1:length(names(table(cd[[out_var[i]]])))){
+                message(paste0(names(table(cd[[out_var[i]]]))[k], ": ", table(cd[[out_var[i]]])[k]))
+            }
         }
     }
     stopifnot(
-        "log2SignalDensity is not included in the QC score formula.\n
-        QC score cannot be computed"=
+        "log2SignalDensity is not included in the Quality Score formula.\n
+        Quality Score cannot be computed"=
             "log2SignalDensity" %in% names(out_var)
     )
     cfg <- list(
@@ -1155,8 +1156,8 @@ checkOutliers <- function(spe, verbose=FALSE) {
     pat <- paste0(var, "_outlier")
     is_cosmx <- metadata(spe)$technology %in%
                 c("Nanostring_CosMx", "Nanostring_CosMx_Protein")
+    idx <- grep(pat, out_var)            
     if (is_cosmx && (var %in% names(out_var))) {
-        idx <- grep(pat, out_var)
         if (length(idx)) {
             col <- out_var[idx]
             labs <- factor(cd[[col]], levels=c("LOW","HIGH","NO"))
@@ -1168,11 +1169,13 @@ checkOutliers <- function(spe, verbose=FALSE) {
 
             if (low < nmin && high < nmin) {
                 warning(warnstopmsg(var, "w"))
-                out_var <- out_var[-grep(pat, out_var)]
+                out_var <- out_var[-idx]
             }
         }
     } else {
-        out_var <- out_var[-grep(pat, out_var)]
+        if (length(idx)) {
+            out_var <- out_var[-idx]
+        }
     }
     metadata(spe)$formula_variables <- out_var
     return(spe)
@@ -1196,7 +1199,7 @@ checkOutliers <- function(spe, verbose=FALSE) {
         stop("log2CountArea found in colData.\n",
         "Please updated the object with the latest version of spatialPerCellQC.")
     }
-    spe1 <- computeOutliersQCScore(spe, metricList)
+    spe1 <- computeOutliersQScore(spe, metricList)
     spe1 <- checkOutliers(spe1, verbose)
 
     out_var <- metadata(spe1)$formula_variables
@@ -1206,29 +1209,35 @@ checkOutliers <- function(spe, verbose=FALSE) {
     return(list(df=df, out_var=out_var, tech=tech))
 }
 
-#' applyQCScoreModel
-#'
+#' .applyQScoreModel
+#' @name .applyQScoreModel
+#' @rdname dot-applyQScoreModel
+#' 
 #' @description
-#' Apply a previously trained QC score model to a new SpatialExperiment object.
+#' Internal: applies a previously trained Quality Score model to a new SpatialExperiment object.
 #' See details for important considerations when applying a model to a
 #' different dataset.
 #' @details
-#' The authors do not reccommend applying a QC score model trained on one
+#' The authors do not recommend applying a Quality Score (QS) model trained on one
 #' dataset to a different dataset, but this could be useful in some cases,
-#' for example to transfer a model trained on a dataset core and the applied to
-#' other cores from the same experiment.
-#' The QC score model should have been trained on a dataset with the same
-#' set of QC metrics and similar data distribution to have better
-#' predictions. The function will check for the presence of required model
-#' variables in the new dataset and will handle missing or extra variables
-#' accordingly.
+#' for example to transfer a model trained on a dataset sourced from a tissue 
+#' slide sample and then applied to other slides from the same experiment.
+#' When transferring the model from a reference dataset of the same technology
+#' of the query dataset, there is no need to set a common formula. However,
+#' when transferring from a different technology, reference QS computation 
+#' should be performed providing a formula that excludes untransferable or unwanted 
+#' variables (e.g. computing QS on a reference CosMx dataset omitting the border 
+#' effect term to transfer the QS model to a Xenium query dataset. This is done by
+#' providing a custom formula in computeQScore, see link computeQScore). The function will check 
+#' for the presence of required model variables in the new dataset and will handle 
+#' missing or extra variables accordingly.
 #'
 #' @param spe A `SpatialExperiment` object with QC metrics already computed.
-#' @param qcModel A QC score model object, usually stored in
-#'   `metadata(spe)$QCScore_model`.
+#' @param qsModel A Quality Score model object, usually stored in
+#'   `metadata(spe)$QScore_model`.
 #' @param scoreName Name of the output column in `colData`.
 #'
-#' @return A `SpatialExperiment` object with added QC score in `colData`.
+#' @return A `SpatialExperiment` object with added Quality Score in `colData`.
 #'
 #' @export
 #' @examples
@@ -1245,18 +1254,18 @@ checkOutliers <- function(spe, verbose=FALSE) {
 #' spe_test <- spe[, -idx]
 #'
 #' ## Train the Quality Control (QC) score model on one dataset
-#' spe_train <- computeQCScore(spe_train)
-#' qc_model <- metadata(spe_train)$QCScore_model
+#' spe_train <- computeQScore(spe_train)
+#' qc_model <- metadata(spe_train)$QScore_model
 #'
 #' ## Apply the trained model to another dataset
-#' spe_test <- applyQCScoreModel(
+#' spe_test <- applyQScoreModel(
 #'     spe=spe_test,
 #'     qcModel=qc_model,
-#'     scoreName="QC_score_transferred"
+#'     scoreName="QScore_transferred"
 #' )
 #'
-#' summary(spe_test$QC_score_transferred)
-applyQCScoreModel <- function(spe, qcModel, scoreName="QC_score") {
+#' summary(spe_test$QScore_transferred)
+.applyQScoreModel <- function(spe, qsModel, scoreName="QScore") {
     stopifnot(is(spe, "SpatialExperiment"))
 
     required <- c(
@@ -1267,27 +1276,25 @@ applyQCScoreModel <- function(spe, qcModel, scoreName="QC_score") {
     )
 
     stopifnot(
-        "qcModel is missing required fields" =
-            all(required %in% names(qcModel))
+        "qsModel is missing required fields" =
+            all(required %in% names(qsModel))
     )
 
     df <- as.data.frame(colData(spe))
 
     ok <- .filterCompleteModelCases(
         df=df,
-        modelFormula=qcModel$model_formula,
+        modelFormula=qsModel$model_formula,
         context="cells"
     )
 
     new_matrix <- model.matrix(
-        as.formula(qcModel$model_formula),
+        as.formula(qsModel$model_formula),
         data=df[ok, , drop=FALSE]
     )
 
-    new_matrix <- .dropModelIntercept(new_matrix)
-
     missing_cols <- setdiff(
-        qcModel$model_matrix_colnames,
+        qsModel$model_matrix_colnames,
         colnames(new_matrix)
     )
 
@@ -1304,7 +1311,7 @@ applyQCScoreModel <- function(spe, qcModel, scoreName="QC_score") {
 
     extra_cols <- setdiff(
         colnames(new_matrix),
-        qcModel$model_matrix_colnames
+        qsModel$model_matrix_colnames
     )
 
     if (length(extra_cols) > 0L) {
@@ -1315,14 +1322,14 @@ applyQCScoreModel <- function(spe, qcModel, scoreName="QC_score") {
         )
     }
 
-    new_matrix <- new_matrix[, qcModel$model_matrix_colnames, drop=FALSE]
+    new_matrix <- new_matrix[, qsModel$model_matrix_colnames, drop=FALSE]
 
     score <- rep(NA_real_, nrow(df))
 
     score[ok] <- as.vector(
         predict(
-            qcModel$model,
-            s=qcModel$bestLambda,
+            qsModel$model,
+            s=qsModel$bestLambda,
             newx=new_matrix,
             type="response"
         )
@@ -1332,7 +1339,7 @@ applyQCScoreModel <- function(spe, qcModel, scoreName="QC_score") {
     cd[[scoreName]] <- score
     colData(spe) <- cd
 
-    metadata(spe)$QCScore_model_applied <- qcModel
+    metadata(spe)$QScore_model_applied <- qsModel
 
     return(spe)
 }

@@ -4,15 +4,13 @@
 \alias{getModelFormula}
 \title{getModelFormula}
 \usage{
-getModelFormula(formulaVars, verbose = FALSE)
+getModelFormula(metricList)
 }
 \arguments{
 \item{formulaVars}{A named character vector mapping variable names
 (e.g. `"log2SignalDensity"`, `"Area_um"`, etc.) to their corresponding
 outlier label columns, typically from
 `metadata(spe)$formula_variables`.}
-
-\item{verbose}{Logical. If `TRUE`, prints the final formula used for QC score}
 }
 \value{
 `character`

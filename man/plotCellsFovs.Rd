@@ -8,11 +8,12 @@ plotCellsFovs(
   spe,
   sampleId = unique(spe$sample_id),
   pointCol = "firebrick",
+  pointSize = 0.05,
+  pointAlpha = 0.8,
   numbersCol = "black",
-  alphaNumbers = 0.8,
+  numberSize = 1,
+  numbersAlpha = 0.8,
   fovDim = metadata(spe)$fov_dim,
-  size = 0.05,
-  alpha = 0.8,
   scaleBar = TRUE,
   micronConvFact = 0.12
 )
@@ -25,16 +26,18 @@ Default: `unique(spe$sample_id)`.}
 
 \item{pointCol}{Color for the cell centroids. Default: `"firebrick"`.}
 
+\item{pointSize}{Numeric point size for the cell centroids. Default: `0.05`.}
+
+\item{pointAlpha}{Numeric transparency for the cell centroids. Default: `0.8`.}
+
 \item{numbersCol}{Color for the FoV labels. Default: `"black"`.}
 
-\item{alphaNumbers}{Numeric transparency for FoV labels. Default: `0.8`.}
+\item{numberSize}{Numeric size for the FoV labels. Default: `1`.}
+
+\item{numbersAlpha}{Numeric transparency for FoV labels. Default: `0.8`.}
 
 \item{fovDim}{numeric with two named dimensions xdim, ydim. (Default is
 metadata(spe)$fov_dim)}
-
-\item{size}{Numeric point size for the cell centroids. Default: `0.05`.}
-
-\item{alpha}{Numeric transparency for the cell centroids. Default: `0.8`.}
 
 \item{scaleBar}{A logical value indicating whether to add a scale bar to the
 plot. (Default is `TRUE`)}
@@ -55,7 +58,7 @@ metadata in metadata(spe):
 - `metadata(spe)$fov_positions`: a matrix or data.frame
 (or list with named elements) containing at minimum `x_global_px`, `y_global_px`,
 and `fov`. Values `x_global_px`/`y_global_px` are in pixels and represent
-the origin (top-left) of each FoV.
+the origin (bottom-left) of each FoV.
 - `metadata(spe)$fov_dim` (or the `fovDim` argument): a named numeric with
 `xdim` and `ydim` giving FoV width/height in pixels.
 

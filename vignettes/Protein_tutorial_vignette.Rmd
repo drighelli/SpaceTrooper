@@ -18,7 +18,7 @@ editor_options:
 
 ```{r setup, include=FALSE}
 # Set chunk options: suppress echo, messages, and warnings in code output
-knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+knitr::opts_chunk$set(echo=TRUE, message=FALSE, warning=FALSE)
 ```
 ## Introduction
 
@@ -49,7 +49,7 @@ library(SpaceTrooper)
 library(ggplot2)
 
 protfolder <- system.file( "extdata", "S01_prot", package="SpaceTrooper")
-spe <- readCosmxProteinSPE(protfolder, sampleName = "CosMx_Protein_Tonsil")
+spe <- readCosmxProteinSPE(protfolder, sampleName="CosMx_Protein_Tonsil")
 
 spe
 ```
@@ -66,7 +66,7 @@ any spatial shift, as such misalignment directly affects the QS computation.
 
 ```{r plot-fovs}
 # to check misalignment
-plotCellsFovs(spe, size = 3, alpha = 0.7)
+plotCellsFovs(spe, pointSize=3, pointAlpha=0.7, numberSize=6)
 ```
 
 If any misalignment is observed, it can be corrected by adjusting the FoV 
@@ -84,7 +84,7 @@ Rerun the FoV plot to check whether the shift was corrected.
 
 ```{r plot-fovs-2}
 # check shift correction
-plotCellsFovs(spe, size = 3, alpha = 0.7)
+plotCellsFovs(spe, pointSize=3, pointAlpha=0.7, numberSize=6)
 ```
 
 Cell centroids, shown in dark red, now are all contained by FoV boundaries,
@@ -105,7 +105,7 @@ only for visualization purposes. They are stored as an `sf` object within
 This step is not mandatory for CosMx, because the pipeline can be executed even
 without them. 
 
-```{r load-poly, message = TRUE}
+```{r load-poly, message=TRUE}
 # polygon loading
 spe <- readAndAddPolygonsToSPE(spe, boundariesType="csv")
 ```
@@ -132,7 +132,7 @@ custom vector, as shown below.
 By default, the function automatically removes 0 count cells, but this can be 
 handled with the `rmZeros` parameter.
 
-```{r cosmx-analysis-qc, message = TRUE}
+```{r cosmx-analysis-qc, message=TRUE}
 spe <- spatialPerCellQC(spe, rmZeros=TRUE,
         negProbList=c("Ms IgG1", "Rb IgG"))
 
@@ -158,7 +158,7 @@ the [SpaceTrooper utilities](https://bioconductor.org/packages/devel/bioc/vignet
 
 ### Compute Quality Score
 
-`computeQCScore` function calculates QS per each cell. QS combines several
+`computeQScore` function calculates QS per each cell. QS combines several
 metrics into a formula: **log2SignalDensity**, corresponding to signal density, 
 **Area_um**, i.e. cell size, **log2Ctrl_total_ratio**, namely background signal 
 and **log2AspectRatio** combined with **dist_border**, which jointly correspond 
@@ -173,30 +173,30 @@ formula contributes to cell quality.
 examples (fewer than 0.1% of the total number of cells), it is excluded from the 
 formula and therefore not used in the QS computation.
 
-The QS (stored as `QC_score` in `coldata`) ranges from 0 to 1, with 0 meaning 
+The QS (stored as `QScore` in `coldata`) ranges from 0 to 1, with 0 meaning 
 low-quality and 1 high-quality.
 
 We are setting a seed to ensure reproducibility in this tutorial, because there 
 are stochastic processes underlying QS computation.
 
-```{r cosmx-analysis-score, message = TRUE}
+```{r cosmx-analysis-score, message=TRUE}
 set.seed(1713)
 
-spe <- computeQCScore(spe)
+spe <- computeQScore(spe)
 
-format(summary(spe$QC_score), scientific=FALSE, digits = 4)
+format(summary(spe$QScore), scientific=FALSE, digits=4)
 ```
 
 In this case, all the terms were used as no warning appeared.
 
 Subsequently, it is possible also to assess which cells have a QS lower than a 
 certain threshold (default is 0.5) with the following function. It creates a
-new column called `low_qcscore` inside of `colData`.
+new column called `low_QScore` inside of `colData`.
 
-```{r cosmx-analysis-score2, message = TRUE}
-spe <- computeQCScoreFlags(spe, qsThreshold=0.5)
+```{r cosmx-analysis-score2, message=TRUE}
+spe <- computeQScoreFlags(spe, qsThreshold=0.5)
 
-table(spe$low_qcscore)
+table(spe$low_QScore)
 ```
 
 Using this threshold, 274 cells are flagged as low-quality. We do not suggest a 
@@ -212,7 +212,7 @@ in handy.
 
 ```{r plot-hist}
 # view quantitative metric distribution
-plotMetricHist(spe, metric = "QC_score")
+plotMetricHist(spe, metric="QScore")
 ```
 
 The QS distribution exhibits a left tail starting around 0.75. 
@@ -221,17 +221,17 @@ Cell visualization can be obtained by using either centroids (recommended when
 the dataset has a large number of cells) or polygons. 
 
 `plotCentroids` plots cell centroids that can be colored by a certain metric
-contained in the `colData` slot, by using the `colour_by` parameter.
+contained in the `colData` slot, by using the `colourBy` parameter.
 
 Additionally, if you have a palette column in `colData`, containing colors for
 each cell, it can be given to `palette` parameter, so that it automatically 
-matches the column passed in `colour_by`. As an example, we are using the 
+matches the column passed in `colourBy`. As an example, we are using the 
 cell types obtained as described in the [paper](https://www.biorxiv.org/content/10.64898/2025.12.24.696336v1) with their own color palette.
 
 ```{r plot-centroids-labels}
 labf <- system.file(file.path("extdata", "S01_prot",
                             "labels_tiny.tsv"), package="SpaceTrooper")
-labs <- read.table(file=labf, sep="\t", header=TRUE, comment.char = "")
+labs <- read.table(file=labf, sep="\t", header=TRUE, comment.char="")
 
 spe$labels <- as.factor(labs[match(spe$cell_id, labs$cell_id),]$label)
 spe$labels_colors <- as.factor(labs[match(spe$cell_id, labs$cell_id),]$lab_color)
@@ -265,11 +265,11 @@ Since all plotting functions are based on `ggplot2`, you can easily customize
 the graphical outputs by adding standard ggplot2 components.
 
 ```{r plot-polygons-fov-2}
-plotPolygons(spe, colourBy="QC_score") + 
-    scale_fill_viridis_c(option = "plasma")
+plotPolygons(spe, colourBy="QScore") + 
+    scale_fill_viridis_c(option="plasma")
 ```
 
-We can see that the QS is able to detect both the aspects highlighted by 
+We can see that the QS is able to detect all the aspects highlighted by 
 `log2SignalDensity`,`Area_um`, `log2Ctrl_total_ratio` or 
 `log2AspectRatio`. Cells that showed either lower signal 
 density, bigger size, higher background signal or border effect also display 
@@ -279,24 +279,24 @@ It's up to the user to choose an appropriate threshold to flag cells according
 to the observed QS distribution. 
 
 ```{r plot-polygons-fov-3}
-plotPolygons(spe, colourBy="low_qcscore") + 
-    scale_fill_manual(values=c("TRUE"="red", "FALSE" = "#c0c8cf"))
+plotPolygons(spe, colourBy="low_QScore") + 
+    scale_fill_manual(values=c("TRUE"="red", "FALSE"="#c0c8cf"))
 ```
 
-You can rerun`computeQCScoreFlags` to check how many cells would be flagged 
+You can rerun`computeQScoreFlags` to check how many cells would be flagged 
 using another threshold.
 
-```{r cosmx-analysis-score3, message = TRUE}
-spe <- computeQCScoreFlags(spe, qsThreshold=0.75)
+```{r cosmx-analysis-score3, message=TRUE}
+spe <- computeQScoreFlags(spe, qsThreshold=0.75)
 
-table(spe$low_qcscore)
+table(spe$low_QScore)
 ```
 
 Using this threshold, 527 cells are flagged as low-quality.
 
 ```{r plot-polygons-fov-4}
-plotPolygons(spe, colourBy="low_qcscore") + 
-    scale_fill_manual(values=c("TRUE"="red", "FALSE" = "#c0c8cf"))
+plotPolygons(spe, colourBy="low_QScore") + 
+    scale_fill_manual(values=c("TRUE"="red", "FALSE"="#c0c8cf"))
 ```
 
 The threshold is more stringent and more cells are flagged compared to the

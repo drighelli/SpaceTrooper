@@ -7,7 +7,7 @@
 computeThresholdFlags(spe, totalThreshold = 0, ctrlTotRatioThreshold = 0.1)
 }
 \arguments{
-\item{spe}{A `SpatialExperiment` object with spatial transcriptomics data.}
+\item{spe}{A `SpatialExperiment` object with spatial omics data.}
 
 \item{totalThreshold}{A numeric value for the threshold of total counts to
 identify cells with low counts. Default is `0`.}
@@ -17,19 +17,20 @@ control-to-total ratio to flag cells over a certain threshold. Default is
 `0.1`.}
 }
 \value{
-The `SpatialExperiment` object with added filter flags in `colData`.
+The `SpatialExperiment` object with added flagged cells as TRUE/FALSE
+ in `colData`.
 }
 \description{
-Compute Flagged cells using fixed thresholds for SpatialExperiment.
+Computes flagged cells using fixed thresholds for SpatialExperiment.
 
-This function calculates flagged cells only for total counts and control on
-total probe counts ratio using fixed thresholds for a `SpatialExperiment`
+This function calculates flagged cells only for total counts (protein intensities) 
+and control-to-total probe counts ratio using fixed thresholds for a `SpatialExperiment`
 object.
 }
 \details{
 The function flags cells basing on zero counts and control-to-total
 ratio to identify junk cells.
-It also combines these flags into a single filter flag.
+It also combines these two flags into a single flag metric named `threshold_flags`.
 }
 \examples{
 example(readCosmxSPE)

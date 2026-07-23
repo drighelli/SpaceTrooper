@@ -15,8 +15,8 @@ A list with elements \code{bad} and \code{good}, each a data.frame
 with \code{qscore_train} and (for “good”) an \code{is_a_bad_boy} flag.
 }
 \description{
-Internal: Build Training Set for CosMx
+Internal: builds Training Set for CosMx.
 Splits a SpatialExperiment into “bad” vs “good” cells based on
-outliers in aspect ratio near tissue border or low count area.
+outliers in aspect ratio near FOV border or low signal density.
 }
 \keyword{internal}

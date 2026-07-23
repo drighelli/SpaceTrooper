@@ -10,12 +10,13 @@
 #' @param sampleId Character string identifying which sample to plot.
 #'   Default: `unique(spe$sample_id)`.
 #' @param pointCol Color for the cell centroids. Default: `"firebrick"`.
+#' @param pointSize Numeric point size for the cell centroids. Default: `0.05`.
+#' @param pointAlpha Numeric transparency for the cell centroids. Default: `0.8`.
 #' @param numbersCol Color for the FoV labels. Default: `"black"`.
-#' @param alphaNumbers Numeric transparency for FoV labels. Default: `0.8`.
+#' @param numberSize Numeric size for the FoV labels. Default: `1`.
+#' @param numbersAlpha Numeric transparency for FoV labels. Default: `0.8`.
 #' @param fovDim numeric with two named dimensions xdim, ydim. (Default is
 #' metadata(spe)$fov_dim)
-#' @param size Numeric point size for the cell centroids. Default: `0.05`.
-#' @param alpha Numeric transparency for the cell centroids. Default: `0.8`.
 #' @param scaleBar A logical value indicating whether to add a scale bar to the
 #' plot. (Default is `TRUE`)
 #' @param micronConvFact Numeric conversion factor from pixels to microns.
@@ -29,7 +30,7 @@
 #' - `metadata(spe)$fov_positions`: a matrix or data.frame
 #' (or list with named elements) containing at minimum `x_global_px`, `y_global_px`,
 #' and `fov`. Values `x_global_px`/`y_global_px` are in pixels and represent
-#' the origin (top-left) of each FoV.
+#' the origin (bottom-left) of each FoV.
 #' - `metadata(spe)$fov_dim` (or the `fovDim` argument): a named numeric with
 #' `xdim` and `ydim` giving FoV width/height in pixels.
 #'
@@ -61,9 +62,10 @@
 #' g <- plotCellsFovs(spe)
 #' print(g)
 plotCellsFovs <- function(spe, sampleId=unique(spe$sample_id),
-                        pointCol="firebrick", numbersCol="black",
-                        alphaNumbers=0.8, fovDim=metadata(spe)$fov_dim,
-                        size=0.05, alpha=0.8,
+                        pointCol="firebrick", pointSize=0.05,
+                        pointAlpha=0.8, numbersCol="black",
+                        numberSize= 1, numbersAlpha=0.8,
+                        fovDim=metadata(spe)$fov_dim,
                         scaleBar=TRUE, micronConvFact = 0.12)
 {
     stopifnot(is(spe, "SpatialExperiment"))
@@ -78,7 +80,7 @@ plotCellsFovs <- function(spe, sampleId=unique(spe$sample_id),
                                         y=.data[[y_coord]]),
                     colour=pointCol,
                     fill=pointCol,
-                    size=size, alpha=alpha) +
+                    size=pointSize, alpha=pointAlpha) +
         annotate("rect",
             xmin=metadata(spe)$fov_positions["x_global_px"][ , , drop=TRUE],
             xmax=metadata(spe)$fov_positions["x_global_px"][ , , drop=TRUE] +
@@ -92,7 +94,8 @@ plotCellsFovs <- function(spe, sampleId=unique(spe$sample_id),
                     y=metadata(spe)$fov_positions["y_global_px"][,,drop=TRUE]+
                         fovDim[["ydim"]]/2,
                     label=metadata(spe)$fov_positions["fov"][,,drop=TRUE]),
-                    color=numbersCol, fontface="bold", alpha=alphaNumbers) +
+                    color=numbersCol, size = numberSize, alpha=numbersAlpha,
+                    fontface="bold") +
         ggtitle(sampleId) +
         .fov_image_theme(backColor="white", backBorder="white",
                         titleCol="black") + ggplot2::coord_fixed()
@@ -436,14 +439,12 @@ plotPolygons <- function(spe, colourBy="darkgrey", colourLog=FALSE,
 #' plot. If `NULL`, no title is added. Default is `NULL`.
 #' @param mapPointCol A character string specifying the color of the points
 #' in the map. Default is `"darkmagenta"`.
-#' @param mapNumbersCol A character string specifying the color of the
-#' numbers on the map. Default is `"black"`.
-#' @param mapAlphaNumbers A numeric value specifying the transparency of the
-#' numbers on the map. Default is `0.8`.
-#' @param csize A numeric value specifying the size of the points in the map.
-#' Default is `0.05`.
-#' @param calpha A numeric value specifying the transparency of the points in
-#' the map. Default is `0.8`.
+#' @param mapPointSize Numeric size for points in the map. Default: `0.5`.
+#' @param mapPointAlpha Numeric transparency for points in the map. Default: `0.8`.
+#' @param fovNumbersCol A character string specifying the color of the
+#' numbers on the FoV zoom-in. Default is `"black"`.
+#' @param fovNumberSize Numeric size for the FoV labels. Default: `1`.
+#' @param fovNumbersAlpha Numeric transparency for FoV labels. Default: `0.8`.
 #' @param scaleBars Logical or NULL. Default is `NULL`.
 #' Master switch controlling the presence of scale bars in both panels.
 #' If \code{TRUE}, scale bars are shown in both the map and polygon panels.
@@ -474,8 +475,9 @@ plotPolygons <- function(spe, colourBy="darkgrey", colourLog=FALSE,
 #' plotZoomFovsMap(spe, fovs=16, title="FOV 16")
 plotZoomFovsMap <- function(spe, fovs=NULL, title=NULL,
                             mapPointCol="darkmagenta",
-                            mapNumbersCol="black",
-                            mapAlphaNumbers=0.8,
+                            mapPointSize=0.5, mapPointAlpha=0.8,
+                            fovNumbersCol="black", fovNumberSize=1,
+                            fovNumbersAlpha=0.8,
                             csize=0.05, calpha=0.8,
                             scaleBars=NULL,
                             scaleBarMap=TRUE,
@@ -491,8 +493,9 @@ plotZoomFovsMap <- function(spe, fovs=NULL, title=NULL,
         scaleBarPol <- scaleBars
     }
     map <- plotCellsFovs(spefovs, pointCol=mapPointCol,
-        numbersCol=mapNumbersCol, alphaNumbers=mapAlphaNumbers,
-        sampleId=NULL, size=csize, alpha=calpha, scaleBar=scaleBarMap)
+        pointSize=mapPointSize, pointAlpha=mapPointAlpha,
+        numbersCol=fovNumbersCol, numberSize=fovNumberSize,
+        numbersAlpha=fovNumbersAlpha, sampleId=NULL, scaleBar=scaleBarMap)
     g2 <- plotPolygons(spefovs, sampleId=NULL, scaleBar=scaleBarPol, ...)
     final_plot <- ggpubr::ggarrange(map, g2, ncol=2)
     if (!is.null(title)) {

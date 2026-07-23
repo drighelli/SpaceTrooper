@@ -4,11 +4,11 @@
 \alias{computeLambda}
 \title{computeLambda}
 \usage{
-computeLambda(trainDF, modelFormula)
+computeLambda(modelMatrix, trainDF)
 }
 \arguments{
 \item{trainDF}{`data.frame`
-A data frame for training that must include:
+A data frame for QS model training that must include:
   Predictor columns: All columns referenced in the formula returned by `getModelFormula()`.
   `qscore_train` A binary (0/1) response vector to be modeled.}
 
@@ -22,18 +22,18 @@ A character string representing the model formula
   `cv.glmnet` that minimizes the cross-validation error.
 }
 \description{
-Compute Optimal Ridge Regularization Parameter \eqn{\lambda} via
-Cross-Validation
+Computes optimal ridge regularization parameter \eqn{\lambda} via
+k-fold cross-validation.
 
 \code{computeLambda} performs ridge (L2) logistic regression with
-cross-validation to identify the optimal regularization parameter
-\eqn{\lambda} for a binary response.
+k-fold cross-validation to identify the optimal regularization parameter
+\eqn{\lambda} for Quality Score (QS) model training.
 }
 \details{
 Internally, the function:
-  Constructs the design matrix via \code{model.matrix()},
-  Runs ridge logistic regression cross-validation using `cv.glmnet` with `alpha = 0`,
-  Extracts and returns `ridge_cv$lambda.min`.
+  constructs the design matrix via \code{model.matrix()},
+  runs k-fold cross-validation of ridge logistic regression using `cv.glmnet` with `alpha = 0`,
+  extracts and returns `ridge_cv$lambda.min`.
 }
 \examples{
 example(computeTrainDF)

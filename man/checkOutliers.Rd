@@ -13,22 +13,22 @@ checkOutliers(spe, verbose = FALSE)
 each metric.}
 }
 \value{
-The `SpatialExperiment` object with added QCScore metric variables
- in the `metadata`.
+The `SpatialExperiment` object with added metric variables that
+will be used for Quality Score computation stored in the object` metadata`.
 }
 \description{
 Checks if computed outliers meet the minimum numerical requirement, being
-at least 0.1% of total cells for each metric to be used in QC score formula.
+at least 0.1\% of total cells for each metric to be used in Quality Score formula.
 If the requirement is not met, the variable is removed from the formula.
 }
 \details{
 The function checks if computed outliers for each metric meet
-the minimum number to get the metric included in the QC score formula.
+the minimum number to get the metric included in the Quality Score formula.
 If verbose is TRUE, it also prints how many outliers were found for each
 metric.
 }
 \examples{
-example(computeOutliersQCScore)
+example(computeOutliersQScore)
 spe <- checkOutliers(spe, verbose = TRUE)
 metadata(spe)$formula_variables
 }

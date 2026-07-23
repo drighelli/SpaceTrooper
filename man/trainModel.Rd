@@ -20,7 +20,7 @@ A \code{\link[glmnet]{glmnet}} model object fitted with
 \eqn{\lambda} values.
 }
 \description{
-Fit a Ridge Logistic Regression Model
+Fits a ridge logistic regression model.
 
 \code{trainModel} fits an L2-regularized (ridge) logistic regression
 using \pkg{glmnet}, given a design matrix and a training data frame.
