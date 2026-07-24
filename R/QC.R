@@ -457,7 +457,7 @@ computeLambda <- function(modelMatrix, trainDF) {
 #' @export
 #' @importFrom dplyr case_when filter mutate distinct pull
 #' @importFrom glmnet glmnet cv.glmnet
-#' @importFrom stats as.formula model.matrix quantile predict coef
+#' @importFrom stats as.formula model.matrix quantile predict coef terms
 #' @examples
 #' example(spatialPerCellQC)
 #' set.seed(1998)
