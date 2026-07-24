@@ -14,8 +14,6 @@ plotZoomFovsMap(
   fovNumbersCol = "black",
   fovNumberSize = 1,
   fovNumbersAlpha = 0.8,
-  csize = 0.05,
-  calpha = 0.8,
   scaleBars = NULL,
   scaleBarMap = TRUE,
   scaleBarPol = TRUE,
