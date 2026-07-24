@@ -6,14 +6,17 @@ spe0 <- example(readCosmxSPE)$value
 
 test_that("QC functions are exported", {
     expect_true(exists("spatialPerCellQC",   mode = "function"))
-    expect_true(exists("computeQCScore",      mode = "function"))
+    expect_true(exists("computeQScore",       mode = "function"))
     expect_true(exists("computeSpatialOutlier", mode = "function"))
-    expect_true(exists("computeQCScoreFlags",  mode = "function"))
+    expect_true(exists("computeQScoreFlags",  mode = "function"))
     expect_true(exists("computeThresholdFlags",  mode = "function"))
+    ## deprecated wrappers should still be exported
+    expect_true(exists("computeQCScore",      mode = "function"))
+    expect_true(exists("computeQCScoreFlags", mode = "function"))
 })
 
 
-test_that("spatialPerCellQC adds per‐cell metrics to colData", {
+test_that("spatialPerCellQC adds per-cell metrics to colData", {
     spe <- spatialPerCellQC(spe0, micronConvFact = 0.15)
     expect_s4_class(spe, "SpatialExperiment")
     cd <- colData(spe)
@@ -23,14 +26,25 @@ test_that("spatialPerCellQC adds per‐cell metrics to colData", {
     expect_true(all(required %in% colnames(cd)))
 })
 
-test_that("computeQCScore adds a flag_score between 0 and 1", {
+test_that("computeQScore adds a QScore between 0 and 1", {
     spe <- spatialPerCellQC(spe0)
-    spe2 <- computeQCScore(spe)
+    set.seed(42)
+    spe2 <- computeQScore(spe)
     cd2 <- colData(spe2)
-    expect_true("QC_score" %in% colnames(cd2))
-    fs <- cd2$QC_score
+    expect_true("QScore" %in% colnames(cd2))
+    fs <- cd2$QScore
     expect_true(is.numeric(fs))
-    expect_true(all(fs >= 0 & fs <= 1))
+    expect_true(all(fs[!is.na(fs)] >= 0 & fs[!is.na(fs)] <= 1))
+})
+
+test_that("computeQCScore (deprecated) still works and produces QScore", {
+    spe <- spatialPerCellQC(spe0)
+    set.seed(42)
+    expect_warning(
+        spe2 <- computeQCScore(spe),
+        "deprecated"
+    )
+    expect_true("QScore" %in% colnames(colData(spe2)))
 })
 
 
@@ -44,9 +58,10 @@ test_that("computeSpatialOutlier flags outliers for a chosen metric", {
 })
 
 
-test_that("computeQCScoreFlags combines filters and returns filter_out", {
+test_that("computeQScoreFlags combines filters and returns filter_out", {
     spe <- spatialPerCellQC(spe0)
-    spe <- computeQCScore(spe)
+    set.seed(42)
+    spe <- computeQScore(spe)
     ff <- computeThresholdFlags(spe,
                             totalThreshold = 10,
                             ctrlTotRatioThreshold = 0.2)

@@ -52,12 +52,12 @@ spe_test <- spe[, -idx]
 
 ## Train the Quality Control (QC) score model on one dataset
 spe_train <- computeQScore(spe_train)
-qc_model <- metadata(spe_train)$QScore_model
+qs_model <- metadata(spe_train)$QScore_model
 
 ## Apply the trained model to another dataset
-spe_test <- applyQScoreModel(
+spe_test <- .applyQScoreModel(
     spe=spe_test,
-    qcModel=qc_model,
+    qsModel=qs_model,
     scoreName="QScore_transferred"
 )
 

@@ -67,9 +67,9 @@ be computed internally, just set a seed with `set.seed()` before running
 follows:
 `~(log2SignalDensity + Area_um + I(abs(log2AspectRatio) * as.numeric(dist_border < 50)) + log2Ctrl_total_ratio)^2`.
  When user-provided, the formula must follow the same default syntax and 
-removed (or added) terms should be written exactly as in the default formula, 
-e.g. `I(abs(log2AspectRatio) * as.numeric(dist_border < 50))` must have spaces 
-around the `*` and `<` operators.
+removed (or added) terms should be written as in the default formula, 
+e.g. `I(abs(log2AspectRatio) * as.numeric(dist_border < 50))`.
+Whitespace around operators is accepted.
 In any case, metrics with insufficient outliers (less than 0.1\% of the dataset) 
 will be excluded from the QS formula. 
 
