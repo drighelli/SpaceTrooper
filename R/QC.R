@@ -349,13 +349,13 @@ computeThresholdFlags <- function(spe, totalThreshold=0,
 #' k-fold cross-validation to identify the optimal regularization parameter
 #' \eqn{\lambda} for Quality Score (QS) model training.
 #'
+#' @param modelMatrix  `matrix`
+#'   The design matrix built from the training data, typically via
+#'   `model.matrix(as.formula(model_formula), data=trainDF)`.
 #' @param trainDF  `data.frame`
 #'   A data frame for QS model training that must include:
 #'     Predictor columns: All columns referenced in the formula returned by `getModelFormula()`.
-#'     `qscore_train` A binary (0/1) response vector to be modeled.
-#' @param modelFormula `character`
-#'   A character string representing the model formula
-#'    `~ log2SignalDensity + ...`, as returned by `getModelFormula()`.
+#'     `QScore_train` A binary (0/1) response vector to be modeled.
 #'
 #' @return
 #' `numeric`
@@ -364,14 +364,14 @@ computeThresholdFlags <- function(spe, totalThreshold=0,
 #'
 #' @details
 #' Internally, the function:
-#'   constructs the design matrix via \code{model.matrix()},
 #'   runs k-fold cross-validation of ridge logistic regression using `cv.glmnet` with `alpha = 0`,
 #'   extracts and returns `ridge_cv$lambda.min`.
 #'
 #' @examples
 #' example(computeTrainDF)
-#' modform <- getModelFormula(metadata(spe)$formula_variables)
-#' best_lambda <- computeLambda(df_train, modform)
+#' modform <- getModelFormula(names(metadata(spe)$formula_variables))
+#' model_matrix <- model.matrix(as.formula(modform), data=df_train)
+#' best_lambda <- computeLambda(model_matrix, df_train)
 #' print(best_lambda)
 #'
 #'
@@ -432,9 +432,9 @@ computeLambda <- function(modelMatrix, trainDF) {
 #' follows:
 #' `~(log2SignalDensity + Area_um + I(abs(log2AspectRatio) * as.numeric(dist_border < 50)) + log2Ctrl_total_ratio)^2`.
 #'  When user-provided, the formula must follow the same default syntax and 
-#' removed (or added) terms should be written exactly as in the default formula, 
-#' e.g. `I(abs(log2AspectRatio) * as.numeric(dist_border < 50))` must have spaces 
-#' around the `*` and `<` operators.
+#' removed (or added) terms should be written as in the default formula, 
+#' e.g. `I(abs(log2AspectRatio) * as.numeric(dist_border < 50))`.
+#' Whitespace around operators is accepted.
 #' In any case, metrics with insufficient outliers (less than 0.1\% of the dataset) 
 #' will be excluded from the QS formula. 
 #'
@@ -478,9 +478,10 @@ computeQScore <- function(spe, bestLambda=NULL, modelFormula=NULL, verbose=FALSE
         model_formula <- modelFormula
         metricList <- attr(terms(as.formula(modelFormula)), "term.labels")
         metricList <- metricList[!grepl(":", metricList, fixed=TRUE)]
-        if("I(abs(log2AspectRatio) * as.numeric(dist_border < 50))" %in% metricList) {
-        metricList <- gsub("I\\(abs\\((log2AspectRatio)\\) \\* as\\.numeric\\((dist_border) < 50\\)\\)", 
-        "log2AspectRatio", metricList)              
+        ## Whitespace-tolerant detection of the border-effect interaction term
+        border_pat <- "I\\(abs\\(log2AspectRatio\\)\\s*\\*\\s*as\\.numeric\\(dist_border\\s*<\\s*50\\)\\)"
+        if (any(grepl(border_pat, metricList))) {
+            metricList <- gsub(border_pat, "log2AspectRatio", metricList)
         }
     }
 
@@ -488,7 +489,9 @@ computeQScore <- function(spe, bestLambda=NULL, modelFormula=NULL, verbose=FALSE
     ctx <- .prepQCContext(spe, metricList, verbose)
     df <- ctx$df; out_var <- ctx$out_var; tech <- ctx$tech
 
-    model_formula <- getModelFormula(names(out_var))
+    if (is.null(modelFormula)) {
+        model_formula <- getModelFormula(names(out_var))
+    }
 
     if (verbose) {
         message("Using final model formula:")
@@ -752,24 +755,23 @@ computeTrainDF <- function(colData, formulaVars, tech, verbose=FALSE) {
 #' @name getModelFormula
 #' @rdname getModelFormula
 #' @description
-#' Returns the right‐hand side of a model formula string based on formula
-#' variables found in the `metadata` of a `SpatialExperiment` object.
-#' @param formulaVars A named character vector mapping variable names
-#'   (e.g. `"log2SignalDensity"`, `"Area_um"`, etc.) to their corresponding
-#'   outlier label columns, typically from
-#'   `metadata(spe)$formula_variables`.
+#' Returns the right‐hand side of a model formula string based on a vector of
+#' metric names.
+#' @param metricList A character vector of metric names to include in the
+#'   formula (e.g. `"log2SignalDensity"`, `"Area_um"`, etc.), typically the
+#'   names of `metadata(spe)$formula_variables`.
 #' @return `character`
 #'   A one‐sided formula as a string (e.g. "~ log2SignalDensity + ...").
 #' @export
 #' @examples
 #' example(checkOutliers)
-#' getModelFormula(metadata(spe)$formula_variables)
+#' getModelFormula(names(metadata(spe)$formula_variables))
 getModelFormula <- function(metricList)
 {
     out_var <- metricList
     if ("log2AspectRatio" %in% out_var) {
         out_var[grep("log2AspectRatio", out_var)] <-
-            "I(abs(log2AspectRatio) * as.numeric(dist_border<50))"
+            "I(abs(log2AspectRatio) * as.numeric(dist_border < 50))"
     }
     model_formula <- paste0("~(", paste(out_var, collapse = " + "),
                         ")^2", sep = "")
@@ -1255,12 +1257,12 @@ checkOutliers <- function(spe, verbose=FALSE) {
 #'
 #' ## Train the Quality Control (QC) score model on one dataset
 #' spe_train <- computeQScore(spe_train)
-#' qc_model <- metadata(spe_train)$QScore_model
+#' qs_model <- metadata(spe_train)$QScore_model
 #'
 #' ## Apply the trained model to another dataset
-#' spe_test <- applyQScoreModel(
+#' spe_test <- .applyQScoreModel(
 #'     spe=spe_test,
-#'     qcModel=qc_model,
+#'     qsModel=qs_model,
 #'     scoreName="QScore_transferred"
 #' )
 #'
@@ -1385,4 +1387,62 @@ checkOutliers <- function(spe, verbose=FALSE) {
     }
 
     return(ok)
+}
+
+## ---- Deprecated functions -----------------------------------------------
+
+#' computeQCScore (deprecated)
+#' @name computeQCScore
+#' @rdname computeQCScore-deprecated
+#' @description
+#' **Deprecated.** Use \code{\link{computeQScore}} instead.
+#'
+#' \lifecycle{deprecated}
+#'
+#' @param spe A `SpatialExperiment` object.
+#' @param bestLambda Passed to \code{\link{computeQScore}}.
+#' @param modelFormula Passed to \code{\link{computeQScore}}.
+#' @param verbose Passed to \code{\link{computeQScore}}.
+#' @return A `SpatialExperiment` object; see \code{\link{computeQScore}}.
+#' @export
+computeQCScore <- function(spe, bestLambda=NULL, modelFormula=NULL,
+                           verbose=FALSE) {
+    .Deprecated(
+        new="computeQScore",
+        package="SpaceTrooper",
+        msg=paste0(
+            "'computeQCScore' is deprecated.\n",
+            "Use 'computeQScore' instead.\n",
+            "See help('computeQScore') for details."
+        )
+    )
+    computeQScore(spe, bestLambda=bestLambda, modelFormula=modelFormula,
+                  verbose=verbose)
+}
+
+#' computeQCScoreFlags (deprecated)
+#' @name computeQCScoreFlags
+#' @rdname computeQCScoreFlags-deprecated
+#' @description
+#' **Deprecated.** Use \code{\link{computeQScoreFlags}} instead.
+#'
+#' \lifecycle{deprecated}
+#'
+#' @param spe A `SpatialExperiment` object.
+#' @param qsThreshold Passed to \code{\link{computeQScoreFlags}}.
+#' @param useQSQuantiles Passed to \code{\link{computeQScoreFlags}}.
+#' @return A `SpatialExperiment` object; see \code{\link{computeQScoreFlags}}.
+#' @export
+computeQCScoreFlags <- function(spe, qsThreshold=0.5, useQSQuantiles=FALSE) {
+    .Deprecated(
+        new="computeQScoreFlags",
+        package="SpaceTrooper",
+        msg=paste0(
+            "'computeQCScoreFlags' is deprecated.\n",
+            "Use 'computeQScoreFlags' instead.\n",
+            "See help('computeQScoreFlags') for details."
+        )
+    )
+    computeQScoreFlags(spe, qsThreshold=qsThreshold,
+                       useQSQuantiles=useQSQuantiles)
 }

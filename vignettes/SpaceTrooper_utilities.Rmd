@@ -471,20 +471,17 @@ all pairwise interactions.
 mandatory metric in the QS formula. If an insufficient number of outliers is
 detected for this metric (fewer than 0.1% of the dataset after excluding
 zero-count cells), QS computation cannot proceed using the remaining metrics.
-In such cases, the provided code will still add a`QScore` column to `colData`.
+In such cases, the provided code will still add a `QScore` column to `colData`.
 This column is populated if the minimum requirement is met and contains `NA`
 values otherwise.
 
 ```{r compute-QS-safe-run,  message=TRUE}
-# safe run function
-safe_run <- function(expr) {
-tryCatch(
-  list(result=expr, error=NULL),
+# safe run using tryCatch directly so errors are caught before evaluation
+out <- tryCatch(
+  list(result=computeQScore(spe), error=NULL),
   error=function(e) list(result=NULL, error=e)
- )
-}
+)
 
-out <- safe_run(computeQScore(spe))
 if (!is.null(out$error)) {
 message("Failed: ", out$error$message)
 colData(spe)$QScore <- NA
@@ -506,11 +503,10 @@ formula is generated as follows:
  `~(log2SignalDensity + Area_um + I(abs(log2AspectRatio) * as.numeric(dist_border < 50)) + log2Ctrl_total_ratio)^2`
 
  When user-provided, the formula must follow the same default syntax and the terms
- must be written exactly as they appear here (e.g. `I(abs(log2AspectRatio) * as.numeric(dist_border < 50))`
- must have spaces around the `*` and `<` operators). However, the terms do not need 
- to follow any specific order. If the outliers for one or more metrics are not 
- sufficient, they will not be considered for model training and the corresponding terms 
- are automatically dropped from the formula.
+ should be written as they appear here (e.g. `I(abs(log2AspectRatio) * as.numeric(dist_border < 50))`).
+ The terms do not need to follow any specific order. If the outliers for one or more
+ metrics are not sufficient, they will not be considered for model training and the
+ corresponding terms are automatically dropped from the formula.
  We provide interaction terms by default as they contribute to model flexibility.
  However, if users prefer to exclude interaction terms, they can do so by 
  removing the `()^2` notation from the formula.

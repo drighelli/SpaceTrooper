@@ -7,20 +7,19 @@
 getModelFormula(metricList)
 }
 \arguments{
-\item{formulaVars}{A named character vector mapping variable names
-(e.g. `"log2SignalDensity"`, `"Area_um"`, etc.) to their corresponding
-outlier label columns, typically from
-`metadata(spe)$formula_variables`.}
+\item{metricList}{A character vector of metric names to include in the
+formula (e.g. `"log2SignalDensity"`, `"Area_um"`, etc.), typically the
+names of `metadata(spe)$formula_variables`.}
 }
 \value{
 `character`
-  A one‐sided formula as a string (e.g. "~ log2SignalDensity + ...").
+  A one-sided formula as a string (e.g. "~ log2SignalDensity + ...").
 }
 \description{
-Returns the right‐hand side of a model formula string based on formula
-variables found in the `metadata` of a `SpatialExperiment` object.
+Returns the right-hand side of a model formula string based on a vector of
+metric names.
 }
 \examples{
 example(checkOutliers)
-getModelFormula(metadata(spe)$formula_variables)
+getModelFormula(names(metadata(spe)$formula_variables))
 }
