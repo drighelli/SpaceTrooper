@@ -9,15 +9,19 @@ plotZoomFovsMap(
   fovs = NULL,
   title = NULL,
   mapPointCol = "darkmagenta",
-  mapPointSize = 0.5,
-  mapPointAlpha = 0.8,
-  fovNumbersCol = "black",
-  fovNumberSize = 1,
-  fovNumbersAlpha = 0.8,
+  mapNumbersCol = "black",
+  mapAlphaNumbers = 0.8,
+  csize = 0.05,
+  calpha = 0.8,
   scaleBars = NULL,
   scaleBarMap = TRUE,
   scaleBarPol = TRUE,
-  ...
+  ...,
+  mapPointSize = NULL,
+  mapPointAlpha = NULL,
+  fovNumbersCol = NULL,
+  fovNumberSize = 1,
+  fovNumbersAlpha = NULL
 )
 }
 \arguments{
@@ -33,16 +37,13 @@ plot. If `NULL`, no title is added. Default is `NULL`.}
 \item{mapPointCol}{A character string specifying the color of the points
 in the map. Default is `"darkmagenta"`.}
 
-\item{mapPointSize}{Numeric size for points in the map. Default: `0.5`.}
+\item{mapNumbersCol}{Deprecated alias for `fovNumbersCol`.}
 
-\item{mapPointAlpha}{Numeric transparency for points in the map. Default: `0.8`.}
+\item{mapAlphaNumbers}{Deprecated alias for `fovNumbersAlpha`.}
 
-\item{fovNumbersCol}{A character string specifying the color of the
-numbers on the FoV zoom-in. Default is `"black"`.}
+\item{csize}{Deprecated alias for `mapPointSize`.}
 
-\item{fovNumberSize}{Numeric size for the FoV labels. Default: `1`.}
-
-\item{fovNumbersAlpha}{Numeric transparency for FoV labels. Default: `0.8`.}
+\item{calpha}{Deprecated alias for `mapPointAlpha`.}
 
 \item{scaleBars}{Logical or NULL. Default is `NULL`.
 Master switch controlling the presence of scale bars in both panels.
@@ -58,6 +59,20 @@ These parameters are only used when \code{scaleBars} is \code{NULL};
 otherwise they are overridden by \code{scaleBars}.}
 
 \item{...}{Additional arguments passed to `plotPolygons`.}
+
+\item{mapPointSize}{Numeric size for points in the map. If supplied, takes
+precedence over `csize`.}
+
+\item{mapPointAlpha}{Numeric transparency for points in the map. If supplied,
+takes precedence over `calpha`.}
+
+\item{fovNumbersCol}{Color for FoV labels. If supplied, takes precedence over
+`mapNumbersCol`.}
+
+\item{fovNumberSize}{Numeric size for the FoV labels. Default: `1`.}
+
+\item{fovNumbersAlpha}{Transparency for FoV labels. If supplied, takes
+precedence over `mapAlphaNumbers`.}
 }
 \value{
 A combined plot showing a map of all FOVs with zoomed-in views of

@@ -4,17 +4,17 @@
 \alias{computeLambda}
 \title{computeLambda}
 \usage{
-computeLambda(modelMatrix, trainDF)
+computeLambda(trainDF, modelFormula)
 }
 \arguments{
-\item{modelMatrix}{`matrix`
-The design matrix built from the training data, typically via
-`model.matrix(as.formula(model_formula), data=trainDF)`.}
-
 \item{trainDF}{`data.frame`
 A data frame for QS model training that must include:
   Predictor columns: All columns referenced in the formula returned by `getModelFormula()`.
-  `QScore_train` A binary (0/1) response vector to be modeled.}
+  `QScore_train` or historical `qcscore_train`, containing the binary
+  (0/1) response to be modeled.}
+
+\item{modelFormula}{A one-sided formula or character string describing the
+supported predictor terms.}
 }
 \value{
 `numeric`
@@ -30,15 +30,15 @@ k-fold cross-validation to identify the optimal regularization parameter
 \eqn{\lambda} for Quality Score (QS) model training.
 }
 \details{
-Internally, the function:
-  runs k-fold cross-validation of ridge logistic regression using `cv.glmnet` with `alpha = 0`,
-  extracts and returns `ridge_cv$lambda.min`.
+Complete cases for the formula variables and response are retained. The
+function constructs a model matrix and passes it to an internal
+matrix-based implementation that runs ridge logistic-regression
+cross-validation using `cv.glmnet` with `alpha = 0`.
 }
 \examples{
 example(computeTrainDF)
 modform <- getModelFormula(names(metadata(spe)$formula_variables))
-model_matrix <- model.matrix(as.formula(modform), data=df_train)
-best_lambda <- computeLambda(model_matrix, df_train)
+best_lambda <- computeLambda(df_train, modform)
 print(best_lambda)
 
 

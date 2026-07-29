@@ -27,7 +27,8 @@ If \code{TRUE}, prints the number of “bad” and “good” cells selected.}
 }
 \value{
 A \code{data.frame} with one row per cell, including:
-  \code{QScore_train} (0/1) indicating “bad” vs “good”,
+  \code{QScore_train} and its compatibility alias
+  \code{qcscore_train} (0/1) indicating “bad” vs “good”,
   relevant \code{colData} columns used for modeling.
   Deduplicates and down-samples “good” cells to match the number of “bad” cells.
 }

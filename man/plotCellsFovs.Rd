@@ -8,14 +8,17 @@ plotCellsFovs(
   spe,
   sampleId = unique(spe$sample_id),
   pointCol = "firebrick",
-  pointSize = 0.05,
-  pointAlpha = 0.8,
   numbersCol = "black",
-  numberSize = 1,
-  numbersAlpha = 0.8,
+  alphaNumbers = 0.8,
   fovDim = metadata(spe)$fov_dim,
+  size = 0.05,
+  alpha = 0.8,
   scaleBar = TRUE,
-  micronConvFact = 0.12
+  micronConvFact = 0.12,
+  pointSize = NULL,
+  pointAlpha = NULL,
+  numberSize = 1,
+  numbersAlpha = NULL
 )
 }
 \arguments{
@@ -26,24 +29,33 @@ Default: `unique(spe$sample_id)`.}
 
 \item{pointCol}{Color for the cell centroids. Default: `"firebrick"`.}
 
-\item{pointSize}{Numeric point size for the cell centroids. Default: `0.05`.}
-
-\item{pointAlpha}{Numeric transparency for the cell centroids. Default: `0.8`.}
-
 \item{numbersCol}{Color for the FoV labels. Default: `"black"`.}
 
-\item{numberSize}{Numeric size for the FoV labels. Default: `1`.}
-
-\item{numbersAlpha}{Numeric transparency for FoV labels. Default: `0.8`.}
+\item{alphaNumbers}{Deprecated alias for `numbersAlpha`.}
 
 \item{fovDim}{numeric with two named dimensions xdim, ydim. (Default is
 metadata(spe)$fov_dim)}
+
+\item{size}{Deprecated alias for `pointSize`.}
+
+\item{alpha}{Deprecated alias for `pointAlpha`.}
 
 \item{scaleBar}{A logical value indicating whether to add a scale bar to the
 plot. (Default is `TRUE`)}
 
 \item{micronConvFact}{Numeric conversion factor from pixels to microns.
 Default is `0.12`.}
+
+\item{pointSize}{Numeric point size for the cell centroids. If supplied,
+takes precedence over `size`.}
+
+\item{pointAlpha}{Numeric transparency for the cell centroids. If supplied,
+takes precedence over `alpha`.}
+
+\item{numberSize}{Numeric size for the FoV labels. Default: `1`.}
+
+\item{numbersAlpha}{Numeric transparency for FoV labels. If supplied, takes
+precedence over `alphaNumbers`.}
 }
 \value{
 A `ggplot` object showing cell centroids and FoV boundaries.

@@ -493,29 +493,32 @@ spe <- out$result
 ### Compute QS with custom formula
 
 In `computeQScore`, the `modelFormula` parameter allows users to specify which
-metrics to include in the QS formula among the 4 currently supported, i.e.
-`log2SignalDensity`, `Area_um`, `I(abs(log2AspectRatio) * as.numeric(dist_border < 50))`, and `log2Ctrl_total_ratio`. 
-Border effect still cannot be considered for Xenium and MERFISH/MERSCOPE datasets. 
+metrics to include in the QS formula among the four currently supported:
+`log2SignalDensity`, `Area_um`, `log2AspectRatio`, and
+`log2Ctrl_total_ratio`. The supported border-effect expression is
+`I(abs(log2AspectRatio) * as.numeric(dist_border < 50))`; aspect ratio and
+border effect are available only for CosMx datasets.
+
 The default is `NULL` and the formula is automatically estimated based on the 
 available metrics, their outliers and the dataset technology. The most complete 
 formula is generated as follows:
 
  `~(log2SignalDensity + Area_um + I(abs(log2AspectRatio) * as.numeric(dist_border < 50)) + log2Ctrl_total_ratio)^2`
 
- When user-provided, the formula must follow the same default syntax and the terms
- should be written as they appear here (e.g. `I(abs(log2AspectRatio) * as.numeric(dist_border < 50))`).
- The terms do not need to follow any specific order. If the outliers for one or more
- metrics are not sufficient, they will not be considered for model training and the
- corresponding terms are automatically dropped from the formula.
- We provide interaction terms by default as they contribute to model flexibility.
- However, if users prefer to exclude interaction terms, they can do so by 
- removing the `()^2` notation from the formula.
+When user-provided, the formula is fitted as supplied. Users may select a
+supported subset, use an additive formula, or choose interactions with `:` and
+`*`; SpaceTrooper does not add or remove terms. Predictor and transformation
+validation is separate from formula structure: arbitrary metrics and
+transformations such as `log1p(Area_um)` are rejected. The metrics used to
+construct good and bad training labels remain governed by the established
+SpaceTrooper rules and are not redefined by omitting a predictor from the fitted
+formula.
 
 ```{r compute-QS-different-formula,  message=TRUE}
 
 set.seed(1713)
 
-model_formula <- "~log2Ctrl_total_ratio + log2SignalDensity"
+model_formula <- "~ log2Ctrl_total_ratio + log2SignalDensity"
 
 spe <- computeQScore(spe, modelFormula=model_formula, verbose=TRUE)
 ```
@@ -528,6 +531,27 @@ plotPolygons(spe, colourBy="QScore") +
 Compared to the plot displayed in [RNA](https://bioconductor.org/packages/devel/bioc/vignettes/SpaceTrooper/inst/doc/RNA_tutorial_vignette.html) vignette,
 QS values are higher for bigger cells and cells located on the FoV borders, as the 
 cell size and border effect contributions are not considered in the QS computation.
+
+### Apply a trained QS model
+
+The fitted model is stored in `metadata(spe)$QScore_model` and can be applied
+with `applyQScoreModel()` to an object containing the required QC metrics.
+Model transfer across datasets is generally discouraged because QS training is
+dataset-specific; when it is necessary, use datasets from the same experiment
+and technology, or train a supported formula that excludes incompatible terms.
+
+```{r apply-QS-model, message=TRUE}
+qs_model <- metadata(spe)$QScore_model
+spe <- applyQScoreModel(
+    spe,
+    qsModel=qs_model,
+    scoreName="QScore_transferred"
+)
+```
+
+The historical `applyQCScoreModel()` interface remains available with a
+deprecation warning and retains `qcModel`, `QC_score`, and
+`QCScore_model_applied` naming.
 
 ### Single metric flagging 
 

@@ -4,22 +4,29 @@
 \alias{getModelFormula}
 \title{getModelFormula}
 \usage{
-getModelFormula(metricList)
+getModelFormula(formulaVars, verbose = FALSE, ...)
 }
 \arguments{
-\item{metricList}{A character vector of metric names to include in the
-formula (e.g. `"log2SignalDensity"`, `"Area_um"`, etc.), typically the
-names of `metadata(spe)$formula_variables`.}
+\item{formulaVars}{A named character vector mapping metric names to outlier
+columns, as historically stored in
+`metadata(spe)$formula_variables`. An unnamed character vector of metric
+names is also accepted.}
+
+\item{verbose}{Logical. If `TRUE`, prints the generated formula.}
+
+\item{...}{May contain the named replacement `metricList`. If both
+`formulaVars` and `metricList` are supplied, `metricList` takes precedence
+with a warning.}
 }
 \value{
 `character`
-  A one-sided formula as a string (e.g. "~ log2SignalDensity + ...").
+  A one‐sided formula as a string (e.g. "~ log2SignalDensity + ...").
 }
 \description{
-Returns the right-hand side of a model formula string based on a vector of
+Returns the right‐hand side of a model formula string based on a vector of
 metric names.
 }
 \examples{
 example(checkOutliers)
-getModelFormula(names(metadata(spe)$formula_variables))
+getModelFormula(metadata(spe)$formula_variables)
 }

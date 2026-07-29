@@ -11,10 +11,10 @@ computeQScore(spe, bestLambda = NULL, modelFormula = NULL, verbose = FALSE)
 
 \item{bestLambda}{the best lambda typically computed using `computeLambda`.}
 
-\item{modelFormula}{a character string representing the formula to be used for 
-training the model. If NULL, the formula is automatically generated
-based on the available metrics and their outliers in the dataset. See details
-for more information.}
+\item{modelFormula}{A one-sided formula or character string. If `NULL`, the
+default formula is generated from available supported metrics and their
+outliers. If supplied, its supported terms and interactions are fitted
+without rewriting. See Details.}
 
 \item{verbose}{logical for having a verbose output. Default is FALSE.}
 }
@@ -49,9 +49,9 @@ Note that the function is responsible for automatically including/excluding
 metrics in the formula based on their availability in the `colData` of the
 `SpatialExperiment` object.
 
-Inclusion of metrics in the formula depends also on the number of available
-outliers. If the number of outliers for each metric is less than 0.1\% out of the
-entire dataset, the metric will be excluded from the QS formula.
+For the default formula, inclusion of metrics also depends on the number of
+available outliers. If the number of outliers for a metric is less than
+0.1\% of the dataset, that metric is excluded from the default QS formula.
 
 - Model fitting: ridge (L2) logistic regression is fitted (via `glmnet`) on
 the balanced training set. The function uses `trainModel()` for fitting
@@ -63,19 +63,19 @@ be computed internally, just set a seed with `set.seed()` before running
 `computeQScore`. Otherwise, a fixed value of lambda previously computed with 
 `computeLambda` preceeded by `computeTrainDF` and `getModelFormula` can be set.
 
-- Model formula details: the model formula is automatically generated as
-follows:
+- Model formula details: the most complete default formula is:
 `~(log2SignalDensity + Area_um + I(abs(log2AspectRatio) * as.numeric(dist_border < 50)) + log2Ctrl_total_ratio)^2`.
- When user-provided, the formula must follow the same default syntax and 
-removed (or added) terms should be written as in the default formula, 
-e.g. `I(abs(log2AspectRatio) * as.numeric(dist_border < 50))`.
-Whitespace around operators is accepted.
-In any case, metrics with insufficient outliers (less than 0.1\% of the dataset) 
-will be excluded from the QS formula. 
+A user-supplied formula is fitted as supplied: additive structures, selected
+interactions, `:` and `*` are preserved. The formula may use any subset of
+the four supported predictors: `log2SignalDensity`, `Area_um`,
+`log2AspectRatio`, and `log2Ctrl_total_ratio`. Arbitrary predictors and
+transformations are rejected. The supported CosMx-only border expression is
+`I(abs(log2AspectRatio) * as.numeric(dist_border < 50))`. Formula selection
+is independent of the supported metrics used to construct training labels.
 
 The computed model output is stored in `metadata(spe)$QScore_model`.
 For inspection and model coefficient transfer between datasets
-see also \code{\link{.applyQScoreModel}}. However, transferring models between
+see also \code{\link{applyQScoreModel}}. However, transferring models between
 datasets is not recommended. As described in the paper, QS model training is
 dataset-specific and does not generalize well across datasets. Moreover,
 this step is computationally efficient. Please, refer to the paper for  

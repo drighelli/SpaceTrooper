@@ -437,9 +437,9 @@ computeLambda <- function(trainDF, modelFormula) {
 #' metrics in the formula based on their availability in the `colData` of the
 #' `SpatialExperiment` object.
 #'
-#' Inclusion of metrics in the formula depends also on the number of available
-#' outliers. If the number of outliers for each metric is less than 0.1\% out of the
-#' entire dataset, the metric will be excluded from the QS formula.
+#' For the default formula, inclusion of metrics also depends on the number of
+#' available outliers. If the number of outliers for a metric is less than
+#' 0.1\% of the dataset, that metric is excluded from the default QS formula.
 #'
 #' - Model fitting: ridge (L2) logistic regression is fitted (via `glmnet`) on
 #' the balanced training set. The function uses `trainModel()` for fitting
@@ -451,19 +451,19 @@ computeLambda <- function(trainDF, modelFormula) {
 #' `computeQScore`. Otherwise, a fixed value of lambda previously computed with 
 #' `computeLambda` preceeded by `computeTrainDF` and `getModelFormula` can be set.
 #' 
-#' - Model formula details: the model formula is automatically generated as
-#' follows:
+#' - Model formula details: the most complete default formula is:
 #' `~(log2SignalDensity + Area_um + I(abs(log2AspectRatio) * as.numeric(dist_border < 50)) + log2Ctrl_total_ratio)^2`.
-#'  When user-provided, the formula must follow the same default syntax and 
-#' removed (or added) terms should be written as in the default formula, 
-#' e.g. `I(abs(log2AspectRatio) * as.numeric(dist_border < 50))`.
-#' Whitespace around operators is accepted.
-#' In any case, metrics with insufficient outliers (less than 0.1\% of the dataset) 
-#' will be excluded from the QS formula. 
+#' A user-supplied formula is fitted as supplied: additive structures, selected
+#' interactions, `:` and `*` are preserved. The formula may use any subset of
+#' the four supported predictors: `log2SignalDensity`, `Area_um`,
+#' `log2AspectRatio`, and `log2Ctrl_total_ratio`. Arbitrary predictors and
+#' transformations are rejected. The supported CosMx-only border expression is
+#' `I(abs(log2AspectRatio) * as.numeric(dist_border < 50))`. Formula selection
+#' is independent of the supported metrics used to construct training labels.
 #'
 #' The computed model output is stored in `metadata(spe)$QScore_model`.
 #' For inspection and model coefficient transfer between datasets
-#' see also \code{\link{.applyQScoreModel}}. However, transferring models between
+#' see also \code{\link{applyQScoreModel}}. However, transferring models between
 #' datasets is not recommended. As described in the paper, QS model training is
 #' dataset-specific and does not generalize well across datasets. Moreover,
 #' this step is computationally efficient. Please, refer to the paper for  
@@ -472,10 +472,10 @@ computeLambda <- function(trainDF, modelFormula) {
 #' @param spe A `SpatialExperiment` object with spatial omics data.
 #' @param verbose logical for having a verbose output. Default is FALSE.
 #' @param bestLambda the best lambda typically computed using `computeLambda`.
-#' @param modelFormula a character string representing the formula to be used for 
-#' training the model. If NULL, the formula is automatically generated
-#' based on the available metrics and their outliers in the dataset. See details
-#' for more information.
+#' @param modelFormula A one-sided formula or character string. If `NULL`, the
+#'   default formula is generated from available supported metrics and their
+#'   outliers. If supplied, its supported terms and interactions are fitted
+#'   without rewriting. See Details.
 #' @return The `SpatialExperiment` object with added Quality Score in `colData`.
 #' @export
 #' @importFrom dplyr case_when filter mutate distinct pull
@@ -610,8 +610,8 @@ computeQScore <- function(spe, bestLambda=NULL, modelFormula=NULL, verbose=FALSE
 #' using \pkg{glmnet}, given a design matrix and a training data frame.
 #'
 #' @param trainDF `data.frame`
-#'   A data frame containing at least the response column
-#'   `qscore_train`, coded as 0/1.
+#'   A data frame containing `QScore_train` or historical `qcscore_train`,
+#'   coded as 0/1. If both are present, they must agree.
 #' @param modelMatrix a matrix describing the model variables, tipically created
 #' with `getModelFormula` and `model.matrix` functions.
 #'
@@ -664,7 +664,8 @@ trainModel <- function(modelMatrix, trainDF)
 #'
 #' @return
 #' A \code{data.frame} with one row per cell, including:
-#'   \code{QScore_train} (0/1) indicating “bad” vs “good”,
+#'   \code{QScore_train} and its compatibility alias
+#'   \code{qcscore_train} (0/1) indicating “bad” vs “good”,
 #'   relevant \code{colData} columns used for modeling.
 #'   Deduplicates and down-samples “good” cells to match the number of “bad” cells.
 #'
@@ -810,18 +811,28 @@ computeTrainDF <- function(colData, formulaVars, tech, verbose=FALSE) {
 #'   `metadata(spe)$formula_variables`. An unnamed character vector of metric
 #'   names is also accepted.
 #' @param verbose Logical. If `TRUE`, prints the generated formula.
-#' @param metricList Named replacement for `formulaVars`. If both arguments are
-#'   supplied, `metricList` takes precedence with a warning.
+#' @param ... May contain the named replacement `metricList`. If both
+#'   `formulaVars` and `metricList` are supplied, `metricList` takes precedence
+#'   with a warning.
 #' @return `character`
 #'   A one‐sided formula as a string (e.g. "~ log2SignalDensity + ...").
 #' @export
 #' @examples
 #' example(checkOutliers)
 #' getModelFormula(metadata(spe)$formula_variables)
-getModelFormula <- function(formulaVars, verbose=FALSE, metricList)
+getModelFormula <- function(formulaVars, verbose=FALSE, ...)
 {
     has_formula_vars <- !missing(formulaVars)
-    has_metric_list <- !missing(metricList)
+    dots <- list(...)
+    unknown_dots <- setdiff(names(dots), "metricList")
+    if (length(unknown_dots) > 0L) {
+        stop(
+            "Unused argument(s): ",
+            paste(unknown_dots, collapse=", "),
+            "."
+        )
+    }
+    has_metric_list <- "metricList" %in% names(dots)
     if (!has_formula_vars && !has_metric_list) {
         stop("'formulaVars' or 'metricList' must be supplied.")
     }
@@ -831,7 +842,7 @@ getModelFormula <- function(formulaVars, verbose=FALSE, metricList)
             "using 'metricList'."
         )
     }
-    out_var <- if (has_metric_list) metricList else formulaVars
+    out_var <- if (has_metric_list) dots$metricList else formulaVars
     if (!is.character(out_var)) {
         stop("Model formula variables must be supplied as a character vector.")
     }
@@ -1625,11 +1636,33 @@ applyQScoreModel <- function(spe, qsModel, scoreName="QScore") {
 
 ## ---- Deprecated functions -----------------------------------------------
 
-#' computeQCScore (deprecated)
-#' @name computeQCScore
-#' @rdname computeQCScore-deprecated
+#' Deprecated functions in SpaceTrooper
+#'
+#' @name SpaceTrooper-deprecated
 #' @description
-#' **Deprecated.** Use \code{\link{computeQScore}} instead.
+#' These functions are retained for compatibility with published SpaceTrooper
+#' APIs. They issue a deprecation warning and direct users to the canonical
+#' Quality Score functions.
+#'
+#' @details
+#' \itemize{
+#'   \item `computeQCScore()` replaces canonical `QScore` and
+#'     `metadata(spe)$QScore_model` with historical `QC_score` and
+#'     `metadata(spe)$QCScore_model`.
+#'   \item `computeQCScoreFlags()` consumes `QC_score` and creates
+#'     `low_qcscore` and, when applicable, `low_threshold_qcscore`.
+#'   \item `computeOutliersQCScore()` is the historical name for
+#'     `computeOutliersQScore()`.
+#'   \item `applyQCScoreModel()` retains the `qcModel` argument, the default
+#'     `QC_score` output, and `metadata(spe)$QCScore_model_applied`.
+#' }
+#'
+#' Use `computeQScore()`, `computeQScoreFlags()`,
+#' `computeOutliersQScore()`, and `applyQScoreModel()` for canonical names.
+NULL
+
+#' computeQCScore (deprecated)
+#' @rdname SpaceTrooper-deprecated
 #'
 #' @param spe A `SpatialExperiment` object.
 #' @param bestLambda Passed to \code{\link{computeQScore}}.
@@ -1662,10 +1695,7 @@ computeQCScore <- function(spe, bestLambda=NULL, modelFormula=NULL,
 }
 
 #' computeQCScoreFlags (deprecated)
-#' @name computeQCScoreFlags
-#' @rdname computeQCScoreFlags-deprecated
-#' @description
-#' **Deprecated.** Use \code{\link{computeQScoreFlags}} instead.
+#' @rdname SpaceTrooper-deprecated
 #'
 #' @param spe A `SpatialExperiment` object.
 #' @param qsThreshold Passed to \code{\link{computeQScoreFlags}}.
@@ -1700,10 +1730,7 @@ computeQCScoreFlags <- function(spe, qsThreshold=0.5, useQSQuantiles=FALSE) {
 }
 
 #' computeOutliersQCScore (deprecated)
-#' @name computeOutliersQCScore
 #' @rdname SpaceTrooper-deprecated
-#' @description
-#' **Deprecated.** Use \code{\link{computeOutliersQScore}} instead.
 #'
 #' @param spe A `SpatialExperiment` object.
 #' @param metricList Passed to \code{\link{computeOutliersQScore}}.
@@ -1722,10 +1749,7 @@ computeOutliersQCScore <- function(spe, metricList=c(
 }
 
 #' applyQCScoreModel (deprecated)
-#' @name applyQCScoreModel
 #' @rdname SpaceTrooper-deprecated
-#' @description
-#' **Deprecated.** Use \code{\link{applyQScoreModel}} instead.
 #'
 #' @param spe A `SpatialExperiment` object with QC metrics already computed.
 #' @param qcModel A historical QC score model object, usually stored in
