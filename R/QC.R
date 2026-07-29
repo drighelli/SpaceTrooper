@@ -349,13 +349,13 @@ computeThresholdFlags <- function(spe, totalThreshold=0,
 #' k-fold cross-validation to identify the optimal regularization parameter
 #' \eqn{\lambda} for Quality Score (QS) model training.
 #'
-#' @param modelMatrix  `matrix`
-#'   The design matrix built from the training data, typically via
-#'   `model.matrix(as.formula(model_formula), data=trainDF)`.
 #' @param trainDF  `data.frame`
 #'   A data frame for QS model training that must include:
 #'     Predictor columns: All columns referenced in the formula returned by `getModelFormula()`.
-#'     `QScore_train` A binary (0/1) response vector to be modeled.
+#'     `QScore_train` or historical `qcscore_train`, containing the binary
+#'     (0/1) response to be modeled.
+#' @param modelFormula A one-sided formula or character string describing the
+#'   supported predictor terms.
 #'
 #' @return
 #' `numeric`
@@ -363,25 +363,48 @@ computeThresholdFlags <- function(spe, totalThreshold=0,
 #'   `cv.glmnet` that minimizes the cross-validation error.
 #'
 #' @details
-#' Internally, the function:
-#'   runs k-fold cross-validation of ridge logistic regression using `cv.glmnet` with `alpha = 0`,
-#'   extracts and returns `ridge_cv$lambda.min`.
+#' Complete cases for the formula variables and response are retained. The
+#' function constructs a model matrix and passes it to an internal
+#' matrix-based implementation that runs ridge logistic-regression
+#' cross-validation using `cv.glmnet` with `alpha = 0`.
 #'
 #' @examples
 #' example(computeTrainDF)
 #' modform <- getModelFormula(names(metadata(spe)$formula_variables))
-#' model_matrix <- model.matrix(as.formula(modform), data=df_train)
-#' best_lambda <- computeLambda(model_matrix, df_train)
+#' best_lambda <- computeLambda(df_train, modform)
 #' print(best_lambda)
 #'
 #'
 #' @export
 
-computeLambda <- function(modelMatrix, trainDF) {
-    ridge_cv <- cv.glmnet(modelMatrix, trainDF$QScore_train,
-                        family="binomial", alpha=0, lambda=NULL)
-    bestLambda <- ridge_cv$lambda.min
-    return(bestLambda)
+computeLambda <- function(trainDF, modelFormula) {
+    stopifnot(is.data.frame(trainDF))
+    model_formula <- stats::as.formula(modelFormula)
+    response <- .getQScoreResponse(trainDF)
+    train_ok <- .filterCompleteModelCases(
+        df=trainDF,
+        modelFormula=model_formula,
+        response=response,
+        context="training cells for lambda selection"
+    )
+    train_df <- trainDF[train_ok, , drop=FALSE]
+    response <- response[train_ok]
+    model_matrix <- stats::model.matrix(
+        model_formula,
+        data=train_df
+    )
+    .computeLambda(modelMatrix=model_matrix, response=response)
+}
+
+.computeLambda <- function(modelMatrix, response) {
+    ridge_cv <- glmnet::cv.glmnet(
+        modelMatrix,
+        response,
+        family="binomial",
+        alpha=0,
+        lambda=NULL
+    )
+    ridge_cv$lambda.min
 }
 
 #' computeQScore
@@ -513,7 +536,10 @@ computeQScore <- function(spe, bestLambda=NULL, modelFormula=NULL, verbose=FALSE
     model <- trainModel(model_matrix, train_df)
     
     if(is.null(bestLambda)) {
-        bestLambda <- computeLambda(model_matrix, train_df)
+        bestLambda <- .computeLambda(
+            modelMatrix=model_matrix,
+            response=train_df$QScore_train
+        )
     }
 
     coefs <- coef(model, s=bestLambda)[coef(model, s=bestLambda)[,1]!= 0,,drop=FALSE]
@@ -1384,6 +1410,30 @@ applyQScoreModel <- function(spe, qsModel, scoreName="QScore") {
     }
 
     return(modelMatrix)
+}
+
+.getQScoreResponse <- function(trainDF) {
+    has_canonical <- "QScore_train" %in% colnames(trainDF)
+    has_legacy <- "qcscore_train" %in% colnames(trainDF)
+    if (!has_canonical && !has_legacy) {
+        stop(
+            "Training data must contain 'QScore_train' or ",
+            "'qcscore_train'."
+        )
+    }
+    if (has_canonical && has_legacy) {
+        canonical <- trainDF$QScore_train
+        legacy <- trainDF$qcscore_train
+        same <- (is.na(canonical) & is.na(legacy)) |
+            (!is.na(canonical) & !is.na(legacy) & canonical == legacy)
+        if (any(!same)) {
+            stop(
+                "'QScore_train' and 'qcscore_train' are both present ",
+                "but contain different values."
+            )
+        }
+    }
+    if (has_canonical) trainDF$QScore_train else trainDF$qcscore_train
 }
 
 #' @importFrom stats complete.cases
