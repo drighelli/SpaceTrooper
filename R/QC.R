@@ -493,27 +493,38 @@ computeQScore <- function(spe, bestLambda=NULL, modelFormula=NULL, verbose=FALSE
             " cells with 0 counts were found. These cells will be removed."))
         spe <- spe[,spe$total > 0]
     }
-    metricList <- c("log2SignalDensity", "Area_um",
-                    "log2AspectRatio", 
-                    "log2Ctrl_total_ratio")
-
-    if (!is.null(modelFormula)) {
-        model_formula <- modelFormula
-        metricList <- attr(terms(as.formula(modelFormula)), "term.labels")
-        metricList <- metricList[!grepl(":", metricList, fixed=TRUE)]
-        ## Whitespace-tolerant detection of the border-effect interaction term
-        border_pat <- "I\\(abs\\(log2AspectRatio\\)\\s*\\*\\s*as\\.numeric\\(dist_border\\s*<\\s*50\\)\\)"
-        if (any(grepl(border_pat, metricList))) {
-            metricList <- gsub(border_pat, "log2AspectRatio", metricList)
-        }
+    supported_metrics <- .qscoreSupportedPredictors()
+    metric_list <- intersect(
+        supported_metrics,
+        names(colData(spe))
+    )
+    if (!"log2SignalDensity" %in% metric_list) {
+        stop(
+            "'log2SignalDensity' is required to construct Quality Score ",
+            "training labels."
+        )
     }
 
-    stopifnot("Not all required metrics in the colData.\nPlease run spatialPerCellQC first." = all(metricList %in% names(colData(spe))))
-    ctx <- .prepQCContext(spe, metricList, verbose)
+    formula_info <- NULL
+    if (!is.null(modelFormula)) {
+        formula_info <- .validateQScoreFormula(
+            modelFormula=modelFormula,
+            dataNames=names(colData(spe)),
+            technology=metadata(spe)$technology
+        )
+    }
+
+    ## Training-label construction is intentionally based on all available,
+    ## supported metrics and remains independent of a user-selected fit formula.
+    ctx <- .prepQCContext(spe, metric_list, verbose)
     df <- ctx$df; out_var <- ctx$out_var; tech <- ctx$tech
 
     if (is.null(modelFormula)) {
         model_formula <- getModelFormula(names(out_var))
+        model_formula_object <- stats::as.formula(model_formula)
+    } else {
+        model_formula <- formula_info$text
+        model_formula_object <- formula_info$formula
     }
 
     if (verbose) {
@@ -525,14 +536,17 @@ computeQScore <- function(spe, bestLambda=NULL, modelFormula=NULL, verbose=FALSE
 
     train_ok <- .filterCompleteModelCases(
         df=train_df,
-        modelFormula=model_formula,
+        modelFormula=model_formula_object,
         response=train_df$QScore_train,
         context="training cells"
     )
 
     train_df <- train_df[train_ok, , drop=FALSE]
 
-    model_matrix <- model.matrix(as.formula(model_formula), data=train_df)
+    model_matrix <- stats::model.matrix(
+        model_formula_object,
+        data=train_df
+    )
     model <- trainModel(model_matrix, train_df)
     
     if(is.null(bestLambda)) {
@@ -542,7 +556,7 @@ computeQScore <- function(spe, bestLambda=NULL, modelFormula=NULL, verbose=FALSE
         )
     }
 
-    coefs <- coef(model, s=bestLambda)[coef(model, s=bestLambda)[,1]!= 0,,drop=FALSE]
+    coefs <- coef(model, s=bestLambda)
 
     if (verbose) {
         message("Model coefficients for every term used in the formula:")
@@ -550,11 +564,15 @@ computeQScore <- function(spe, bestLambda=NULL, modelFormula=NULL, verbose=FALSE
             collapse=" "))
     }
 
-    full_ok <- .filterCompleteModelCases(df=df, modelFormula=model_formula,
+    full_ok <- .filterCompleteModelCases(
+        df=df,
+        modelFormula=model_formula_object,
         context="cells")
 
-    full_matrix <- model.matrix(as.formula(model_formula),
-        data=df[full_ok, , drop=FALSE])
+    full_matrix <- stats::model.matrix(
+        model_formula_object,
+        data=df[full_ok, , drop=FALSE]
+    )
 
     ## NAs may come from model variables used in `model_formula`, e.g. cells with
     ## missing `log2AspectRatio` when aspect ratio cannot be computed from polygons.
@@ -831,6 +849,119 @@ getModelFormula <- function(formulaVars, verbose=FALSE, metricList)
     return(model_formula)
 }
 
+.qscoreSupportedPredictors <- function() {
+    c(
+        "log2SignalDensity",
+        "Area_um",
+        "log2AspectRatio",
+        "log2Ctrl_total_ratio"
+    )
+}
+
+.qscoreBorderTerm <- function() {
+    paste0(
+        "I(abs(log2AspectRatio)*",
+        "as.numeric(dist_border<50))"
+    )
+}
+
+.validateQScoreFormula <- function(modelFormula, dataNames, technology) {
+    model_formula <- tryCatch(
+        stats::as.formula(modelFormula),
+        error=function(e) {
+            stop("Unable to parse 'modelFormula': ", conditionMessage(e))
+        }
+    )
+    if (length(model_formula) != 2L) {
+        stop("'modelFormula' must be a one-sided formula.")
+    }
+
+    required_variables <- stats::all.vars(model_formula)
+    supported <- .qscoreSupportedPredictors()
+    allowed_variables <- c(supported, "dist_border")
+    unsupported_variables <- setdiff(
+        required_variables,
+        allowed_variables
+    )
+    if (length(unsupported_variables) > 0L) {
+        stop(
+            "Unsupported Quality Score predictor(s): ",
+            paste(unsupported_variables, collapse=", "),
+            ". Formula structure may be customised, but predictors and ",
+            "transformations are restricted to: ",
+            paste(supported, collapse=", "),
+            "."
+        )
+    }
+
+    term_labels <- attr(stats::terms(model_formula), "term.labels")
+    if (length(term_labels) == 0L) {
+        stop("'modelFormula' must contain at least one supported predictor.")
+    }
+    normalise <- function(x) gsub("[[:space:]]+", "", x)
+    border_term <- .qscoreBorderTerm()
+    unsupported_terms <- character()
+    for (term_label in term_labels) {
+        components <- strsplit(
+            normalise(term_label),
+            ":",
+            fixed=TRUE
+        )[[1]]
+        valid_components <- components %in% supported |
+            components == border_term
+        if (!all(valid_components)) {
+            unsupported_terms <- c(unsupported_terms, term_label)
+        }
+    }
+    unsupported_terms <- unique(unsupported_terms)
+    if (length(unsupported_terms) > 0L) {
+        stop(
+            "Unsupported Quality Score formula term(s) or transformation(s): ",
+            paste(unsupported_terms, collapse=", "),
+            ". Formula structure and interactions may be customised, but ",
+            "predictors and transformations may not be extended. Supported ",
+            "predictors are: ",
+            paste(supported, collapse=", "),
+            "; the supported border-effect expression is ",
+            "'I(abs(log2AspectRatio) * as.numeric(dist_border < 50))'."
+        )
+    }
+
+    missing_variables <- setdiff(required_variables, dataNames)
+    if (length(missing_variables) > 0L) {
+        stop(
+            "Missing variables required by 'modelFormula': ",
+            paste(missing_variables, collapse=", "),
+            ". Run 'spatialPerCellQC()' before computing Quality Score."
+        )
+    }
+
+    is_cosmx <- technology %in%
+        c("Nanostring_CosMx", "Nanostring_CosMx_Protein")
+    uses_border_predictor <- any(
+        c("log2AspectRatio", "dist_border") %in% required_variables
+    )
+    if (uses_border_predictor && !is_cosmx) {
+        stop(
+            "'log2AspectRatio' and the border-effect expression are ",
+            "supported only for Nanostring CosMx datasets; detected ",
+            "technology: '", technology, "'."
+        )
+    }
+
+    formula_text <- if (is.character(modelFormula)) {
+        paste(modelFormula, collapse=" ")
+    } else {
+        paste(deparse(model_formula, width.cutoff=500L), collapse=" ")
+    }
+    list(
+        formula=model_formula,
+        text=formula_text,
+        variables=required_variables,
+        terms=term_labels
+    )
+}
+
 #' .computeXenMerTrainSet
 #' @name dot-computeXenMerTrainSet
 #' @rdname dot-computeXenMerTrainSet
@@ -1056,6 +1187,19 @@ computeOutliersQScore <- function(spe, metricList=c("log2SignalDensity","Area_um
     "log2AspectRatio", "log2Ctrl_total_ratio")) {
 
     stopifnot(is(spe, "SpatialExperiment"))
+    unsupported_metrics <- setdiff(
+        metricList,
+        .qscoreSupportedPredictors()
+    )
+    if (length(unsupported_metrics) > 0L) {
+        stop(
+            "Unsupported Quality Score metric(s): ",
+            paste(unsupported_metrics, collapse=", "),
+            ". Supported metrics are: ",
+            paste(.qscoreSupportedPredictors(), collapse=", "),
+            "."
+        )
+    }
 
     cd <- colData(spe)
     method <- .checkSkw(cd, metricList)
@@ -1440,7 +1584,7 @@ applyQScoreModel <- function(spe, qsModel, scoreName="QScore") {
 .filterCompleteModelCases <- function(df, modelFormula, response=NULL,
     context="cells") {
 
-    vars <- all.vars(as.formula(modelFormula))
+    vars <- stats::all.vars(stats::as.formula(modelFormula))
 
     missing_vars <- setdiff(vars, colnames(df))
 
