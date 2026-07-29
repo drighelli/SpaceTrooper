@@ -1331,8 +1331,9 @@ checkOutliers <- function(spe, verbose=FALSE) {
     if (verbose) {
         for (i in names(out_var)) {
             message("Outliers found for ", i, ":")
-            for (k in 1:length(names(table(cd[[out_var[i]]])))){
-                message(paste0(names(table(cd[[out_var[i]]]))[k], ": ", table(cd[[out_var[i]]])[k]))
+            outlier_counts <- table(cd[[out_var[i]]])
+            for (k in seq_along(outlier_counts)) {
+                message(names(outlier_counts)[k], ": ", outlier_counts[k])
             }
         }
     }
@@ -1403,8 +1404,8 @@ checkOutliers <- function(spe, verbose=FALSE) {
     # remove zero-count cells once
     zerocells <- spe$total==0
     if (sum(zerocells) > 0) {
-        warning(paste0(sum(zerocells),
-            " cells with 0 counts were found. These cells will be removed."))
+        warning(sum(zerocells),
+            " cells with 0 counts were found. These cells will be removed.")
         spe <- spe[, !zerocells]
     }
     if("log2CountArea" %in% names(colData(spe)))
