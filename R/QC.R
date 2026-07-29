@@ -1211,12 +1211,13 @@ checkOutliers <- function(spe, verbose=FALSE) {
     return(list(df=df, out_var=out_var, tech=tech))
 }
 
-#' .applyQScoreModel
-#' @name .applyQScoreModel
-#' @rdname dot-applyQScoreModel
+#' applyQScoreModel
+#' @name applyQScoreModel
+#' @rdname applyQScoreModel
 #' 
 #' @description
-#' Internal: applies a previously trained Quality Score model to a new SpatialExperiment object.
+#' Applies a previously trained Quality Score model to a new SpatialExperiment
+#' object.
 #' See details for important considerations when applying a model to a
 #' different dataset.
 #' @details
@@ -1260,13 +1261,17 @@ checkOutliers <- function(spe, verbose=FALSE) {
 #' qs_model <- metadata(spe_train)$QScore_model
 #'
 #' ## Apply the trained model to another dataset
-#' spe_test <- .applyQScoreModel(
+#' spe_test <- applyQScoreModel(
 #'     spe=spe_test,
 #'     qsModel=qs_model,
 #'     scoreName="QScore_transferred"
 #' )
 #'
 #' summary(spe_test$QScore_transferred)
+applyQScoreModel <- function(spe, qsModel, scoreName="QScore") {
+    .applyQScoreModel(spe=spe, qsModel=qsModel, scoreName=scoreName)
+}
+
 .applyQScoreModel <- function(spe, qsModel, scoreName="QScore") {
     stopifnot(is(spe, "SpatialExperiment"))
 
@@ -1397,8 +1402,6 @@ checkOutliers <- function(spe, verbose=FALSE) {
 #' @description
 #' **Deprecated.** Use \code{\link{computeQScore}} instead.
 #'
-#' \lifecycle{deprecated}
-#'
 #' @param spe A `SpatialExperiment` object.
 #' @param bestLambda Passed to \code{\link{computeQScore}}.
 #' @param modelFormula Passed to \code{\link{computeQScore}}.
@@ -1416,8 +1419,17 @@ computeQCScore <- function(spe, bestLambda=NULL, modelFormula=NULL,
             "See help('computeQScore') for details."
         )
     )
-    computeQScore(spe, bestLambda=bestLambda, modelFormula=modelFormula,
-                  verbose=verbose)
+    spe <- computeQScore(
+        spe,
+        bestLambda=bestLambda,
+        modelFormula=modelFormula,
+        verbose=verbose
+    )
+    spe$QC_score <- spe$QScore
+    spe$QScore <- NULL
+    metadata(spe)$QCScore_model <- metadata(spe)$QScore_model
+    metadata(spe)$QScore_model <- NULL
+    return(spe)
 }
 
 #' computeQCScoreFlags (deprecated)
@@ -1425,8 +1437,6 @@ computeQCScore <- function(spe, bestLambda=NULL, modelFormula=NULL,
 #' @rdname computeQCScoreFlags-deprecated
 #' @description
 #' **Deprecated.** Use \code{\link{computeQScoreFlags}} instead.
-#'
-#' \lifecycle{deprecated}
 #'
 #' @param spe A `SpatialExperiment` object.
 #' @param qsThreshold Passed to \code{\link{computeQScoreFlags}}.
@@ -1443,6 +1453,70 @@ computeQCScoreFlags <- function(spe, qsThreshold=0.5, useQSQuantiles=FALSE) {
             "See help('computeQScoreFlags') for details."
         )
     )
-    computeQScoreFlags(spe, qsThreshold=qsThreshold,
-                       useQSQuantiles=useQSQuantiles)
+    stopifnot(is(spe, "SpatialExperiment"))
+    stopifnot("QC_score" %in% names(colData(spe)))
+
+    if (useQSQuantiles) {
+        spe$low_qcscore <- spe$QC_score <
+            quantile(spe$QC_score, probs=qsThreshold, na.rm=TRUE)
+    } else {
+        spe$low_qcscore <- spe$QC_score < qsThreshold
+    }
+
+    if ("threshold_flags" %in% names(colData(spe))) {
+        spe$low_threshold_qcscore <- spe$low_qcscore &
+            spe$threshold_flags
+    }
+    return(spe)
+}
+
+#' computeOutliersQCScore (deprecated)
+#' @name computeOutliersQCScore
+#' @rdname SpaceTrooper-deprecated
+#' @description
+#' **Deprecated.** Use \code{\link{computeOutliersQScore}} instead.
+#'
+#' @param spe A `SpatialExperiment` object.
+#' @param metricList Passed to \code{\link{computeOutliersQScore}}.
+#' @return A `SpatialExperiment` object; see
+#'   \code{\link{computeOutliersQScore}}.
+#' @export
+computeOutliersQCScore <- function(spe, metricList=c(
+    "log2SignalDensity", "Area_um", "log2AspectRatio",
+    "log2Ctrl_total_ratio"
+)) {
+    .Deprecated(
+        new="computeOutliersQScore",
+        package="SpaceTrooper"
+    )
+    computeOutliersQScore(spe=spe, metricList=metricList)
+}
+
+#' applyQCScoreModel (deprecated)
+#' @name applyQCScoreModel
+#' @rdname SpaceTrooper-deprecated
+#' @description
+#' **Deprecated.** Use \code{\link{applyQScoreModel}} instead.
+#'
+#' @param spe A `SpatialExperiment` object with QC metrics already computed.
+#' @param qcModel A historical QC score model object, usually stored in
+#'   `metadata(spe)$QCScore_model`.
+#' @param scoreName Name of the legacy output column in `colData`.
+#' @return A `SpatialExperiment` object with the applied score in `colData`
+#'   and the model in `metadata(spe)$QCScore_model_applied`.
+#' @export
+applyQCScoreModel <- function(spe, qcModel, scoreName="QC_score") {
+    .Deprecated(
+        new="applyQScoreModel",
+        package="SpaceTrooper"
+    )
+    spe <- .applyQScoreModel(
+        spe=spe,
+        qsModel=qcModel,
+        scoreName=scoreName
+    )
+    metadata(spe)$QCScore_model_applied <-
+        metadata(spe)$QScore_model_applied
+    metadata(spe)$QScore_model_applied <- NULL
+    return(spe)
 }

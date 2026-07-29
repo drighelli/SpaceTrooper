@@ -1,8 +1,14 @@
 library(testthat)
 library(SpaceTrooper)
 
-# load the example SpatialExperiment
-spe0 <- example(readCosmxSPE)$value
+# Load the example SpatialExperiment directly so tests do not depend on an
+# installed help database.
+cosmx_path <- system.file(
+    "extdata",
+    "CosMx_DBKero_Tiny",
+    package="SpaceTrooper"
+)
+spe0 <- readCosmxSPE(cosmx_path, sampleName="DBKero_Tiny")
 
 test_that("QC functions are exported", {
     expect_true(exists("spatialPerCellQC",   mode = "function"))
@@ -13,6 +19,9 @@ test_that("QC functions are exported", {
     ## deprecated wrappers should still be exported
     expect_true(exists("computeQCScore",      mode = "function"))
     expect_true(exists("computeQCScoreFlags", mode = "function"))
+    expect_true(exists("computeOutliersQCScore", mode = "function"))
+    expect_true(exists("applyQScoreModel", mode = "function"))
+    expect_true(exists("applyQCScoreModel", mode = "function"))
 })
 
 
@@ -37,16 +46,35 @@ test_that("computeQScore adds a QScore between 0 and 1", {
     expect_true(all(fs[!is.na(fs)] >= 0 & fs[!is.na(fs)] <= 1))
 })
 
-test_that("computeQCScore (deprecated) still works and produces QScore", {
+test_that("computeQCScore preserves legacy score and model names", {
     spe <- spatialPerCellQC(spe0)
     set.seed(42)
     expect_warning(
         spe2 <- computeQCScore(spe),
         "deprecated"
     )
-    expect_true("QScore" %in% colnames(colData(spe2)))
+    expect_true("QC_score" %in% colnames(colData(spe2)))
+    expect_false("QScore" %in% colnames(colData(spe2)))
+    expect_true("QCScore_model" %in% names(metadata(spe2)))
+    expect_false("QScore_model" %in% names(metadata(spe2)))
 })
 
+test_that("computeQCScoreFlags preserves legacy flag names", {
+    spe <- spe0
+    spe$QC_score <- seq(0, 1, length.out=ncol(spe))
+    spe$threshold_flags <- rep(c(TRUE, FALSE), length.out=ncol(spe))
+
+    expect_warning(
+        flagged <- computeQCScoreFlags(spe, qsThreshold=0.5),
+        "deprecated"
+    )
+
+    expect_true(all(c(
+        "low_qcscore",
+        "low_threshold_qcscore"
+    ) %in% colnames(colData(flagged))))
+    expect_false("low_QScore" %in% colnames(colData(flagged)))
+})
 
 test_that("computeSpatialOutlier flags outliers for a chosen metric", {
     spe <- spatialPerCellQC(spe0)
