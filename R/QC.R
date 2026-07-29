@@ -629,7 +629,8 @@ computeQScore <- function(spe, bestLambda=NULL, modelFormula=NULL, verbose=FALSE
 #' coef(fit, s = 0.01)
 trainModel <- function(modelMatrix, trainDF)
 {
-    model <- glmnet(x=modelMatrix, y=trainDF$QScore_train,
+    response <- .getQScoreResponse(trainDF)
+    model <- glmnet(x=modelMatrix, y=response,
                     family="binomial", lambda=NULL, alpha=0)
     return(model)
 }
@@ -792,6 +793,9 @@ computeTrainDF <- function(colData, formulaVars, tech, verbose=FALSE) {
     train_df <- rbind(train_bad, train_good)
     train_df <- train_df |>
         dplyr::distinct(cell_id, .keep_all=TRUE)
+    ## `qcscore_train` remains available because `computeTrainDF()` is a
+    ## published API. Canonical internals use `QScore_train`.
+    train_df$qcscore_train <- train_df$QScore_train
     return(train_df)
 }
 
@@ -876,7 +880,7 @@ getModelFormula <- function(formulaVars, verbose=FALSE, metricList)
         stop("'modelFormula' must be a one-sided formula.")
     }
 
-    required_variables <- stats::all.vars(model_formula)
+    required_variables <- base::all.vars(model_formula)
     supported <- .qscoreSupportedPredictors()
     allowed_variables <- c(supported, "dist_border")
     unsupported_variables <- setdiff(
@@ -1484,6 +1488,11 @@ applyQScoreModel <- function(spe, qsModel, scoreName="QScore") {
     )
 
     df <- as.data.frame(colData(spe))
+    .validateQScoreFormula(
+        modelFormula=qsModel$model_formula,
+        dataNames=colnames(df),
+        technology=metadata(spe)$technology
+    )
 
     ok <- .filterCompleteModelCases(
         df=df,
@@ -1584,7 +1593,7 @@ applyQScoreModel <- function(spe, qsModel, scoreName="QScore") {
 .filterCompleteModelCases <- function(df, modelFormula, response=NULL,
     context="cells") {
 
-    vars <- stats::all.vars(stats::as.formula(modelFormula))
+    vars <- base::all.vars(stats::as.formula(modelFormula))
 
     missing_vars <- setdiff(vars, colnames(df))
 
