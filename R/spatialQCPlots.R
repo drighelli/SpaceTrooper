@@ -10,17 +10,23 @@
 #' @param sampleId Character string identifying which sample to plot.
 #'   Default: `unique(spe$sample_id)`.
 #' @param pointCol Color for the cell centroids. Default: `"firebrick"`.
-#' @param pointSize Numeric point size for the cell centroids. Default: `0.05`.
-#' @param pointAlpha Numeric transparency for the cell centroids. Default: `0.8`.
 #' @param numbersCol Color for the FoV labels. Default: `"black"`.
-#' @param numberSize Numeric size for the FoV labels. Default: `1`.
-#' @param numbersAlpha Numeric transparency for FoV labels. Default: `0.8`.
+#' @param alphaNumbers Deprecated alias for `numbersAlpha`.
 #' @param fovDim numeric with two named dimensions xdim, ydim. (Default is
 #' metadata(spe)$fov_dim)
+#' @param size Deprecated alias for `pointSize`.
+#' @param alpha Deprecated alias for `pointAlpha`.
 #' @param scaleBar A logical value indicating whether to add a scale bar to the
 #' plot. (Default is `TRUE`)
 #' @param micronConvFact Numeric conversion factor from pixels to microns.
 #' Default is `0.12`.
+#' @param pointSize Numeric point size for the cell centroids. If supplied,
+#'   takes precedence over `size`.
+#' @param pointAlpha Numeric transparency for the cell centroids. If supplied,
+#'   takes precedence over `alpha`.
+#' @param numberSize Numeric size for the FoV labels. Default: `1`.
+#' @param numbersAlpha Numeric transparency for FoV labels. If supplied, takes
+#'   precedence over `alphaNumbers`.
 #'
 #' @return A `ggplot` object showing cell centroids and FoV boundaries.
 #'
@@ -62,15 +68,34 @@
 #' g <- plotCellsFovs(spe)
 #' print(g)
 plotCellsFovs <- function(spe, sampleId=unique(spe$sample_id),
-                        pointCol="firebrick", pointSize=0.05,
-                        pointAlpha=0.8, numbersCol="black",
-                        numberSize= 1, numbersAlpha=0.8,
-                        fovDim=metadata(spe)$fov_dim,
-                        scaleBar=TRUE, micronConvFact = 0.12)
+                        pointCol="firebrick", numbersCol="black",
+                        alphaNumbers=0.8, fovDim=metadata(spe)$fov_dim,
+                        size=0.05, alpha=0.8,
+                        scaleBar=TRUE, micronConvFact=0.12,
+                        pointSize=NULL, pointAlpha=NULL, numberSize=1,
+                        numbersAlpha=NULL)
 {
     stopifnot(is(spe, "SpatialExperiment"))
     stopifnot("fov" %in% names(colData(spe)))
     stopifnot( all(names(fovDim) %in% c("xdim","ydim")) )
+
+    if (!is.null(pointSize) && !missing(size)) {
+        warning("Both 'size' and 'pointSize' were supplied; using 'pointSize'.")
+    }
+    if (!is.null(pointAlpha) && !missing(alpha)) {
+        warning(
+            "Both 'alpha' and 'pointAlpha' were supplied; using 'pointAlpha'."
+        )
+    }
+    if (!is.null(numbersAlpha) && !missing(alphaNumbers)) {
+        warning(
+            "Both 'alphaNumbers' and 'numbersAlpha' were supplied; ",
+            "using 'numbersAlpha'."
+        )
+    }
+    if (is.null(pointSize)) pointSize <- size
+    if (is.null(pointAlpha)) pointAlpha <- alpha
+    if (is.null(numbersAlpha)) numbersAlpha <- alphaNumbers
 
     spd <- as.data.frame(spatialCoords(spe))
     x_coord <- spatialCoordsNames(spe)[1]
@@ -439,12 +464,10 @@ plotPolygons <- function(spe, colourBy="darkgrey", colourLog=FALSE,
 #' plot. If `NULL`, no title is added. Default is `NULL`.
 #' @param mapPointCol A character string specifying the color of the points
 #' in the map. Default is `"darkmagenta"`.
-#' @param mapPointSize Numeric size for points in the map. Default: `0.5`.
-#' @param mapPointAlpha Numeric transparency for points in the map. Default: `0.8`.
-#' @param fovNumbersCol A character string specifying the color of the
-#' numbers on the FoV zoom-in. Default is `"black"`.
-#' @param fovNumberSize Numeric size for the FoV labels. Default: `1`.
-#' @param fovNumbersAlpha Numeric transparency for FoV labels. Default: `0.8`.
+#' @param mapNumbersCol Deprecated alias for `fovNumbersCol`.
+#' @param mapAlphaNumbers Deprecated alias for `fovNumbersAlpha`.
+#' @param csize Deprecated alias for `mapPointSize`.
+#' @param calpha Deprecated alias for `mapPointAlpha`.
 #' @param scaleBars Logical or NULL. Default is `NULL`.
 #' Master switch controlling the presence of scale bars in both panels.
 #' If \code{TRUE}, scale bars are shown in both the map and polygon panels.
@@ -457,6 +480,15 @@ plotPolygons <- function(spe, colourBy="darkgrey", colourLog=FALSE,
 #' These parameters are only used when \code{scaleBars} is \code{NULL};
 #' otherwise they are overridden by \code{scaleBars}.
 #' @param ... Additional arguments passed to `plotPolygons`.
+#' @param mapPointSize Numeric size for points in the map. If supplied, takes
+#'   precedence over `csize`.
+#' @param mapPointAlpha Numeric transparency for points in the map. If supplied,
+#'   takes precedence over `calpha`.
+#' @param fovNumbersCol Color for FoV labels. If supplied, takes precedence over
+#'   `mapNumbersCol`.
+#' @param fovNumberSize Numeric size for the FoV labels. Default: `1`.
+#' @param fovNumbersAlpha Transparency for FoV labels. If supplied, takes
+#'   precedence over `mapAlphaNumbers`.
 #'
 #' @return A combined plot showing a map of all FOVs with zoomed-in views of
 #' the specified FOVs and their associated polygons.
@@ -475,16 +507,48 @@ plotPolygons <- function(spe, colourBy="darkgrey", colourLog=FALSE,
 #' plotZoomFovsMap(spe, fovs=16, title="FOV 16")
 plotZoomFovsMap <- function(spe, fovs=NULL, title=NULL,
                             mapPointCol="darkmagenta",
-                            mapPointSize=0.5, mapPointAlpha=0.8,
-                            fovNumbersCol="black", fovNumberSize=1,
-                            fovNumbersAlpha=0.8,
+                            mapNumbersCol="black",
+                            mapAlphaNumbers=0.8,
+                            csize=0.05, calpha=0.8,
                             scaleBars=NULL,
                             scaleBarMap=TRUE,
                             scaleBarPol=TRUE,
-                            ...) {
+                            ...,
+                            mapPointSize=NULL, mapPointAlpha=NULL,
+                            fovNumbersCol=NULL, fovNumberSize=1,
+                            fovNumbersAlpha=NULL) {
     stopifnot(is(spe, "SpatialExperiment"))
     stopifnot("fov" %in% names(colData(spe)))
     stopifnot(all(fovs %in% spe$fov))
+    if (!is.null(mapPointSize) && !missing(csize)) {
+        warning(
+            "Both 'csize' and 'mapPointSize' were supplied; ",
+            "using 'mapPointSize'."
+        )
+    }
+    if (!is.null(mapPointAlpha) && !missing(calpha)) {
+        warning(
+            "Both 'calpha' and 'mapPointAlpha' were supplied; ",
+            "using 'mapPointAlpha'."
+        )
+    }
+    if (!is.null(fovNumbersCol) && !missing(mapNumbersCol)) {
+        warning(
+            "Both 'mapNumbersCol' and 'fovNumbersCol' were supplied; ",
+            "using 'fovNumbersCol'."
+        )
+    }
+    if (!is.null(fovNumbersAlpha) && !missing(mapAlphaNumbers)) {
+        warning(
+            "Both 'mapAlphaNumbers' and 'fovNumbersAlpha' were supplied; ",
+            "using 'fovNumbersAlpha'."
+        )
+    }
+    if (is.null(mapPointSize)) mapPointSize <- csize
+    if (is.null(mapPointAlpha)) mapPointAlpha <- calpha
+    if (is.null(fovNumbersCol)) fovNumbersCol <- mapNumbersCol
+    if (is.null(fovNumbersAlpha)) fovNumbersAlpha <- mapAlphaNumbers
+
     spefovs <- spe[, spe$fov %in% fovs]
     if (!is.null(scaleBars)) {
         stopifnot(is.logical(scaleBars), length(scaleBars) == 1L)

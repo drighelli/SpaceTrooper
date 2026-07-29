@@ -104,3 +104,120 @@ test_that("computeQScoreFlags combines filters and returns filter_out", {
     combined <- (ff$is_zero_counts & ff$is_ctrl_tot_outlier)
     expect_identical(combined, cd_ff$threshold_flags)
 })
+
+test_that("getModelFormula preserves historical calls", {
+    formula_vars <- c(
+        log2SignalDensity="log2SignalDensity_outlier_train",
+        Area_um="Area_um_outlier_sc"
+    )
+
+    expect_identical(
+        getModelFormula(formula_vars),
+        "~(log2SignalDensity + Area_um)^2"
+    )
+    expect_message(
+        getModelFormula(formulaVars=formula_vars, verbose=TRUE),
+        "Final formula"
+    )
+    expect_identical(
+        getModelFormula(metricList=names(formula_vars)),
+        "~(log2SignalDensity + Area_um)^2"
+    )
+    expect_warning(
+        getModelFormula(
+            formulaVars=formula_vars,
+            metricList="log2SignalDensity"
+        ),
+        "using 'metricList'"
+    )
+})
+
+test_that("plotCellsFovs old and canonical arguments have equal effects", {
+    old <- plotCellsFovs(
+        spe0,
+        size=2,
+        alpha=0.4,
+        alphaNumbers=0.3,
+        scaleBar=FALSE
+    )
+    canonical <- plotCellsFovs(
+        spe0,
+        pointSize=2,
+        pointAlpha=0.4,
+        numbersAlpha=0.3,
+        scaleBar=FALSE
+    )
+
+    expect_equal(old$layers[[1]]$aes_params, canonical$layers[[1]]$aes_params)
+    expect_equal(old$layers[[3]]$aes_params, canonical$layers[[3]]$aes_params)
+
+    historical_positional <- plotCellsFovs(
+        spe0,
+        unique(spe0$sample_id),
+        "firebrick",
+        "black",
+        0.3,
+        metadata(spe0)$fov_dim,
+        2,
+        0.4,
+        FALSE,
+        0.12
+    )
+    expect_equal(
+        historical_positional$layers[[1]]$aes_params$size,
+        2
+    )
+    expect_warning(
+        plotCellsFovs(
+            spe0,
+            size=1,
+            pointSize=2,
+            scaleBar=FALSE
+        ),
+        "using 'pointSize'"
+    )
+})
+
+test_that("plotZoomFovsMap old and canonical arguments are equivalent", {
+    cosmx_polygons <- readCosmxSPE(
+        cosmx_path,
+        sampleName="DBKero_Tiny",
+        keepPolygons=TRUE
+    )
+    fov <- unique(cosmx_polygons$fov)[1]
+
+    old <- plotZoomFovsMap(
+        cosmx_polygons,
+        fovs=fov,
+        mapNumbersCol="blue",
+        mapAlphaNumbers=0.3,
+        csize=0.7,
+        calpha=0.4,
+        scaleBars=FALSE
+    )
+    canonical <- plotZoomFovsMap(
+        cosmx_polygons,
+        fovs=fov,
+        fovNumbersCol="blue",
+        fovNumbersAlpha=0.3,
+        mapPointSize=0.7,
+        mapPointAlpha=0.4,
+        scaleBars=FALSE
+    )
+
+    expect_true(isTRUE(all.equal(
+        old,
+        canonical,
+        check.environment=FALSE
+    )))
+    expect_warning(
+        plotZoomFovsMap(
+            cosmx_polygons,
+            fovs=fov,
+            csize=0.5,
+            mapPointSize=0.7,
+            scaleBars=FALSE
+        ),
+        "using 'mapPointSize'"
+    )
+})

@@ -757,24 +757,50 @@ computeTrainDF <- function(colData, formulaVars, tech, verbose=FALSE) {
 #' @description
 #' Returns the right‐hand side of a model formula string based on a vector of
 #' metric names.
-#' @param metricList A character vector of metric names to include in the
-#'   formula (e.g. `"log2SignalDensity"`, `"Area_um"`, etc.), typically the
-#'   names of `metadata(spe)$formula_variables`.
+#' @param formulaVars A named character vector mapping metric names to outlier
+#'   columns, as historically stored in
+#'   `metadata(spe)$formula_variables`. An unnamed character vector of metric
+#'   names is also accepted.
+#' @param verbose Logical. If `TRUE`, prints the generated formula.
+#' @param metricList Named replacement for `formulaVars`. If both arguments are
+#'   supplied, `metricList` takes precedence with a warning.
 #' @return `character`
 #'   A one‐sided formula as a string (e.g. "~ log2SignalDensity + ...").
 #' @export
 #' @examples
 #' example(checkOutliers)
-#' getModelFormula(names(metadata(spe)$formula_variables))
-getModelFormula <- function(metricList)
+#' getModelFormula(metadata(spe)$formula_variables)
+getModelFormula <- function(formulaVars, verbose=FALSE, metricList)
 {
-    out_var <- metricList
+    has_formula_vars <- !missing(formulaVars)
+    has_metric_list <- !missing(metricList)
+    if (!has_formula_vars && !has_metric_list) {
+        stop("'formulaVars' or 'metricList' must be supplied.")
+    }
+    if (has_formula_vars && has_metric_list) {
+        warning(
+            "Both 'formulaVars' and 'metricList' were supplied; ",
+            "using 'metricList'."
+        )
+    }
+    out_var <- if (has_metric_list) metricList else formulaVars
+    if (!is.character(out_var)) {
+        stop("Model formula variables must be supplied as a character vector.")
+    }
+    if (!is.null(names(out_var)) && all(nzchar(names(out_var)))) {
+        out_var <- names(out_var)
+    }
     if ("log2AspectRatio" %in% out_var) {
         out_var[grep("log2AspectRatio", out_var)] <-
             "I(abs(log2AspectRatio) * as.numeric(dist_border < 50))"
     }
     model_formula <- paste0("~(", paste(out_var, collapse = " + "),
                         ")^2", sep = "")
+
+    if (verbose) {
+        message("Final formula used for Quality Score computation:")
+        message(model_formula)
+    }
 
     return(model_formula)
 }
