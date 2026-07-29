@@ -1,7 +1,7 @@
 Package: SpaceTrooper
 Type: Package
 Title: SpaceTrooper performs Quality Control analysis of Image-Based spatial
-Version: 1.1.8
+Version: 1.1.9
 Authors@R:
         c(person("Dario", "Righelli",
             email="dario.righelli@gmail.com",
@@ -23,7 +23,7 @@ Description: SpaceTrooper performs Quality Control analysis using data driven
 License: MIT + file LICENSE
 Encoding: UTF-8
 Depends: 
-    R (>= 4.4.0),
+    R (>= 4.6.0),
     SpatialExperiment
 Imports:
     DropletUtils,

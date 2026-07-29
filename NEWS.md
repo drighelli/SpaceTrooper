@@ -1,4 +1,4 @@
-# Changes in version 1.1.8
+# Changes in version 1.1.9
 
 * Added the canonical `computeQScore()`, `computeQScoreFlags()`,
   `computeOutliersQScore()`, and `applyQScoreModel()` APIs.
