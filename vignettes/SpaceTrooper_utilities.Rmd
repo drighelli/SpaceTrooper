@@ -505,14 +505,19 @@ formula is generated as follows:
 
  `~(log2SignalDensity + Area_um + I(abs(log2AspectRatio) * as.numeric(dist_border < 50)) + log2Ctrl_total_ratio)^2`
 
-When user-provided, the formula is fitted as supplied. Users may select a
-supported subset, use an additive formula, or choose interactions with `:` and
-`*`; SpaceTrooper does not add or remove terms. Predictor and transformation
+When user-provided, the formula is fitted as supplied. It must include
+`log2SignalDensity`; users may select a subset of the other supported metrics,
+use an additive formula, or choose interactions with `:` and `*`. SpaceTrooper
+does not add or remove terms. Predictor and transformation
 validation is separate from formula structure: arbitrary metrics and
-transformations such as `log1p(Area_um)` are rejected. The metrics used to
-construct good and bad training labels remain governed by the established
-SpaceTrooper rules and are not redefined by omitting a predictor from the fitted
-formula.
+transformations such as `log1p(Area_um)` are rejected. The supported base QC
+metrics present in the custom formula are also used to compute outliers, define
+good and bad training cells, and construct `QScore_train`; supported metrics
+omitted from the formula do not contribute to those labels. Interactions alter
+the fitted model but do not create additional training metrics. In the supported
+CosMx border expression, `log2AspectRatio` is the training QC metric and
+`dist_border` is only an auxiliary variable. With `modelFormula=NULL`, the
+established default metric-selection and training-label workflow is unchanged.
 
 ```{r compute-QS-different-formula,  message=TRUE}
 

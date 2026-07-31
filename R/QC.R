@@ -454,12 +454,21 @@ computeLambda <- function(trainDF, modelFormula) {
 #' - Model formula details: the most complete default formula is:
 #' `~(log2SignalDensity + Area_um + I(abs(log2AspectRatio) * as.numeric(dist_border < 50)) + log2Ctrl_total_ratio)^2`.
 #' A user-supplied formula is fitted as supplied: additive structures, selected
-#' interactions, `:` and `*` are preserved. The formula may use any subset of
-#' the four supported predictors: `log2SignalDensity`, `Area_um`,
+#' interactions, `:` and `*` are preserved. The formula must include
+#' `log2SignalDensity` and may use any subset of the other supported predictors:
+#' `Area_um`,
 #' `log2AspectRatio`, and `log2Ctrl_total_ratio`. Arbitrary predictors and
 #' transformations are rejected. The supported CosMx-only border expression is
-#' `I(abs(log2AspectRatio) * as.numeric(dist_border < 50))`. Formula selection
-#' is independent of the supported metrics used to construct training labels.
+#' `I(abs(log2AspectRatio) * as.numeric(dist_border < 50))`.
+#'
+#' When a custom `modelFormula` is supplied, the supported base QC metrics in
+#' that formula are also used to compute outliers, define good and bad training
+#' cells, and construct `QScore_train`. Interactions do not create additional
+#' training metrics. In the supported border expression, `dist_border` is an
+#' auxiliary variable and `log2AspectRatio` is the corresponding training QC
+#' metric. Supported metrics omitted from the custom formula do not contribute
+#' to training-label construction. When `modelFormula=NULL`, the established
+#' default metric-selection and training-label workflow is unchanged.
 #'
 #' The computed model output is stored in `metadata(spe)$QScore_model`.
 #' For inspection and model coefficient transfer between datasets
@@ -493,11 +502,21 @@ computeQScore <- function(spe, bestLambda=NULL, modelFormula=NULL, verbose=FALSE
             " cells with 0 counts were found. These cells will be removed."))
         spe <- spe[,spe$total > 0]
     }
-    supported_metrics <- .qscoreSupportedPredictors()
-    metric_list <- intersect(
-        supported_metrics,
-        names(colData(spe))
-    )
+    formula_info <- NULL
+    if (is.null(modelFormula)) {
+        metric_list <- intersect(
+            .qscoreSupportedPredictors(),
+            names(colData(spe))
+        )
+    } else {
+        formula_info <- .validateQScoreFormula(
+            modelFormula=modelFormula,
+            dataNames=names(colData(spe)),
+            technology=metadata(spe)$technology
+        )
+        metric_list <- formula_info$training_metrics
+    }
+
     if (!"log2SignalDensity" %in% metric_list) {
         stop(
             "'log2SignalDensity' is required to construct Quality Score ",
@@ -505,17 +524,6 @@ computeQScore <- function(spe, bestLambda=NULL, modelFormula=NULL, verbose=FALSE
         )
     }
 
-    formula_info <- NULL
-    if (!is.null(modelFormula)) {
-        formula_info <- .validateQScoreFormula(
-            modelFormula=modelFormula,
-            dataNames=names(colData(spe)),
-            technology=metadata(spe)$technology
-        )
-    }
-
-    ## Training-label construction is intentionally based on all available,
-    ## supported metrics and remains independent of a user-selected fit formula.
     ctx <- .prepQCContext(spe, metric_list, verbose)
     df <- ctx$df; out_var <- ctx$out_var; tech <- ctx$tech
 
@@ -969,11 +977,15 @@ getModelFormula <- function(formulaVars, verbose=FALSE, ...)
     } else {
         paste(deparse(model_formula, width.cutoff=500L), collapse=" ")
     }
+    training_metrics <- required_variables[
+        required_variables %in% supported
+    ]
     list(
         formula=model_formula,
         text=formula_text,
         variables=required_variables,
-        terms=term_labels
+        terms=term_labels,
+        training_metrics=training_metrics
     )
 }
 

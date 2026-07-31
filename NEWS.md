@@ -18,6 +18,9 @@
 * User-supplied `modelFormula` values are now fitted without adding, removing,
   or rebuilding terms. Supported subsets, additive formulas, and selected
   interactions are preserved.
+* Supported base QC metrics selected by a custom `modelFormula` now determine
+  the outliers, good and bad cells, and `QScore_train` used for model training;
+  omitted metrics no longer contribute to training-label construction.
 * Formula predictors are limited to `log2SignalDensity`, `Area_um`,
   `log2AspectRatio`, and `log2Ctrl_total_ratio`. Unsupported predictors and
   transformations now produce informative errors, and CosMx-only border terms

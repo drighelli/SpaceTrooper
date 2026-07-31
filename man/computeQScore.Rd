@@ -66,12 +66,21 @@ be computed internally, just set a seed with `set.seed()` before running
 - Model formula details: the most complete default formula is:
 `~(log2SignalDensity + Area_um + I(abs(log2AspectRatio) * as.numeric(dist_border < 50)) + log2Ctrl_total_ratio)^2`.
 A user-supplied formula is fitted as supplied: additive structures, selected
-interactions, `:` and `*` are preserved. The formula may use any subset of
-the four supported predictors: `log2SignalDensity`, `Area_um`,
+interactions, `:` and `*` are preserved. The formula must include
+`log2SignalDensity` and may use any subset of the other supported predictors:
+`Area_um`,
 `log2AspectRatio`, and `log2Ctrl_total_ratio`. Arbitrary predictors and
 transformations are rejected. The supported CosMx-only border expression is
-`I(abs(log2AspectRatio) * as.numeric(dist_border < 50))`. Formula selection
-is independent of the supported metrics used to construct training labels.
+`I(abs(log2AspectRatio) * as.numeric(dist_border < 50))`.
+
+When a custom `modelFormula` is supplied, the supported base QC metrics in
+that formula are also used to compute outliers, define good and bad training
+cells, and construct `QScore_train`. Interactions do not create additional
+training metrics. In the supported border expression, `dist_border` is an
+auxiliary variable and `log2AspectRatio` is the corresponding training QC
+metric. Supported metrics omitted from the custom formula do not contribute
+to training-label construction. When `modelFormula=NULL`, the established
+default metric-selection and training-label workflow is unchanged.
 
 The computed model output is stored in `metadata(spe)$QScore_model`.
 For inspection and model coefficient transfer between datasets
