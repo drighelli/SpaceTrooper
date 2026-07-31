@@ -14,7 +14,11 @@ plotCellsFovs(
   size = 0.05,
   alpha = 0.8,
   scaleBar = TRUE,
-  micronConvFact = 0.12
+  micronConvFact = 0.12,
+  pointSize = NULL,
+  pointAlpha = NULL,
+  numberSize = 1,
+  numbersAlpha = NULL
 )
 }
 \arguments{
@@ -27,20 +31,31 @@ Default: `unique(spe$sample_id)`.}
 
 \item{numbersCol}{Color for the FoV labels. Default: `"black"`.}
 
-\item{alphaNumbers}{Numeric transparency for FoV labels. Default: `0.8`.}
+\item{alphaNumbers}{Deprecated alias for `numbersAlpha`.}
 
 \item{fovDim}{numeric with two named dimensions xdim, ydim. (Default is
 metadata(spe)$fov_dim)}
 
-\item{size}{Numeric point size for the cell centroids. Default: `0.05`.}
+\item{size}{Deprecated alias for `pointSize`.}
 
-\item{alpha}{Numeric transparency for the cell centroids. Default: `0.8`.}
+\item{alpha}{Deprecated alias for `pointAlpha`.}
 
 \item{scaleBar}{A logical value indicating whether to add a scale bar to the
 plot. (Default is `TRUE`)}
 
 \item{micronConvFact}{Numeric conversion factor from pixels to microns.
 Default is `0.12`.}
+
+\item{pointSize}{Numeric point size for the cell centroids. If supplied,
+takes precedence over `size`.}
+
+\item{pointAlpha}{Numeric transparency for the cell centroids. If supplied,
+takes precedence over `alpha`.}
+
+\item{numberSize}{Numeric size for the FoV labels. Default: `1`.}
+
+\item{numbersAlpha}{Numeric transparency for FoV labels. If supplied, takes
+precedence over `alphaNumbers`.}
 }
 \value{
 A `ggplot` object showing cell centroids and FoV boundaries.
@@ -55,7 +70,7 @@ metadata in metadata(spe):
 - `metadata(spe)$fov_positions`: a matrix or data.frame
 (or list with named elements) containing at minimum `x_global_px`, `y_global_px`,
 and `fov`. Values `x_global_px`/`y_global_px` are in pixels and represent
-the origin (top-left) of each FoV.
+the origin (bottom-left) of each FoV.
 - `metadata(spe)$fov_dim` (or the `fovDim` argument): a named numeric with
 `xdim` and `ydim` giving FoV width/height in pixels.
 

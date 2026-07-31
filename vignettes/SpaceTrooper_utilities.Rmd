@@ -9,7 +9,7 @@ output:
         toc: true
         toc_float: true
 vignette: >
-    %\VignetteIndexEntry{Imaging-based Spatial Transcriptomics Data Quality Control with SpaceTrooper}
+    %\VignetteIndexEntry{SpaceTrooper utilities overview}
     %\VignetteEncoding{UTF-8}
     %\VignetteEngine{knitr::rmarkdown}
 editor_options:
@@ -18,7 +18,7 @@ editor_options:
 
 ```{r setup, include=FALSE}
 # Set chunk options: suppress echo, messages, and warnings in code output
-knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+knitr::opts_chunk$set(echo=TRUE, message=FALSE, warning=FALSE)
 ```
 
 ## Introduction
@@ -69,7 +69,7 @@ spe <- readCosmxSPE(dirName=cosmxFolder,
                     metadataFPattern="metadata_file.csv",
                     polygonsFPattern="polygons.csv",
                     fovPosFPattern="fov_positions_file.csv",
-                    fovdims=c(xdim = 4256, ydim = 4256)
+                    fovdims=c(xdim=4256, ydim=4256)
 )
 ```
 
@@ -126,7 +126,7 @@ prot <- readCosmxProteinSPE(dirName=protfolder,
                            metadataFPattern="metadata_file.csv", 
                            polygonsFPattern="polygons.csv", 
                            fovPosFPattern="fov_positions_file.csv", 
-                           fovdims=c(xdim = 4256, ydim = 4256)
+                           fovdims=c(xdim=4256, ydim=4256)
 )
 
 # code line for shift correction
@@ -141,7 +141,7 @@ corresponding file name patterns.
 
 **XENIUM**
 
-```{r load-xenium, message = TRUE, warning = TRUE}
+```{r load-xenium, message=TRUE, warning=TRUE}
 xeniumFolder <- system.file( "extdata", "Xenium_small", package="SpaceTrooper")
 
 xen <- readXeniumSPE(dirName=xeniumFolder, 
@@ -196,7 +196,7 @@ file is available, you should provide a vector containing only that format.
 `computeMissingMetrics` is set to TRUE by default and enables the computation of
 `Area_um` and `AspectRatio` cell metrics from boundary polygons. 
 **IMPORTANT**: it is strongly recommended to keep this parameter set to `TRUE` 
-as both metrics are required to run `computeQCScore()`, even if they are not used
+as both metrics are required to run `computeQScore()`, even if they are not used
 in the final formula.
 
 `keepPolygons` controls whether polygons are retained in the `SpatialExperiment` 
@@ -225,9 +225,9 @@ information is extracted. This option is not mandatory and is therefore set to
 `SpatialExperimentIO::readXeniumSXE`, and multiple probe identifier sets could
 be available, Gene Symbols are selected and used as row names.
 
-**MERFISH**
+**MERFISH/MERSCOPE**
 
-```{r load-merfish, message = TRUE, warning= TRUE}
+```{r load-merfish, message=TRUE, warning= TRUE}
 merfishFolder <- system.file("extdata", "Merfish_Tiny", package="SpaceTrooper")
 
 mer <- readMerfishSPE(dirName=merfishFolder, 
@@ -243,7 +243,7 @@ mer <- readMerfishSPE(dirName=merfishFolder,
 ```
 
 As with the other data-reading functions, `readMerfishSPE` requires the path to 
-the directory containing the MERFISH output files. The minimum set of inputs 
+the directory containing the MERFISH  output files. The minimum set of inputs 
 required to run the `SpaceTrooper` pipeline includes:
 
 - expression matrix
@@ -274,7 +274,7 @@ That said, cell volume appears to be a more appropriate measure of cell size for
 QS computation with MERFISH data.
 
 In the current version of `SpaceTrooper`, when `computeMissingMetrics=TRUE`, the
-`volume` is renamed as `Area_um` for compatibility with the `computeQCScore`
+`volume` is renamed as `Area_um` for compatibility with the `computeQScore`
 function, whereas cell area is not computed.
 
 ### Load polygons
@@ -292,7 +292,7 @@ associated with them;
 - stores the resulting `sf` object in a `colData` column whose name can be 
 specified via the `polygonsCol` argument;
 
-```{r load-poly,  message = TRUE}
+```{r load-poly,  message=TRUE}
 # polygon loading
 spe <- readAndAddPolygonsToSPE(spe, 
                                polygonsCol="polygons",
@@ -312,17 +312,17 @@ By default, the `keepMultiPol` parameter is set to `TRUE`. Under this setting,
 cells associated with multi-polygons are retained in the dataset; however, their
 `AspectRatio` is `NA`.  
 
-```{r load-poly-xen,  message = TRUE}
+```{r load-poly-xen,  message=TRUE}
 # xenium polygon loading
 xen <- readAndAddPolygonsToSPE(xen, boundariesType=c("parquet"))
 ```
 
-```{r load-poly-mer,  message = TRUE}
+```{r load-poly-mer,  message=TRUE}
 # merfish polygon loading
 mer <- readAndAddPolygonsToSPE(mer, boundariesType=c("parquet"))
 ```
 
-```{r load-poly-prot,  message = TRUE}
+```{r load-poly-prot,  message=TRUE}
 # protein polygon loading
 prot <- readAndAddPolygonsToSPE(prot, boundariesType=c("csv"))
 ```
@@ -417,17 +417,17 @@ involves underlying stochastic processes.
 
 **IMPORTANT**: when working with recent MERSCOPE datasets, or with any dataset 
 that uses numeric cell identifiers, it is strongly recommended to convert cell 
-IDs to character strings before calling the `computeQCScore` function. This 
+IDs to character strings before calling the `computeQScore` function. This 
 prevents errors during the selection of training examples when estimating the 
 coefficients of the QS formula.
 
-```{r compute-QS,  message = TRUE}
+```{r compute-QS,  message=TRUE}
 # MERSCOPE cell_id conversion
 # spe$cell_id <- as.character(spe$cell_id)
 
 set.seed(1713)
 
-spe <- computeQCScore(spe, verbose=TRUE)
+spe <- computeQScore(spe, verbose=TRUE)
 ```
 
 When `verbose=TRUE`, additional information regarding the underlying steps is 
@@ -471,40 +471,105 @@ all pairwise interactions.
 mandatory metric in the QS formula. If an insufficient number of outliers is
 detected for this metric (fewer than 0.1% of the dataset after excluding
 zero-count cells), QS computation cannot proceed using the remaining metrics.
-In such cases, the provided code will still add a`QC_score` column to `colData`.
+In such cases, the provided code will still add a `QScore` column to `colData`.
 This column is populated if the minimum requirement is met and contains `NA`
 values otherwise.
 
-```{r compute-QS-safe-run,  message = TRUE}
-# safe run function
-safe_run <- function(expr) {
-tryCatch(
-  list(result = expr, error = NULL),
-  error = function(e) list(result = NULL, error = e)
- )
-}
+```{r compute-QS-safe-run,  message=TRUE}
+# safe run using tryCatch directly so errors are caught before evaluation
+out <- tryCatch(
+  list(result=computeQScore(spe), error=NULL),
+  error=function(e) list(result=NULL, error=e)
+)
 
-out <- safe_run(computeQCScore(spe))
 if (!is.null(out$error)) {
 message("Failed: ", out$error$message)
-colData(spe)$QC_score <- NA
+colData(spe)$QScore <- NA
 } else {
 spe <- out$result
 }
 ```
 
+### Compute QS with custom formula
+
+In `computeQScore`, the `modelFormula` parameter allows users to specify which
+metrics to include in the QS formula among the four currently supported:
+`log2SignalDensity`, `Area_um`, `log2AspectRatio`, and
+`log2Ctrl_total_ratio`. The supported border-effect expression is
+`I(abs(log2AspectRatio) * as.numeric(dist_border < 50))`; aspect ratio and
+border effect are available only for CosMx datasets.
+
+The default is `NULL` and the formula is automatically estimated based on the 
+available metrics, their outliers and the dataset technology. The most complete 
+formula is generated as follows:
+
+ `~(log2SignalDensity + Area_um + I(abs(log2AspectRatio) * as.numeric(dist_border < 50)) + log2Ctrl_total_ratio)^2`
+
+When user-provided, the formula is fitted as supplied. It must include
+`log2SignalDensity`; users may select a subset of the other supported metrics,
+use an additive formula, or choose interactions with `:` and `*`. SpaceTrooper
+does not add or remove terms. Predictor and transformation
+validation is separate from formula structure: arbitrary metrics and
+transformations such as `log1p(Area_um)` are rejected. The supported base QC
+metrics present in the custom formula are also used to compute outliers, define
+good and bad training cells, and construct `QScore_train`; supported metrics
+omitted from the formula do not contribute to those labels. Interactions alter
+the fitted model but do not create additional training metrics. In the supported
+CosMx border expression, `log2AspectRatio` is the training QC metric and
+`dist_border` is only an auxiliary variable. With `modelFormula=NULL`, the
+established default metric-selection and training-label workflow is unchanged.
+
+```{r compute-QS-different-formula,  message=TRUE}
+
+set.seed(1713)
+
+model_formula <- "~ log2Ctrl_total_ratio + log2SignalDensity"
+
+spe <- computeQScore(spe, modelFormula=model_formula, verbose=TRUE)
+```
+
+```{r plot-polygons-dbkero}
+plotPolygons(spe, colourBy="QScore") + 
+    scale_fill_viridis_c(option="plasma")
+```
+
+Compared to the plot displayed in [RNA](https://bioconductor.org/packages/devel/bioc/vignettes/SpaceTrooper/inst/doc/RNA_tutorial_vignette.html) vignette,
+QS values are higher for bigger cells and cells located on the FoV borders, as the 
+cell size and border effect contributions are not considered in the QS computation.
+
+### Apply a trained QS model
+
+The fitted model is stored in `metadata(spe)$QScore_model` and can be applied
+with `applyQScoreModel()` to an object containing the required QC metrics.
+Model transfer across datasets is generally discouraged because QS training is
+dataset-specific; when it is necessary, use datasets from the same experiment
+and technology, or train a supported formula that excludes incompatible terms.
+
+```{r apply-QS-model, message=TRUE}
+qs_model <- metadata(spe)$QScore_model
+spe <- applyQScoreModel(
+    spe,
+    qsModel=qs_model,
+    scoreName="QScore_transferred"
+)
+```
+
+The historical `applyQCScoreModel()` interface remains available with a
+deprecation warning and retains `qcModel`, `QC_score`, and
+`QCScore_model_applied` naming.
+
 ### Single metric flagging 
 
 The `SpaceTrooper` package allows the identification of numerically aberrant
 cells through outlier detection for each quantitative metric, using the same
-procedures applied internally by the `computeQCScore` function. This enables
+procedures applied internally by the `computeQScore` function. This enables
 metric-specific cell flagging in a manner analogous to standard scRNA-seq
 quality control workflows.
 
-```{r compute-outliers-1,  message = TRUE, warning = TRUE}
+```{r compute-outliers-1,  message=TRUE, warning=TRUE}
 # detecting outliers for cell area in Xenium dataset with both Medcouple
 # and MAD
-xen <- computeSpatialOutlier(xen, computeBy="Area_um", method = "both")
+xen <- computeSpatialOutlier(xen, computeBy="Area_um", method="both")
 ```
 
 Pay attention to warnings: setting the method to `both`, applies both the
@@ -514,8 +579,8 @@ and `_outlier_sc` to the variable name. If a warning indicates that the variable
 is symmetric, only the `_outlier_sc` column should be used for downstream
 analyses.
 
-```{r compute-outliers-3,  message = TRUE}
-spe <- computeSpatialOutlier(spe, computeBy="Mean.CD68", method = "both")
+```{r compute-outliers-3,  message=TRUE}
+spe <- computeSpatialOutlier(spe, computeBy="Mean.CD68", method="both")
 
 table(spe$Mean.CD68_outlier_mc)
 ```
@@ -534,7 +599,7 @@ corresponding to the upper and lower thresholds, used to define `HIGH` and `LOW`
 outliers, respectively.
 
 ```{r plot-hist-1}
-spe <- computeSpatialOutlier(spe, computeBy="log2SignalDensity", method = "both")
+spe <- computeSpatialOutlier(spe, computeBy="log2SignalDensity", method="both")
 
 plotMetricHist(spe, metric="log2SignalDensity", 
                useFences="log2SignalDensity_outlier_mc")
@@ -549,7 +614,8 @@ by `plotCellsFovs` function.
 
 ```{r plot-zoom-fov-1}
 # plotting FoVs map and zoom in of selected FoV colored by QS
-plotZoomFovsMap(spe, fovs=16, colourBy="QC_score", csize=3, scaleBars=TRUE)
+plotZoomFovsMap(spe, fovs=16, colourBy="QScore", mapPointSize=1, 
+                fovNumberSize=7, scaleBars=TRUE)
 ```
 
 For this plot, `scaleBars` parameter controls whether scale bars are displayed
@@ -557,17 +623,17 @@ in both plots simultaneously. To show the scale bar in only one of the two
 plots, set either `scaleBarMap=FALSE` or `scaleBarPol=FALSE`.
 
 ```{r plot-zoom-fov-2}
-plotZoomFovsMap(prot, fovs = 344, colourBy="Area_um", csize=3, scaleBarMap=TRUE, 
-                scaleBarPol=FALSE)
+plotZoomFovsMap(prot, fovs=344, colourBy="Area_um", mapPointSize=1, 
+                fovNumberSize=7, scaleBarMap=TRUE, scaleBarPol=FALSE)
 ```
 
 For the other plots, the `scaleBar` parameter can be set to `FALSE` to hide the
 scale bar.
 
 ```{r plot-centroids}
-plotCentroids(spe, colourBy="QC_score", size=3, scaleBar=FALSE) +
-    scale_fill_viridis_c(option = "plasma") +
-    scale_color_viridis_c(option = "plasma")
+plotCentroids(spe, colourBy="QScore", size=3, scaleBar=FALSE) +
+    scale_fill_viridis_c(option="plasma") +
+    scale_color_viridis_c(option="plasma")
 ```
 
 ```{r plot-polygons}

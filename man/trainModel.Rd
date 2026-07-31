@@ -11,8 +11,8 @@ trainModel(modelMatrix, trainDF)
 with `getModelFormula` and `model.matrix` functions.}
 
 \item{trainDF}{`data.frame`
-A data frame containing at least the response column
-`qscore_train`, coded as 0/1.}
+A data frame containing `QScore_train` or historical `qcscore_train`,
+coded as 0/1. If both are present, they must agree.}
 }
 \value{
 A \code{\link[glmnet]{glmnet}} model object fitted with
@@ -20,7 +20,7 @@ A \code{\link[glmnet]{glmnet}} model object fitted with
 \eqn{\lambda} values.
 }
 \description{
-Fit a Ridge Logistic Regression Model
+Fits a ridge logistic regression model.
 
 \code{trainModel} fits an L2-regularized (ridge) logistic regression
 using \pkg{glmnet}, given a design matrix and a training data frame.

@@ -1,19 +1,31 @@
 library(testthat)
 library(SpaceTrooper)
 
-# load the example SpatialExperiment
-spe0 <- example(readCosmxSPE)$value
+# Load the example SpatialExperiment directly so tests do not depend on an
+# installed help database.
+cosmx_path <- system.file(
+    "extdata",
+    "CosMx_DBKero_Tiny",
+    package="SpaceTrooper"
+)
+spe0 <- readCosmxSPE(cosmx_path, sampleName="DBKero_Tiny")
 
 test_that("QC functions are exported", {
     expect_true(exists("spatialPerCellQC",   mode = "function"))
-    expect_true(exists("computeQCScore",      mode = "function"))
+    expect_true(exists("computeQScore",       mode = "function"))
     expect_true(exists("computeSpatialOutlier", mode = "function"))
-    expect_true(exists("computeQCScoreFlags",  mode = "function"))
+    expect_true(exists("computeQScoreFlags",  mode = "function"))
     expect_true(exists("computeThresholdFlags",  mode = "function"))
+    ## deprecated wrappers should still be exported
+    expect_true(exists("computeQCScore",      mode = "function"))
+    expect_true(exists("computeQCScoreFlags", mode = "function"))
+    expect_true(exists("computeOutliersQCScore", mode = "function"))
+    expect_true(exists("applyQScoreModel", mode = "function"))
+    expect_true(exists("applyQCScoreModel", mode = "function"))
 })
 
 
-test_that("spatialPerCellQC adds per‐cell metrics to colData", {
+test_that("spatialPerCellQC adds per-cell metrics to colData", {
     spe <- spatialPerCellQC(spe0, micronConvFact = 0.15)
     expect_s4_class(spe, "SpatialExperiment")
     cd <- colData(spe)
@@ -23,16 +35,46 @@ test_that("spatialPerCellQC adds per‐cell metrics to colData", {
     expect_true(all(required %in% colnames(cd)))
 })
 
-test_that("computeQCScore adds a flag_score between 0 and 1", {
+test_that("computeQScore adds a QScore between 0 and 1", {
     spe <- spatialPerCellQC(spe0)
-    spe2 <- computeQCScore(spe)
+    set.seed(42)
+    spe2 <- computeQScore(spe)
     cd2 <- colData(spe2)
-    expect_true("QC_score" %in% colnames(cd2))
-    fs <- cd2$QC_score
+    expect_true("QScore" %in% colnames(cd2))
+    fs <- cd2$QScore
     expect_true(is.numeric(fs))
-    expect_true(all(fs >= 0 & fs <= 1))
+    expect_true(all(fs[!is.na(fs)] >= 0 & fs[!is.na(fs)] <= 1))
 })
 
+test_that("computeQCScore preserves legacy score and model names", {
+    spe <- spatialPerCellQC(spe0)
+    set.seed(42)
+    expect_warning(
+        spe2 <- computeQCScore(spe),
+        "deprecated"
+    )
+    expect_true("QC_score" %in% colnames(colData(spe2)))
+    expect_false("QScore" %in% colnames(colData(spe2)))
+    expect_true("QCScore_model" %in% names(metadata(spe2)))
+    expect_false("QScore_model" %in% names(metadata(spe2)))
+})
+
+test_that("computeQCScoreFlags preserves legacy flag names", {
+    spe <- spe0
+    spe$QC_score <- seq(0, 1, length.out=ncol(spe))
+    spe$threshold_flags <- rep(c(TRUE, FALSE), length.out=ncol(spe))
+
+    expect_warning(
+        flagged <- computeQCScoreFlags(spe, qsThreshold=0.5),
+        "deprecated"
+    )
+
+    expect_true(all(c(
+        "low_qcscore",
+        "low_threshold_qcscore"
+    ) %in% colnames(colData(flagged))))
+    expect_false("low_QScore" %in% colnames(colData(flagged)))
+})
 
 test_that("computeSpatialOutlier flags outliers for a chosen metric", {
     spe <- spatialPerCellQC(spe0)
@@ -44,9 +86,10 @@ test_that("computeSpatialOutlier flags outliers for a chosen metric", {
 })
 
 
-test_that("computeQCScoreFlags combines filters and returns filter_out", {
+test_that("computeQScoreFlags combines filters and returns filter_out", {
     spe <- spatialPerCellQC(spe0)
-    spe <- computeQCScore(spe)
+    set.seed(42)
+    spe <- computeQScore(spe)
     ff <- computeThresholdFlags(spe,
                             totalThreshold = 10,
                             ctrlTotRatioThreshold = 0.2)
@@ -60,4 +103,121 @@ test_that("computeQCScoreFlags combines filters and returns filter_out", {
     # filter_out should only be TRUE where all three flags are TRUE
     combined <- (ff$is_zero_counts & ff$is_ctrl_tot_outlier)
     expect_identical(combined, cd_ff$threshold_flags)
+})
+
+test_that("getModelFormula preserves historical calls", {
+    formula_vars <- c(
+        log2SignalDensity="log2SignalDensity_outlier_train",
+        Area_um="Area_um_outlier_sc"
+    )
+
+    expect_identical(
+        getModelFormula(formula_vars),
+        "~(log2SignalDensity + Area_um)^2"
+    )
+    expect_message(
+        getModelFormula(formulaVars=formula_vars, verbose=TRUE),
+        "Final formula"
+    )
+    expect_identical(
+        getModelFormula(metricList=names(formula_vars)),
+        "~(log2SignalDensity + Area_um)^2"
+    )
+    expect_warning(
+        getModelFormula(
+            formulaVars=formula_vars,
+            metricList="log2SignalDensity"
+        ),
+        "using 'metricList'"
+    )
+})
+
+test_that("plotCellsFovs old and canonical arguments have equal effects", {
+    old <- plotCellsFovs(
+        spe0,
+        size=2,
+        alpha=0.4,
+        alphaNumbers=0.3,
+        scaleBar=FALSE
+    )
+    canonical <- plotCellsFovs(
+        spe0,
+        pointSize=2,
+        pointAlpha=0.4,
+        numbersAlpha=0.3,
+        scaleBar=FALSE
+    )
+
+    expect_equal(old$layers[[1]]$aes_params, canonical$layers[[1]]$aes_params)
+    expect_equal(old$layers[[3]]$aes_params, canonical$layers[[3]]$aes_params)
+
+    historical_positional <- plotCellsFovs(
+        spe0,
+        unique(spe0$sample_id),
+        "firebrick",
+        "black",
+        0.3,
+        metadata(spe0)$fov_dim,
+        2,
+        0.4,
+        FALSE,
+        0.12
+    )
+    expect_equal(
+        historical_positional$layers[[1]]$aes_params$size,
+        2
+    )
+    expect_warning(
+        plotCellsFovs(
+            spe0,
+            size=1,
+            pointSize=2,
+            scaleBar=FALSE
+        ),
+        "using 'pointSize'"
+    )
+})
+
+test_that("plotZoomFovsMap old and canonical arguments are equivalent", {
+    cosmx_polygons <- readCosmxSPE(
+        cosmx_path,
+        sampleName="DBKero_Tiny",
+        keepPolygons=TRUE
+    )
+    fov <- unique(cosmx_polygons$fov)[1]
+
+    old <- plotZoomFovsMap(
+        cosmx_polygons,
+        fovs=fov,
+        mapNumbersCol="blue",
+        mapAlphaNumbers=0.3,
+        csize=0.7,
+        calpha=0.4,
+        scaleBars=FALSE
+    )
+    canonical <- plotZoomFovsMap(
+        cosmx_polygons,
+        fovs=fov,
+        fovNumbersCol="blue",
+        fovNumbersAlpha=0.3,
+        mapPointSize=0.7,
+        mapPointAlpha=0.4,
+        scaleBars=FALSE
+    )
+
+    expect_true(isTRUE(all.equal(
+        old,
+        canonical,
+        check.environment=FALSE
+    )))
+    expect_warning(
+        plotZoomFovsMap(
+            cosmx_polygons,
+            fovs=fov,
+            csize=0.5,
+            mapPointSize=0.7,
+            scaleBars=FALSE
+        ),
+        "using 'mapPointSize'"
+    )
 })

@@ -8,13 +8,13 @@ computeLambda(trainDF, modelFormula)
 }
 \arguments{
 \item{trainDF}{`data.frame`
-A data frame for training that must include:
+A data frame for QS model training that must include:
   Predictor columns: All columns referenced in the formula returned by `getModelFormula()`.
-  `qscore_train` A binary (0/1) response vector to be modeled.}
+  `QScore_train` or historical `qcscore_train`, containing the binary
+  (0/1) response to be modeled.}
 
-\item{modelFormula}{`character`
-A character string representing the model formula
- `~ log2SignalDensity + ...`, as returned by `getModelFormula()`.}
+\item{modelFormula}{A one-sided formula or character string describing the
+supported predictor terms.}
 }
 \value{
 `numeric`
@@ -22,22 +22,22 @@ A character string representing the model formula
   `cv.glmnet` that minimizes the cross-validation error.
 }
 \description{
-Compute Optimal Ridge Regularization Parameter \eqn{\lambda} via
-Cross-Validation
+Computes optimal ridge regularization parameter \eqn{\lambda} via
+k-fold cross-validation.
 
 \code{computeLambda} performs ridge (L2) logistic regression with
-cross-validation to identify the optimal regularization parameter
-\eqn{\lambda} for a binary response.
+k-fold cross-validation to identify the optimal regularization parameter
+\eqn{\lambda} for Quality Score (QS) model training.
 }
 \details{
-Internally, the function:
-  Constructs the design matrix via \code{model.matrix()},
-  Runs ridge logistic regression cross-validation using `cv.glmnet` with `alpha = 0`,
-  Extracts and returns `ridge_cv$lambda.min`.
+Complete cases for the formula variables and response are retained. The
+function constructs a model matrix and passes it to an internal
+matrix-based implementation that runs ridge logistic-regression
+cross-validation using `cv.glmnet` with `alpha = 0`.
 }
 \examples{
 example(computeTrainDF)
-modform <- getModelFormula(metadata(spe)$formula_variables)
+modform <- getModelFormula(names(metadata(spe)$formula_variables))
 best_lambda <- computeLambda(df_train, modform)
 print(best_lambda)
 

@@ -9,9 +9,9 @@ computeTrainDF(colData, formulaVars, tech, verbose = FALSE)
 \arguments{
 \item{colData}{A per-cell metadata table. Typically
 `as.data.frame(colData(spe))`. Must include at least:
-`cell_id`, raw metric columns named in `formulaVars` (e.g.
+`cell_id`, raw metric columns named as in `formulaVars` (e.g.
 `log2SignalDensity`, `Area_um`, `log2Ctrl_total_ratio`,
-optionally `log2AspectRatio`), and the corresponding outlier-label
+optionally `log2AspectRatio` and `dist_border`), and the corresponding outlier-label
 columns referenced by `formulaVars`.}
 
 \item{formulaVars}{A named character vector mapping variable name to
@@ -19,7 +19,7 @@ its outlier label column name, e.g.
 `c(log2SignalDensity="log2SignalDensity_outlier_train", ...)`.}
 
 \item{tech}{Character string with the acquisition technology. Used to
-enable CosMx-specific handling for `log2AspectRatio`. Expected
+enable CosMx-specific inclusion of border effect. Expected
 values include `"Nanostring_CosMx"` or `"Nanostring_CosMx_Protein"`.}
 
 \item{verbose}{`logical(1)` (default \code{FALSE})
@@ -27,12 +27,13 @@ If \code{TRUE}, prints the number of “bad” and “good” cells selected.}
 }
 \value{
 A \code{data.frame} with one row per cell, including:
+  \code{QScore_train} and its compatibility alias
   \code{qcscore_train} (0/1) indicating “bad” vs “good”,
   relevant \code{colData} columns used for modeling.
   Deduplicates and down-samples “good” cells to match the number of “bad” cells.
 }
 \description{
-Build a Balanced Training Data Frame from a SpatialExperiment
+Builds a balanced training data frame from a SpatialExperiment.
 
 \code{computeTrainDF} takes a \code{SpatialExperiment} object
 and assembles a balanced training set of “good” vs “bad” cells for
@@ -44,10 +45,10 @@ in the `metadata` of the `SpatialExperiment` object.
 }
 \examples{
 example(spatialPerCellQC)
-spe <- computeOutliersQCScore(spe)
+spe <- computeOutliersQScore(spe)
 spe <- checkOutliers(spe)
 df_train <- computeTrainDF(colData(spe), metadata(spe)$formula_variables,
     metadata(spe)$technology)
-table(df_train$qcscore_train)
+table(df_train$QScore_train)
 
 }

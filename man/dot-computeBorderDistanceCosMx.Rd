@@ -13,16 +13,16 @@
 \arguments{
 \item{spe}{A `SpatialExperiment` object with CosMx data.}
 
-\item{xwindim}{Width of FOV in x (default from `metadata(spe)$fov_dim`).}
+\item{xwindim}{Width of FOV along x axis (default from `metadata(spe)$fov_dim`).}
 
-\item{ywindim}{Height of FOV in y (default from `metadata(spe)$fov_dim`).}
+\item{ywindim}{Height of FOV along y axis (default from `metadata(spe)$fov_dim`).}
 }
 \value{
-A `SpatialExperiment` object with `dist_border` columns in
+A `SpatialExperiment` object with `dist_border` column in
 `colData`.
 }
 \description{
-Calculates the minimum distance of each cell to the field‐of‐view border
-and adds it to `colData`.
+Calculates the minimum distance of each cell to the Field‐Of‐View (FOV) 
+border and adds it to `colData`.
 }
 \keyword{internal}

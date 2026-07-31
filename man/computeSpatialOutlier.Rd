@@ -13,43 +13,39 @@ computeSpatialOutlier(
 )
 }
 \arguments{
-\item{spe}{a SpatialExperiment object with target_counts, area in micron
-and log2 of the aspect ratio in the `colData`.}
+\item{spe}{a SpatialExperiment object with quantitative cell metrics in the `colData`.}
 
-\item{computeBy}{character indicating a `colData` column name on which
-compute the outlier.}
+\item{computeBy}{character indicating a `colData` column name to compute the outliers on.}
 
 \item{method}{one of `mc`, `scuttle`, `both`.
-Use `mc` for medcouple, `scuttle` for median absolute deviations as computed
-in `scuttle`, `both` for computing both of them.}
+Use `mc` for medcouple, `scuttle` for MAD as computed in `scuttle`, `both` 
+for computing both of them.}
 
-\item{mcDoScale}{logical indicating if the values to compute the medcouple
-for the outlier detection should be scaled (default is FALSE, as suggested
-by the original Medcouple authors.). See \link[robustbase]{mc} for further
-readings.}
+\item{mcDoScale}{logical indicating if the metric values should be scaled 
+to compute medcouple (default is FALSE, as suggested by the original medcouple 
+authors). See \link[robustbase]{mc} for further readings.}
 
 \item{scuttleType}{One of `"both"`, `"lower"`, `"higher"` for scuttle method.}
 }
 \value{
 a SpatialExperiment object with additional column(s) (named as
-the column name indicated in `column_by` followed by the outlier_sc/mc
-nomenclature) with the outlier detection as `outlier.filter` logical class
-object. This allows to store the thresholds as attributes of the column.
-use attr(,"thresholds") to retrieve them.
+the column name indicated in `computeBy` followed by the outlier_sc/mc).
+Resulting columns are `outlier.filter` logical class objects, allowing to store 
+the thresholds as attributes of the columns.
+Use attr(,"thresholds") to retrieve them.
 }
 \description{
-Computes outliers based on the Area (in micron) of the experiment.
-It gives the possibility to choose between the medcouple (mc method argument)
-and the MADs (scuttle method argument).
+Computes outliers for quantitative cell metadata based on a statistical test:
+medcouple (`mc` method argument) or the Median Absolute Deviation (MAD, `scuttle` 
+method argument), when the metric distribution is respectively asymmetric or symmetric.
 }
 \details{
 The medcouple method is a measure for the skeweness of univariate
 distribution as described in Hubert M. et al. (2008).
 In particular, the computed medcouple value must be in a range between -0.6
-and 0.6 to computed adjusted boxplots and perform the outlier detection.
-For median absolute deviations (MADs) method we just wrap the isOutlier
-function in the scuttle package. Please see McCarthy DJ et al (2017)
-for further details.
+and 0.6 to compute adjusted boxplots and perform the outlier detection.
+For MAD method we just wrap the isOutlier function in the scuttle package. 
+Please see McCarthy DJ et al (2017) for further details.
 }
 \examples{
 example(spatialPerCellQC)

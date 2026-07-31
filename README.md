@@ -117,18 +117,29 @@ spe <- readAndAddPolygonsToSPE(spe, boundariesType="csv")
 spe <- spatialPerCellQC(spe)
 
 # 4. Compute QS and, optionally, flag cells with a score higher than 'qsThreshold'.
-spe <- computeQCScore(spe)
-spe <- computeQCScoreFlags(spe, qsThreshold=0.5)
+spe <- computeQScore(spe)
+spe <- computeQScoreFlags(spe, qsThreshold=0.5)
 
 # 5. Visualization
 ## Visualize cells as dots in their centroid coordinates, colored by a column in `colData(spe)` (e.g., QS computed above).
-plotCentroids(spe, colourBy='QC_score')
+plotCentroids(spe, colourBy="QScore")
 
 ## Visualize cells using their polygon shapes, colored by a column in `colData(spe)` (e.g., QS computed above).
 ## To visualize polygons step 2 is mandatory.
 ## Polygons can be cumbersome to plot for large datasets (e.g., entire slides with more than 100,000 cells), hence centroids may be preferred. 
-plotPolygons(spe, colourBy='QC_score')
+plotPolygons(spe, colourBy="QScore")
 ```
+
+Custom `modelFormula` values may select any subset of the supported predictors
+`log2SignalDensity`, `Area_um`, `log2AspectRatio`, and
+`log2Ctrl_total_ratio`. Additive formulas and selected interactions are
+preserved exactly; unsupported predictors and transformations are rejected.
+The border-effect expression is available only for CosMx data:
+`I(abs(log2AspectRatio) * as.numeric(dist_border < 50))`.
+
+The former `computeQCScore()`, `computeQCScoreFlags()`,
+`computeOutliersQCScore()`, and `applyQCScoreModel()` APIs remain available as
+deprecated compatibility functions and retain their historical output names.
 <br/><br/>
 
 
@@ -156,7 +167,8 @@ Refer to the first vignette if working with CosMx, Xenium or MERFISH spatial tra
 Function-level help is available through standard R documentation, for example:
 
 ```r
-?computeQCScore
+?computeQScore
+?SpaceTrooper-deprecated
 ?plotPolygons
 ```
 

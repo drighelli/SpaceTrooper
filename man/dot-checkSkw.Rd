@@ -15,7 +15,7 @@
 \item{cd}{colData of `SpatialExperiment` object.}
 
 \item{metricList}{A character vector specifying the metrics to include in
-the QC score formula. Defaults are "log2SignalDensity", "Area_um",
+the Quality Score formula. Defaults are "log2SignalDensity", "Area_um",
 "log2AspectRatio", "log2Ctrl_total_ratio".}
 }
 \value{
@@ -23,6 +23,6 @@ A vector containing the list of chosen outlier detection method for each
 metric.
 }
 \description{
-Check skewness of metrics to choose outlier detection method.
+Internal: checks skewness of metrics to choose outlier detection method.
 }
 \keyword{internal}
