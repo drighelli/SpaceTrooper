@@ -1,3 +1,7 @@
+# Changes in version 1.3.3
+
+* minor changes in vignettes to get lighter images
+
 # Changes in version 1.3.2
 
 * Updaging vignette with details on xenium_small dataset
