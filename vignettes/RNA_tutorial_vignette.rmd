@@ -56,10 +56,13 @@ spe
 ```
 
 In addition, we provide the code for loading **Xenium**, and **MERFISH** example
-data. Please, note that for these technologies the parameters are configured to 
-automatically load polygons and compute missing metrics, so these steps don't 
-need to be run again. To proceed with these technologies, skip directly to
-[Add QC metrics](#add-qc-metrics).
+data. Please, note that for these technologies the parameters are configured to
+automatically load polygons and compute missing metrics, so these steps don't
+need to be run again. These demo datasets are intended solely to illustrate how
+to load data from these technologies into a `SpatialExperiment` object and are
+not intended for running the entire pipeline. However, the subsequent pipeline steps
+can be applied to other Xenium and MERFISH datasets, following the same workflow
+demonstrated for the CosMx DBKERO dataset, starting from the [Add QC metrics](#add-qc-metrics).
 
 ```{r load-xenmer}
 xeniumFolder <- system.file( "extdata", "Xenium_small", package="SpaceTrooper")
